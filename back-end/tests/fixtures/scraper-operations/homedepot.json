@@ -1,0 +1,175 @@
+{
+  "status": "fixture_only_not_qualified",
+  "evidence": {
+    "sourceSha256": "1052e82ad96a751c2d32e48173bdf82251099741b9919c6677e5c790d358a954",
+    "kind": "owner_supplied_success_snapshot_projection",
+    "limitations": [
+      "Partial observed field projection, not a complete provider schema.",
+      "No error or asynchronous fixtures supplied.",
+      "Provider execution capabilities and input boundaries require independent qualification.",
+      "20 inputs and 1000 output records are offline Dhumi test caps, not Bright Data limits.",
+      "Walmart empty optional fields do not establish their non-empty types."
+    ]
+  },
+  "contract": {
+    "operationCode": "homedepot.products.collect_by_url",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targets"
+      ],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 8192
+              },
+              "zipcode": {
+                "type": "string"
+              },
+              "store_number": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "outputSchema": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "product_name",
+          "final_price",
+          "availability"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "final_price": {
+            "type": "string"
+          },
+          "availability": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "processing": {
+      "version": 1,
+      "revision": 1,
+      "urls": [
+        {
+          "field": "url",
+          "hosts": [
+            "www.homedepot.com"
+          ],
+          "pathPrefixes": [
+            "/p/"
+          ],
+          "allowFragment": false
+        }
+      ],
+      "request": {
+        "endpoint": "scrape",
+        "mode": "collect",
+        "fields": [
+          "url",
+          "zipcode",
+          "store_number"
+        ],
+        "snapshot": {
+          "enabled": true,
+          "cancelEnabled": false,
+          "multipartEnabled": false,
+          "format": "json"
+        }
+      },
+      "projectedFields": [
+        "url",
+        "product_name",
+        "final_price",
+        "availability"
+      ],
+      "schemaVersion": "homedepot.products.fixture-output.v1",
+      "usage": {
+        "meterCode": "homedepot.result_records.observed",
+        "unit": "records"
+      },
+      "maxRecords": 1000
+    }
+  },
+  "input": {
+    "targets": [
+      {
+        "url": "https://www.homedepot.com/p/Everbilt-2-1-2-in-Beige-Square-Self-Adhesive-Plastic-Heavy-Duty-Furniture-Slider-Glides-for-Carpeted-Floors-4-Pack-4701244EB/203672156",
+        "zipcode": "10001"
+      },
+      {
+        "url": "https://www.homedepot.com/p/Everbilt-2-1-2-in-Beige-Square-Self-Adhesive-Plastic-Heavy-Duty-Furniture-Slider-Glides-for-Carpeted-Floors-4-Pack-4701244EB/203672156",
+        "store_number": 6140,
+        "zipcode": "10065"
+      }
+    ]
+  },
+  "expectedTargets": [
+    {
+      "url": "https://www.homedepot.com/p/Everbilt-2-1-2-in-Beige-Square-Self-Adhesive-Plastic-Heavy-Duty-Furniture-Slider-Glides-for-Carpeted-Floors-4-Pack-4701244EB/203672156",
+      "zipcode": "10001"
+    },
+    {
+      "url": "https://www.homedepot.com/p/Everbilt-2-1-2-in-Beige-Square-Self-Adhesive-Plastic-Heavy-Duty-Furniture-Slider-Glides-for-Carpeted-Floors-4-Pack-4701244EB/203672156",
+      "store_number": 6140,
+      "zipcode": "10065"
+    }
+  ],
+  "records": [
+    {
+      "url": "https://www.homedepot.com/p/Everbilt-2-1-2-in-Beige-Square-Self-Adhesive-Plastic-Heavy-Duty-Furniture-Slider-Glides-for-Carpeted-Floors-4-Pack-4701244EB/203672156",
+      "product_name": "2-1/2 in. Beige Square Self-Adhesive Plastic Heavy Duty Furniture Slider Glides for Carpeted Floors (4-Pack)",
+      "final_price": "6.47",
+      "availability": "in_stock"
+    },
+    {
+      "url": "https://www.homedepot.com/p/Everbilt-2-1-2-in-Beige-Square-Self-Adhesive-Plastic-Heavy-Duty-Furniture-Slider-Glides-for-Carpeted-Floors-4-Pack-4701244EB/203672156",
+      "product_name": "2-1/2 in. Beige Square Self-Adhesive Plastic Heavy Duty Furniture Slider Glides for Carpeted Floors (4-Pack)",
+      "final_price": "6.47",
+      "availability": "in_stock"
+    }
+  ],
+  "expectedNormalized": [
+    {
+      "url": "https://www.homedepot.com/p/Everbilt-2-1-2-in-Beige-Square-Self-Adhesive-Plastic-Heavy-Duty-Furniture-Slider-Glides-for-Carpeted-Floors-4-Pack-4701244EB/203672156",
+      "product_name": "2-1/2 in. Beige Square Self-Adhesive Plastic Heavy Duty Furniture Slider Glides for Carpeted Floors (4-Pack)",
+      "final_price": "6.47",
+      "availability": "in_stock"
+    },
+    {
+      "url": "https://www.homedepot.com/p/Everbilt-2-1-2-in-Beige-Square-Self-Adhesive-Plastic-Heavy-Duty-Furniture-Slider-Glides-for-Carpeted-Floors-4-Pack-4701244EB/203672156",
+      "product_name": "2-1/2 in. Beige Square Self-Adhesive Plastic Heavy Duty Furniture Slider Glides for Carpeted Floors (4-Pack)",
+      "final_price": "6.47",
+      "availability": "in_stock"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+# Both back-end/ and front-end/ are part of the developer handover.
+# Ignore rules do not untrack files already in Git; review the index separately.
+
+# Secrets — never commit real values. Example files must contain placeholders only.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+# Dependencies, build output and generated tooling caches
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+index.scip
+graphify-out/
+
+# Generated test reports, not test sources or fixtures
+test-reports/
+test-results/
+playwright-report/
+
+# Private planning and local-only workspaces — not part of the GitHub project.
+/Project Specs/
+/API-Design-Skill/
+/Checkpoints/
+
+# Local agent and audit work products.
+/AGENT.md
+/.ai/
+/.audits/
+/-f
+
+# Local runtime evidence can contain transient sessions and signed URLs.
+/back-end/.runtime/
+/back-end/scripts/audit/output/
+/back-end/tests/privileged/**/evidence/
+/back-end/*-proof.txt
+/back-end/.blarignore
+
+# Private manual database configuration; portable bootstrap scripts remain eligible.
+/back-end/Script Demo Test/db/config.md
+
+# Keep architecture, decisions and runbooks eligible for Git.
+# Restricted evidence is local-only unless explicitly reviewed and allowed here.
+/docs/evidence/*
+!/docs/evidence/.gitkeep
+!/docs/evidence/README.md
+
+# Logs and OS noise
+*.log
+.DS_Store
+Thumbs.db
+
+# Local review exports are derived copies, never the runtime system of record.
+**/Outputs/*
+!/Outputs/README.md
+
+# Local database and emulator state. Keep migrations and bootstrap SQL tracked.
+*.dump
+*.backup
+*.bak
+*.pgerd
+**/pgdata/
+**/postgres-data/
+**/mssql-data/
+**/.postgres/
+**/.azurite/
+**/__blobstorage__/
+**/__queuestorage__/
+**/__tablestorage__/
+**/azurite-debug.log
+**/dump.rdb
+**/appendonly.aof
+**/appendonlydir/

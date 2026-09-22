@@ -1,0 +1,4 @@
+# Private Bright Data provider evidence — never commit.
+*
+!.gitignore
+!README.md

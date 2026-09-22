@@ -1,0 +1,23 @@
+# Normalize line endings so tracked documents diff cleanly on every platform.
+* text=auto
+
+# Two trailing spaces are a Markdown hard line break, and copied provider
+# evidence must stay byte-faithful, so blank-at-eol is not flagged here.
+*.md    text eol=lf whitespace=-blank-at-eol
+*.ts    text eol=lf
+*.sql   text eol=lf
+back-end/scripts/migrations/0027_run_list_service_filter.sql whitespace=-blank-at-eof
+*.json  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.csv   text eol=lf
+*.html  text eol=lf
+
+# Windows tooling keeps CRLF.
+*.ps1   text eol=crlf
+
+# Never touch binaries.
+*.png   binary
+*.pdf   binary
+*.docx  binary
+*.pgerd binary

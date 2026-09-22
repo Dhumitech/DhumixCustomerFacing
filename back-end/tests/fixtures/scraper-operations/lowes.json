@@ -1,0 +1,156 @@
+{
+  "status": "fixture_only_not_qualified",
+  "evidence": {
+    "sourceSha256": "6d62e6faab7a16c8402d2a03029a17b90b4b14b2eb906496b269e4203fae6ca4",
+    "kind": "owner_supplied_success_snapshot_projection",
+    "limitations": [
+      "Partial observed field projection, not a complete provider schema.",
+      "No error or asynchronous fixtures supplied.",
+      "Provider execution capabilities and input boundaries require independent qualification.",
+      "20 inputs and 1000 output records are offline Dhumi test caps, not Bright Data limits.",
+      "Walmart empty optional fields do not establish their non-empty types."
+    ]
+  },
+  "contract": {
+    "operationCode": "lowes.products.collect_by_url",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targets"
+      ],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 8192
+              },
+              "location": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "outputSchema": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "product_name",
+          "final_price",
+          "availability"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "final_price": {
+            "type": "number"
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "processing": {
+      "version": 1,
+      "revision": 1,
+      "urls": [
+        {
+          "field": "url",
+          "hosts": [
+            "www.lowes.com"
+          ],
+          "pathPrefixes": [
+            "/pd/"
+          ],
+          "allowFragment": false
+        }
+      ],
+      "request": {
+        "endpoint": "scrape",
+        "mode": "collect",
+        "fields": [
+          "url",
+          "location"
+        ],
+        "snapshot": {
+          "enabled": true,
+          "cancelEnabled": false,
+          "multipartEnabled": false,
+          "format": "json"
+        }
+      },
+      "projectedFields": [
+        "url",
+        "product_name",
+        "final_price",
+        "availability"
+      ],
+      "schemaVersion": "lowes.products.fixture-output.v1",
+      "usage": {
+        "meterCode": "lowes.result_records.observed",
+        "unit": "records"
+      },
+      "maxRecords": 1000
+    }
+  },
+  "input": {
+    "targets": [
+      {
+        "url": "https://www.lowes.com/pd/Filtrete-2-Pack-1085-MPR-Micro-Allergen-Extra-Common-16-in-x-25-in-x-1-in-Actual-15-7-in-x-24-7-in-x-0-8125-in-Electrostatic-Pleated-Air-Filter/3123819",
+        "location": "04769"
+      }
+    ]
+  },
+  "expectedTargets": [
+    {
+      "url": "https://www.lowes.com/pd/Filtrete-2-Pack-1085-MPR-Micro-Allergen-Extra-Common-16-in-x-25-in-x-1-in-Actual-15-7-in-x-24-7-in-x-0-8125-in-Electrostatic-Pleated-Air-Filter/3123819",
+      "location": "04769"
+    }
+  ],
+  "records": [
+    {
+      "url": "https://www.lowes.com/pd/Filtrete-2-Pack-1085-MPR-Micro-Allergen-Extra-Common-16-in-x-25-in-x-1-in-Actual-15-7-in-x-24-7-in-x-0-8125-in-Electrostatic-Pleated-Air-Filter/3123819",
+      "product_name": "Filtrete 16 x 25 x 1 MERV 11 1085 MPR Allergens Pet Dander Electrostatic Pleated Air Filter 2 -Pack",
+      "final_price": 23.97,
+      "availability": [
+        "Available"
+      ]
+    }
+  ],
+  "expectedNormalized": [
+    {
+      "url": "https://www.lowes.com/pd/Filtrete-2-Pack-1085-MPR-Micro-Allergen-Extra-Common-16-in-x-25-in-x-1-in-Actual-15-7-in-x-24-7-in-x-0-8125-in-Electrostatic-Pleated-Air-Filter/3123819",
+      "product_name": "Filtrete 16 x 25 x 1 MERV 11 1085 MPR Allergens Pet Dander Electrostatic Pleated Air Filter 2 -Pack",
+      "final_price": 23.97,
+      "availability": [
+        "Available"
+      ]
+    }
+  ]
+}

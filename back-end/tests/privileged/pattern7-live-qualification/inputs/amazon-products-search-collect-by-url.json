@@ -1,0 +1,9 @@
+{
+  "targets": [
+    {
+      "keyword": "X-box",
+      "url": "https://www.amazon.com/",
+      "pages_to_search": 1
+    }
+  ]
+}

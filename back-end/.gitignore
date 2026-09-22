@@ -1,0 +1,50 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Runtime state and generated local evidence.
+.runtime/
+test-reports/
+index.scip
+-f
+
+# Database and local Azure emulator data. SQL migrations remain tracked.
+*.dump
+*.backup
+*.bak
+*.pgerd
+pgdata/
+postgres-data/
+mssql-data/
+.postgres/
+.azurite/
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
+azurite-debug.log
+dump.rdb
+appendonly.aof
+appendonlydir/
+
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+.DS_Store
+Thumbs.db
+
+# Manual verification server logs
+scripts/smoke/*.log
+
+# Generated local analysis and test output
+scripts/audit/output/
+scripts/smoke/verify-rows.mjs
+tests/privileged/**/evidence/

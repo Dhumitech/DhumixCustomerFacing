@@ -1,0 +1,19 @@
+/** Public, versioned Problem codes accepted by the Dhumi OpenAPI contract. */
+export const PUBLIC_PROBLEM_CODES = [
+  "BAD_REQUEST",
+  "AUTHENTICATION_REQUIRED",
+  "ACCESS_DENIED",
+  "RESOURCE_NOT_FOUND",
+  "IDEMPOTENCY_CONFLICT",
+  "IDEMPOTENCY_REPLAY_EXPIRED",
+  "STATE_CONFLICT",
+  "PAYLOAD_TOO_LARGE",
+  "UNSUPPORTED_MEDIA_TYPE",
+  "VALIDATION_ERROR",
+  "SERVICE_INPUT_INVALID",
+  "PLATFORM_CAPACITY_LIMIT",
+  "INTERNAL_ERROR",
+  "SERVICE_UNAVAILABLE",
+] as const;
+
+export type PublicProblemCode = (typeof PUBLIC_PROBLEM_CODES)[number];

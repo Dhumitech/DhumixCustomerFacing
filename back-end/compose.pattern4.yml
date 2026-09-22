@@ -1,0 +1,68 @@
+name: dhumi-pattern4
+
+services:
+  redis:
+    image: redis:8.2.1-alpine
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    ports:
+      - "127.0.0.1:${PATTERN4_REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: ${PATTERN4_ACCEPT_EULA:-N}
+      MSSQL_SA_PASSWORD: ${PATTERN4_MSSQL_SA_PASSWORD:-}
+    volumes:
+      - pattern4-servicebus-sql-data:/var/opt/mssql
+    networks:
+      pattern4-servicebus:
+        aliases:
+          - mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$${MSSQL_SA_PASSWORD}" -Q "SELECT 1" -b -o /dev/null
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  servicebus-emulator:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    volumes:
+      - ./infra/pattern4/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro
+    ports:
+      - "127.0.0.1:${PATTERN4_SERVICEBUS_AMQP_PORT:-5672}:5672"
+      - "127.0.0.1:${PATTERN4_SERVICEBUS_HTTP_PORT:-5300}:5300"
+    environment:
+      ACCEPT_EULA: ${PATTERN4_ACCEPT_EULA:-N}
+      SQL_SERVER: mssql
+      MSSQL_SA_PASSWORD: ${PATTERN4_MSSQL_SA_PASSWORD:-}
+      EMULATOR_HTTP_PORT: 5300
+      SQL_WAIT_INTERVAL: 10
+    depends_on:
+      mssql:
+        condition: service_healthy
+    networks:
+      pattern4-servicebus:
+        aliases:
+          - servicebus-emulator
+    restart: unless-stopped
+
+networks:
+  pattern4-servicebus:
+
+volumes:
+  pattern4-servicebus-sql-data:

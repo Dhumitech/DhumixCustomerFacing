@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dhumi Pattern Atlas</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#11161d; --panel2:#151c25; --border:#232c37; --border2:#2c3947;
+    --text:#dbe4ee; --muted:#8b98a9; --faint:#5c6875;
+    --customer:#4da3ff; --system:#b18aff; --operator:#ffab5e;
+    --live:#3ecf8e; --local:#f5b84f; --blocked:#ff6b6b;
+    --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  a{color:var(--customer);text-decoration:none}
+  code,.mono{font-family:var(--mono);font-size:.86em}
+  h1,h2,h3{line-height:1.25;margin:0}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* ---------- header ---------- */
+  header.top{position:sticky;top:0;z-index:50;background:rgba(11,15,20,.82);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+  .top-in{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:10px 24px;max-width:1180px;margin:0 auto}
+  .brand{font-weight:700;letter-spacing:.2px;white-space:nowrap}
+  .brand .dot{color:var(--customer)}
+  nav.filters{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;align-items:center}
+  .chip{cursor:pointer;user-select:none;border:1px solid var(--border2);background:var(--panel);
+    color:var(--muted);border-radius:999px;padding:4px 12px;font-size:12.5px;transition:.15s}
+  .chip:hover{color:var(--text);border-color:var(--faint)}
+  .chip.on{background:var(--text);color:#0b0f14;border-color:var(--text);font-weight:600}
+  .chip .k{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .k.customer{background:var(--customer)} .k.system{background:var(--system)} .k.operator{background:var(--operator)}
+  .k.live{background:var(--live)} .k.local{background:var(--local)} .k.blocked{background:var(--blocked)}
+  #q{background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:999px;
+    padding:5px 14px;font-size:12.5px;width:170px;outline:none}
+  #q:focus{border-color:var(--customer)}
+
+  /* ---------- hero ---------- */
+  .hero{padding:52px 0 30px;border-bottom:1px solid var(--border);
+    background:radial-gradient(1200px 400px at 20% -10%,rgba(77,163,255,.09),transparent),
+               radial-gradient(900px 350px at 85% -20%,rgba(177,138,255,.07),transparent)}
+  .kicker{color:var(--customer);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+  .hero h1{font-size:clamp(30px,4.6vw,46px);margin:8px 0 12px;font-weight:800;letter-spacing:-.5px}
+  .hero p.sub{max-width:820px;color:var(--muted);margin:0 0 22px;font-size:16px}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 16px}
+  .stat b{display:block;font-size:20px;letter-spacing:-.3px}
+  .stat span{color:var(--muted);font-size:12px}
+  .stat.verify{border-color:rgba(62,207,142,.35)}
+  .stat.verify b{color:var(--live);font-size:13.5px;line-height:1.5}
+  .inventory{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin:0 0 32px}
+  .inventory h2{font-size:21px;margin-bottom:7px}
+  .inventory p{color:var(--muted);font-size:13px;margin:0 0 14px}
+  .inventory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:10px}
+  .inventory-grid article{background:var(--panel2);border:1px solid var(--border2);border-radius:10px;padding:11px 13px}
+  .inventory-grid b{display:block;color:var(--text);font-size:18px}
+  .inventory-grid span{display:block;color:var(--muted);font-size:12px}
+  .inventory-grid code{display:block;color:var(--customer);font-size:11px;margin-top:7px;overflow-wrap:anywhere}
+  .inventory details{margin-top:14px;border-top:1px solid var(--border2);padding-top:11px}
+  .inventory summary{cursor:pointer;color:var(--customer);font-weight:650;font-size:13px}
+  .inventory details p{margin:10px 0 0;overflow-wrap:anywhere}
+  .inventory details strong{color:var(--text)}
+  .canon{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+  .canon .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .canon-chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:var(--mono);font-size:13.5px}
+  .canon-chain .st{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:5px 12px}
+  .canon-chain .st.hot{border-color:var(--customer);color:var(--customer)}
+  .canon-chain .a{color:var(--faint)}
+  .canon p.cap{color:var(--muted);font-size:13px;margin:12px 0 0;max-width:760px}
+
+  /* ---------- legends ---------- */
+  .legends{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:28px 0}
+  @media(max-width:820px){.legends{grid-template-columns:1fr}}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+  .legend h3{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:12px}
+  .legend .row{display:flex;gap:12px;align-items:baseline;margin:9px 0}
+  .legend .tag{font-weight:700;font-size:13px;white-space:nowrap}
+  .legend .row p{margin:0;color:var(--muted);font-size:13.5px}
+  .t.customer{color:var(--customer)} .t.system{color:var(--system)} .t.operator{color:var(--operator)}
+
+  /* ---------- map ---------- */
+  .map{padding:8px 0 36px}
+  .map h2{font-size:22px;margin:18px 0 6px}
+  .map .grp{margin-top:22px}
+  .map .grp .gcap{color:var(--muted);font-size:13px;margin:0 0 10px}
+  .map .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+  .map-card{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);
+    border-radius:11px;padding:11px 13px;cursor:pointer;transition:.15s}
+  .map-card:hover{border-color:var(--faint);transform:translateY(-1px)}
+  .map-card.hide{display:none}
+  .map-card .mid{font-family:var(--mono);font-weight:700;font-size:12.5px;border-radius:7px;padding:2px 7px}
+  .mid.customer{background:rgba(77,163,255,.14);color:var(--customer)}
+  .mid.system{background:rgba(177,138,255,.14);color:var(--system)}
+  .mid.operator{background:rgba(255,171,94,.14);color:var(--operator)}
+  .map-card .mname{font-weight:600;font-size:13.5px;flex:1}
+  .map-card .mdot{width:8px;height:8px;border-radius:50%}
+  .mdot.live{background:var(--live);box-shadow:0 0 6px rgba(62,207,142,.7)}
+  .mdot.local{background:var(--local);box-shadow:0 0 6px rgba(245,184,79,.7)}
+  .mdot.blocked{background:var(--blocked);box-shadow:0 0 6px rgba(255,107,107,.7)}
+
+  /* ---------- sections & pattern cards ---------- */
+  .sect{padding:34px 0 6px}
+  .sect .shead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:26px}
+  .sect h2{font-size:26px;letter-spacing:-.3px}
+  .sect .sintro{color:var(--muted);font-size:14px;max-width:860px;margin:8px 0 4px}
+  .pattern{background:var(--panel);border:1px solid var(--border);border-radius:16px;
+    margin:18px 0;padding:20px 22px;scroll-margin-top:86px}
+  .pattern.flash{border-color:var(--customer);box-shadow:0 0 0 3px rgba(77,163,255,.18)}
+  .pattern.hide{display:none}
+  .phead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .phead .pid{font-family:var(--mono);font-weight:800;font-size:15px;border-radius:9px;padding:3px 10px}
+  .phead h3{font-size:19px;flex:1;min-width:180px}
+  .actor-tag{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+  .pill{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 11px;letter-spacing:.04em}
+  .pill.live{background:rgba(62,207,142,.13);color:var(--live);border:1px solid rgba(62,207,142,.4)}
+  .pill.local{background:rgba(245,184,79,.12);color:var(--local);border:1px solid rgba(245,184,79,.4)}
+  .pill.blocked{background:rgba(255,107,107,.12);color:var(--blocked);border:1px solid rgba(255,107,107,.4)}
+  .cols{display:grid;grid-template-columns:1.05fr .95fr;gap:26px}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+  .blk{margin:0 0 18px}
+  .blk .bl{font-size:10.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+  .blk p{margin:0;color:var(--text);font-size:14px}
+  .blk p.dim{color:var(--muted)}
+
+  .flowline{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:7px 0}
+  .flowline .step{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;
+    padding:3px 10px;font-size:12.8px}
+  .flowline .arr{color:var(--faint);font-weight:700}
+  .flowline .tagchip{font-family:var(--mono);font-size:11px;font-weight:700;border-radius:7px;padding:2px 8px}
+  .tagchip.b200{background:rgba(62,207,142,.14);color:var(--live);border:1px solid rgba(62,207,142,.4)}
+  .tagchip.b202{background:rgba(245,184,79,.13);color:var(--local);border:1px solid rgba(245,184,79,.4)}
+  .tagchip.sub{background:rgba(77,163,255,.12);color:var(--customer);border:1px solid rgba(77,163,255,.35)}
+  .topics{font-family:var(--mono);font-size:12.5px;color:var(--system);background:var(--panel2);
+    border:1px dashed var(--border2);border-radius:8px;display:inline-block;padding:4px 12px;margin-top:6px}
+
+  .ep{display:flex;align-items:center;gap:10px;margin:6px 0;flex-wrap:wrap}
+  .ep .m{font-family:var(--mono);font-size:11px;font-weight:800;border-radius:6px;padding:2.5px 8px;min-width:52px;text-align:center}
+  .m.GET{background:rgba(77,163,255,.14);color:var(--customer);border:1px solid rgba(77,163,255,.4)}
+  .m.POST{background:rgba(62,207,142,.13);color:var(--live);border:1px solid rgba(62,207,142,.4)}
+  .m.DELETE{background:rgba(255,107,107,.13);color:var(--blocked);border:1px solid rgba(255,107,107,.4)}
+  .ep code{font-size:13px}
+  .ep.provider code{color:var(--operator)}
+  .ep .scope{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+  .ep-none{color:var(--muted);font-size:13.5px;font-style:italic}
+
+  .kv{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px}
+  .kv .v{font-family:var(--mono);font-size:12.3px;background:var(--panel2);border:1px solid var(--border2);
+    border-radius:7px;padding:2.5px 9px;color:#c6d3e2}
+  .kv .v.role{border-color:rgba(177,138,255,.45);color:#cdb6ff}
+  .kv .v.warn{border-color:rgba(255,107,107,.55);color:var(--blocked)}
+  .sqlrow{margin:0 0 10px}
+  .sqlrow .sl{font-size:11px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+  .cprow{display:flex;gap:10px;margin:5px 0;align-items:baseline}
+  .cprow .cl{width:86px;flex:none;font-size:11px;color:var(--faint);letter-spacing:.06em;text-transform:uppercase;text-align:right}
+  .cprow .cf{display:flex;flex-wrap:wrap;gap:5px}
+  .cprow .f{font-family:var(--mono);font-size:12.2px;background:rgba(77,163,255,.06);
+    border:1px solid var(--border);border-radius:6px;padding:1.5px 8px;color:#b9c8da}
+
+  .note{border-radius:11px;padding:12px 16px;margin-top:6px;font-size:13.5px;border:1px solid}
+  .note b{display:block;margin-bottom:3px;letter-spacing:.03em}
+  .note.trap{background:rgba(245,184,79,.07);border-color:rgba(245,184,79,.4)} .note.trap b{color:var(--local)}
+  .note.gate,.note.defect{background:rgba(255,107,107,.07);border-color:rgba(255,107,107,.42)} .note.gate b,.note.defect b{color:var(--blocked)}
+  .note.defect{box-shadow:inset 0 0 0 1px rgba(255,107,107,.25)}
+  .note.info{background:rgba(77,163,255,.06);border-color:rgba(77,163,255,.35)} .note.info b{color:var(--customer)}
+  .note.ok{background:rgba(62,207,142,.06);border-color:rgba(62,207,142,.35)} .note.ok b{color:var(--live)}
+  .note.guard{background:rgba(177,138,255,.07);border-color:rgba(177,138,255,.4)} .note.guard b{color:var(--system)}
+  .note p{margin:0;color:var(--muted)}
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--border);margin-top:44px;padding:30px 0 60px}
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+  @media(max-width:900px){.fgrid{grid-template-columns:1fr}}
+  .fcard{background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:16px 18px}
+  .fcard h4{margin:0 0 8px;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+  .fcard h4.red{color:var(--blocked)} .fcard h4.blue{color:var(--customer)} .fcard h4.mut{color:var(--faint)}
+  .fcard p,.fcard li{color:var(--muted);font-size:13px;margin:0 0 6px}
+  .fcard ol{margin:0;padding-left:18px}
+  .credit{color:var(--faint);font-size:12px;margin-top:22px;text-align:center}
+  #count{color:var(--faint);font-size:12px;padding:0 24px 8px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">Dhumi<span class="dot">·</span>Pattern Atlas</div>
+    <nav class="filters" id="filters">
+      <span class="chip on" data-f="all">All</span>
+      <span class="chip" data-f="customer"><span class="k customer"></span>Customer</span>
+      <span class="chip" data-f="system"><span class="k system"></span>System</span>
+      <span class="chip" data-f="operator"><span class="k operator"></span>Operator</span>
+      <span class="chip" data-f="live"><span class="k live"></span>Live</span>
+      <span class="chip" data-f="local"><span class="k local"></span>Local only</span>
+      <span class="chip" data-f="blocked"><span class="k blocked"></span>Blocked</span>
+      <input id="q" type="search" placeholder="Search patterns…" autocomplete="off">
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="kicker">Dhumi Customer API · workers · operator tooling</div>
+    <h1>Dhumi Pattern Atlas</h1>
+    <p class="sub">Current capability patterns across the customer API, the durable Run engine and the
+      operator tooling. This is a navigation aid for handover, not a release approval: implemented local
+      Marketplace preview is separate from disabled paid export.</p>
+    <div class="stats">
+      <div class="stat"><b id="patternTotal">29</b><span>documented patterns</span></div>
+      <div class="stat"><b>43</b><span>application tables in dhumi_dev</span></div>
+      <div class="stat"><b>69</b><span>local migration files through 0069</span></div>
+      <div class="stat"><b>1</b><span>published Amazon operation (v4)</span></div>
+      <div class="stat verify"><b>Source + database checked</b><span>20 September 2026 · metadata/source proof, not runtime health</span></div>
+    </div>
+    <p class="cap">Companion: <a href="schema-atlas.html">Database Schema Atlas</a> · <a href="LastUpdated/47_2026-09-20_Schema_and_Pattern_Atlas_Refresh/README.md">Current consistency handoff</a>. The migration ledger was not readable by the restricted metadata collector; operator-supplied test/dev activation evidence is recorded separately.</p>
+    <div class="canon">
+      <div class="lbl">Canonical code path</div>
+      <div class="canon-chain" id="canonChain"></div>
+      <p class="cap">Controllers reach services through Fastify decorators on <code>request.server</code>, never a pool.
+        Controllers hold no SQL; repositories hold all of it.</p>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="legends">
+    <div class="legend">
+      <h3>Actor classes</h3>
+      <div class="row"><span class="tag t customer">Customer</span><p>A person or their API key, over HTTP.</p></div>
+      <div class="row"><span class="tag t system">System</span><p>A background process. No human, no endpoint.</p></div>
+      <div class="row"><span class="tag t operator">Operator</span><p>A privileged engineer on an authorized host.</p></div>
+    </div>
+    <div class="legend">
+      <h3>Delivery state</h3>
+      <div class="row"><span class="pill live">Live</span><p>Implemented; this does not mean its process is running now.</p></div>
+      <div class="row"><span class="pill local">Local only</span><p>Works locally; a gate remains before production.</p></div>
+      <div class="row"><span class="pill blocked">Blocked</span><p>Waiting on evidence or authorization outside the code.</p></div>
+    </div>
+  </div>
+
+  <section class="inventory" aria-labelledby="inventory-title">
+    <h2 id="inventory-title">Database usage, not just table count</h2>
+    <p>The 43 <code>app</code> tables in <code>dhumi_dev</code> match migration declarations. This classification
+      traces current TypeScript entry points through live PostgreSQL functions, triggers and policies;
+      scan counters or row estimates alone are not evidence that a table is unused.</p>
+    <div class="inventory-grid">
+      <article><b>34</b><span>Customer API / worker-reachable tables</span><code>identity · catalogue · Services · Runs · results · Marketplace preview</code></article>
+      <article><b>8</b><span>Operator, qualification or recovery tables</span><code>catalog imports · evidence · qualification · disabled export candidate</code></article>
+      <article><b>1</b><span>Administrative migration ledger</span><code>app.schema_migrations</code></article>
+      <article><b>0 confirmed</b><span>Unused tables eligible for removal</span><code>occasional use ≠ no use; no deletion authorized</code></article>
+    </div>
+    <details>
+      <summary>Show all 43 table names by responsibility</summary>
+      <p><strong>Identity/workspace (7):</strong> <code>users</code>, <code>tenants</code>, <code>tenant_user_access</code>, <code>auth_sessions</code>, <code>auth_refresh_tokens</code>, <code>legal_acceptances</code>, <code>platform_api_keys</code>.</p>
+      <p><strong>Catalogue/release controls (9):</strong> <code>adapter_definitions</code>, <code>adapter_versions</code>, <code>service_templates</code>, <code>service_template_versions</code>, <code>catalog_candidates</code>, <code>launch_evidence</code>, <code>feature_flags</code>, <code>provider_credentials</code>, <code>provider_mappings</code>.</p>
+      <p><strong>Saved Services (2):</strong> <code>services</code>, <code>service_versions</code>.</p>
+      <p><strong>Durable execution (7):</strong> <code>runs</code>, <code>run_attempts</code>, <code>run_events</code>, <code>run_status_transitions</code>, <code>outbox_events</code>, <code>idempotency_records</code>, <code>provider_cost_holds</code>.</p>
+      <p><strong>Results/traceability (3):</strong> <code>artifacts</code>, <code>usage_events</code>, <code>audit_events</code>.</p>
+      <p><strong>Marketplace preview (6):</strong> <code>marketplace_sample_versions</code>, <code>marketplace_sample_deletions</code>, <code>marketplace_sample_download_authorizations</code>, <code>marketplace_expert_enquiries</code>, <code>marketplace_contact_contract_packets</code>, <code>marketplace_contact_mode_contracts</code>.</p>
+      <p><strong>Operator/qualification/recovery (8):</strong> <code>catalog_imports</code>, <code>catalog_import_candidate_observations</code>, <code>dead_letter_recovery_intents</code>, <code>provider_qualification_attempts</code>, <code>marketplace_catalog_metadata_observations</code>, <code>marketplace_qualification_packets</code>, <code>marketplace_qualification_poll_checkpoints</code>, <code>marketplace_export_candidates</code>.</p>
+      <p><strong>Migration administration (1):</strong> <code>schema_migrations</code>.</p>
+    </details>
+  </section>
+
+  <div class="map">
+    <h2>Atlas map</h2>
+    <div id="mapRoot"></div>
+  </div>
+
+  <div id="count"></div>
+  <div id="sections"></div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="fgrid">
+      <div class="fcard">
+        <h4 class="red">Still gated</h4>
+        <p>MPayment, entitlements, spending limits and customer paid Marketplace export are not active.
+          The M10 candidate and mapping are disabled. Contact-enriched LinkedIn People also remains disabled
+          pending fulfillment evidence; an operator qualification is not a customer purchase.</p>
+      </div>
+      <div class="fcard">
+        <h4 class="red">Open hardening findings</h4>
+        <p>Completed: spreadsheet-safe sample CSV (lossless JSON is separate), generated-download reconciliation/retention (0064), current-schema M3 fixture compatibility (0065), and the default-off shared scraper foundation (0066–0069). Still open: source-sample upload-to-manifest orphan handling, Marketplace HTTP/OpenAPI response/filter-grammar parity, the Amazon v4 URL boundary, and protected qualification/publication for every new scraper. Generated-download cleanup does not delete source samples. Clean-clone/infrastructure qualification remains.</p>
+      </div>
+      <div class="fcard">
+        <h4 class="blue">Authority order</h4>
+        <ol>
+          <li>AGENT.md</li><li>back-end/contracts/openapi.yaml (current 27-operation HTTP contract)</li><li>Project Specs/README.md (architecture/context)</li>
+          <li>the numbered specs</li><li>applied migrations</li><li>accepted ADRs</li><li>the checkpoint tree</li>
+        </ol>
+        <p>The older Project Specs/03_API/openapi.yaml is a retained 23-operation snapshot, not client-generation authority. Implementation/contract disagreements are findings, not permission to silently change a route.</p>
+      </div>
+      <div class="fcard">
+        <h4 class="mut">Provenance</h4>
+        <p>Refreshed against routes, repositories, workers and 69 local migration sources through 0069. The 20 September read-only <code>dhumi_dev</code> metadata recheck found 43 tables, 606 columns, 120 functions, one view and 25 Dhumi roles, consistent with the companion atlas. The collector could not read the applied ledger and did not inspect test-database parity, release pointers or live scheduler/runtime health. No provider call or database write was made.</p>
+      </div>
+    </div>
+    <div class="credit">Dhumi Pattern Atlas · checkpoint refreshed 20 September 2026</div>
+  </div>
+</footer>
+
+<script>
+"use strict";
+
+const SECTIONS = [
+  { key:"customer", title:"Customer patterns", cls:"customer",
+    intro:"Authenticated Tenant requests carry a Dhumi session or API key; public identity entry points and status are explicit exceptions. Tenant is resolved server-side from the authenticated principal and enforced by transaction-local RLS — never from a client-supplied Tenant.",
+    mapCap:"Reached over the public /v1 surface." },
+  { key:"system", title:"System patterns", cls:"system",
+    intro:"No human actor and no customer endpoint. These run as separate processes with restricted database logins; none is implied to be running just because a pattern is implemented.",
+    mapCap:"Background processes behind the queue." },
+  { key:"operator", title:"Operator patterns", cls:"operator",
+    intro:"Privileged command-line workflows run by an engineer on an authorized backend host. They are not browser routes; their qualification and publication gates stay separate from customer preview.",
+    mapCap:"Command-line only. No public route." }
+];
+
+const PATTERNS = [
+{
+  id:"C1", name:"Identity & Session", actor:"customer", status:"live", userLabel:"User",
+  user:"A person creating a Dhumi account, or signing back into one. Anonymous at the point of entry — this pattern is what makes them a principal.",
+  flow:[{steps:["sign up","user + tenant + owner access row created","sign in","access token + rotating refresh token","refresh","new pair, old one retired","logout","session revoked"]}],
+  functionality:"Argon2id verification uses a fixed dummy hash when no identity matches to mitigate unknown-address timing disclosure; this is not a proof of identical end-to-end response timing. Signup creates the tenant and one internal owner access row. There is no activation key.",
+  endpoints:[["POST","/v1/auth/signup","public"],["POST","/v1/auth/sign-in","public"],["POST","/v1/auth/refresh","refresh cookie"],["POST","/v1/auth/logout","session"]],
+  db:["dhumi_identity"], txn:["withIdentityTransaction"],
+  sql:[{label:"Function",items:["app.create_signup"]},
+       {label:"Tables",items:["app.users","app.tenants","app.tenant_user_access","app.auth_sessions","app.auth_refresh_tokens","app.legal_acceptances","app.audit_events","app.outbox_events"]}],
+  codepath:[["route","routes/authRoutes.ts"],["controller","controllers/authController.ts"],
+    ["service","services/identity/{signupService, signInService, refreshService, logoutService, sessionRevocation, sessionErrors}.ts"],
+    ["repository","services/identity/{signupRepository, signInRepository, refreshRepository, logoutRepository}.ts"],
+    ["middleware","middleware/browserAuthentication.ts · services/identity/browserAuthenticationService.ts"],
+    ["helper","helpers/signupCanonicalization.ts"]],
+  note:{type:"trap",title:"Trap.",text:"The observed 16 dev/test runtime LOGINs are NOINHERIT and assume one of eight capabilities per transaction with SET LOCAL ROLE. Role and Tenant settings revert at commit or rollback; plain SET ROLE risks leaking state to the next pool borrower."}
+},
+{
+  id:"C2", name:"Programmatic Access", actor:"customer", status:"live", userLabel:"User",
+  user:"A developer in a browser session, minting machine credentials so their own code can call Dhumi without a human present.",
+  flow:[{steps:["create key","initial plaintext response + ten-minute encrypted idempotent recovery","list keys","prefixes and scopes only","revoke","permanent tombstone, immediate invalidation"]}],
+  functionality:"Key management is browser-only: API keys cannot mint/revoke keys. The same creation key/body can recover the encrypted response for ten minutes; after recovery expiry, replay returns 409 without creating another key. Listing never returns plaintext. Key authentication resolves a Tenant principal with scopes.",
+  endpoints:[["POST","/v1/keys","browser session + CSRF"],["GET","/v1/keys","browser session"],["DELETE","/v1/keys/{key_id}","browser session + CSRF"]],
+  db:["dhumi_customer_api","dhumi_identity (auth path)"], txn:["withTenantTransaction","withIdentityTransaction"],
+  sql:[{label:"Tables",items:["app.platform_api_keys","app.idempotency_records","app.audit_events","app.outbox_events"]}],
+  codepath:[["route","routes/apiKeyRoutes.ts"],["controller","controllers/apiKeyController.ts"],
+    ["service","services/apiKeys/{createApiKeyService, listApiKeysService, revokeApiKeyService, apiKeyAuthenticationService, apiKeyErrors}.ts"],
+    ["repository","services/apiKeys/{createApiKeyRepository, listApiKeysRepository, revokeApiKeyRepository, apiKeyAuthenticationRepository}.ts"]]
+},
+{
+  id:"C3", name:"Workspace", actor:"customer", status:"live", userLabel:"User",
+  user:"A signed-in customer landing in their tenant. This is the first authenticated read and establishes what workspace they are in.",
+  flow:[{steps:["authenticate","resolve tenant from principal","read workspace","tenant identity and access returned"]}],
+  functionality:"A missing row is an authorization failure, never an empty workspace. This matters because RLS returns zero rows rather than raising, so an absent tenant context looks identical to a legitimately empty result.",
+  endpoints:[["GET","/v1/workspace","tenant principal"]],
+  db:["dhumi_customer_api"], txn:["withTenantTransaction"],
+  sql:[{label:"Tables",items:["app.tenants","app.tenant_user_access"]}],
+  codepath:[["route","routes/workspaceRoutes.ts"],["controller","controllers/workspaceController.ts"],
+    ["service","services/workspace/workspaceService.ts"],["repository","services/workspace/workspaceRepository.ts"],
+    ["middleware","middleware/tenantAuthorization.ts · middleware/tenantPrincipal.ts · services/tenantAccess/*"]]
+},
+{
+  id:"C4", name:"Catalogue Discovery", actor:"customer", status:"live", userLabel:"User",
+  user:"A customer browsing the Scraper Library and opening one operation to see what inputs it takes.",
+  flow:[{steps:["list templates","grouped by domain card","open one slug","versioned input schema returned","frontend renders the form from JSON Schema"]}],
+  functionality:"Reads Dhumi-owned catalogue and safe Marketplace metadata projections, never Bright Data at page-load time. The 13 Amazon operations are separate versioned Templates; only Products Collect by URL v4 is published. LinkedIn Posts and standard LinkedIn People expose governed preview metadata, not a paid execution path.",
+  endpoints:[["GET","/v1/catalog/templates","catalog:read"],["GET","/v1/catalog/templates/{slug}","catalog:read"]],
+  db:["dhumi_customer_api"], txn:["withTenantTransaction"],
+  sql:[{label:"Functions",items:["app.resolve_marketplace_sample_preview","app.resolve_marketplace_contact_modes"]},
+       {label:"Tables",items:["app.service_templates","app.service_template_versions","app.launch_evidence","app.marketplace_sample_versions","app.marketplace_contact_mode_contracts"]}],
+  codepath:[["route","routes/catalogueRoutes.ts"],["controller","controllers/catalogueController.ts"],
+    ["service","services/catalogue/{listCatalogTemplatesService, getCatalogTemplateService, catalogTemplate, catalogueErrors}.ts"],
+    ["repository","services/catalogue/{listCatalogTemplatesRepository, getCatalogTemplateRepository}.ts"]],
+  note:{type:"ok",title:"Version boundaries.",text:"Amazon Products Collect by URL v4 is the published scraper operation. Existing v3 Services remain pinned to v3; new Services can pin v4. Marketplace catalogue cards for LinkedIn Posts and standard LinkedIn People are preview surfaces; contact-enabled People and full export are not enabled."}
+},
+{
+  id:"C5", name:"Saved Services", actor:"customer", status:"live", userLabel:"User",
+  user:"A customer who has chosen an operation and wants to keep it as a named, reusable scraper in their workspace.",
+  flow:[{steps:["pick a template","create service","configuration validated and frozen as an immutable version","list / open","service ready to accept runs"]}],
+  functionality:"Saved configuration and per-run input are deliberately separate schemas. Configuration is stable settings; the changing Amazon links, keywords and UPCs belong to each run, not to the saved service.",
+  endpoints:[["GET","/v1/services","services:read"],["POST","/v1/services","services:write"],["GET","/v1/services/{service_id}","services:read"]],
+  db:["dhumi_admission (write)","dhumi_customer_api (read)"], txn:["withAdmissionTenantTransaction","withTenantTransaction"],
+  sql:[{label:"Tables",items:["app.services","app.service_versions","app.service_templates","app.idempotency_records","app.audit_events"]}],
+  codepath:[["route","routes/serviceRoutes.ts"],["controller","controllers/serviceController.ts"],
+    ["service","services/customerServices/{createServiceService, listServicesService, getServiceService, serviceErrors}.ts"],
+    ["repository","services/customerServices/{createServiceRepository, listServicesRepository, getServiceRepository}.ts"]]
+},
+{
+  id:"C6", name:"Run Admission", actor:"customer", status:"live", userLabel:"User",
+  user:"A customer starting work, or changing their mind about work already started. The single highest-consequence customer write.",
+  flow:[{steps:["submit run","validate input against the pinned schema","commit run + cost hold + safe event + outbox row in one transaction","202 returned","provider egress happens later, in S1–S3"]}],
+  subflows:[{tag:"cancel",steps:["lock run, record intent","jobs.cancel outbox row"]},
+            {tag:"retry",steps:["new run with explicit lineage","original untouched"]}],
+  functionality:"The API commits locally and returns before anything reaches Bright Data. Same idempotency key with the same body returns one run; the same key with a different body conflicts. Retry never reuses a run — it creates a new one with recorded lineage.",
+  endpoints:[["POST","/v1/services/{service_id}/runs","runs:write"],["POST","/v1/runs/{run_id}/cancel","runs:write"],["POST","/v1/runs/{run_id}/retry","runs:write"]],
+  db:["dhumi_admission"], txn:["withAdmissionTenantTransaction"],
+  sql:[{label:"Functions",items:["app.lock_run_for_cancellation","app.lock_run_for_retry","app.require_phase5_mock_run_capacity"]},
+       {label:"Tables",items:["app.runs","app.run_events","app.provider_cost_holds","app.outbox_events","app.idempotency_records","app.service_versions","app.audit_events"]}],
+  codepath:[["route","routes/runRoutes.ts"],["controller","controllers/runController.ts"],
+    ["service","services/admission/{createRunService, cancelRunService, retryRunService, runAdmissionEligibility, runErrors}.ts"],
+    ["repository","services/admission/{createRunRepository, cancelRunRepository, retryRunRepository}.ts"]],
+  note:{type:"gate",title:"Production gate.",text:"app.require_phase5_mock_run_capacity raises outside local and test, so staging and production admission is deliberately impossible today. Widening the environment list is not the fix — a real capacity and cost policy is."}
+},
+{
+  id:"C7", name:"Run Observation", actor:"customer", status:"live", userLabel:"User",
+  user:"A customer watching work in flight — polling a list, opening one run, reading its timeline.",
+  flow:[{steps:["list runs (cursor, status and service filters)","open one run","read its events","repeat until terminal"]}],
+  functionality:"All three reads project Dhumi-owned state. None of them polls Bright Data, so customer-visible status can lag provider status by the worker interval — that lag is the deliberate cost of not coupling reads to provider availability. Event reads SELECT only four columns (id, sequence, event_type, occurred_at) and derive type and message through a strict event-type allowlist — never safe_payload or evidence_reference.",
+  endpoints:[["GET","/v1/runs","runs:read"],["GET","/v1/runs/{run_id}","runs:read"],["GET","/v1/runs/{run_id}/events","runs:read"]],
+  db:["dhumi_customer_api"], txn:["withTenantTransaction"],
+  sql:[{label:"Tables",items:["app.runs","app.run_events"]}],
+  codepath:[["route","routes/runRoutes.ts"],["controller","controllers/runController.ts"],
+    ["service","services/runQuery/{listRunsService, getRunService, listRunEventsService, runQueryErrors}.ts"],
+    ["repository","services/runQuery/{listRunsRepository, getRunRepository, listRunEventsRepository}.ts"]]
+},
+{
+  id:"C8", name:"Result Retrieval", actor:"customer", status:"local", userLabel:"User",
+  user:"A customer downloading a ready Run result; usage observation and any future payment are separate concerns.",
+  flow:[{steps:["authorize ready Run and Artifact","sign privately outside the database transaction","recheck authorization and commit download audit","disclose the signed URL only after commit"]}],
+  functionality:"Defaults to the validated normalized artifact; representation=raw selects the durable original provider artifact. Only a ready, tenant-owned Run is eligible. Every authorization records the representation in the audit before a short-lived storage URL is disclosed. No private object key or provider URL is public.",
+  endpoints:[["GET","/v1/runs/{run_id}/result?representation=normalized|raw","results:read"]],
+  db:["dhumi_customer_api"], txn:["withTenantTransaction"],
+  sql:[{label:"Tables",items:["app.runs","app.artifacts","app.audit_events"]}],
+  codepath:[["route","routes/runRoutes.ts"],["controller","controllers/runController.ts"],
+    ["service","services/runQuery/getRunResultService.ts"],["repository","services/runQuery/getRunResultRepository.ts"],
+    ["signer","helpers/resultUrlSigner.ts · services/storage/azuriteResultUrlSigner.ts · services/storage/resultStorageComposition.ts"]],
+  note:{type:"info",title:"Honest 503.",text:"With no configured signer a ready result returns 503 SERVICE_UNAVAILABLE, never a fake or placeholder URL. Production rejects the local Azurite signer outright."}
+},
+{
+  id:"C9", name:"Usage Reporting", actor:"customer", status:"live", userLabel:"User",
+  user:"A customer asking how much they have consumed over a window.",
+  flow:[{steps:["summary over a half-open [from, to) window","drill into events","microsecond-safe keyset cursor bound to that window"]}],
+  functionality:"Informational only. These are observed usage records — there is no charge, invoice, credit or quota product behind them. Provider identifiers and provider costs never enter a usage row.",
+  endpoints:[["GET","/v1/usage/summary","usage:read"],["GET","/v1/usage/events","usage:read"]],
+  db:["dhumi_customer_api"], txn:["withTenantTransaction"],
+  sql:[{label:"Functions",items:["app.get_usage_summary","app.list_usage_events"]},
+       {label:"Tables",items:["app.usage_events (function-only)"]}],
+  codepath:[["route","routes/usageRoutes.ts"],["controller","controllers/usageController.ts"],
+    ["service","services/usage/{getUsageSummaryService, listUsageEventsService, usageTimeRange, usageReadErrors}.ts"],
+    ["repository","services/usage/{getUsageSummaryRepository, listUsageEventsRepository}.ts"],
+    ["helper","helpers/usageEventListCursor.ts"]],
+  note:{type:"info",title:"Migration 0038.",text:"Revoked direct customer-role SELECT on app.usage_events. The repositories can only execute the two tenant-scoped functions."}
+},
+{
+  id:"C10", name:"Platform Status", actor:"customer", status:"live", userLabel:"User",
+  user:"Anyone at all. This is the anonymous informational endpoint; signup and sign-in are also public entry points. No session, key, Tenant or selector is needed for status.",
+  flow:[{steps:["request status","read stored release state","per-family availability returned"]}],
+  functionality:"Projects stored release state. It does not probe Bright Data, the queue, Redis, storage, the vault or the workers — so it cannot leak provider balance, dataset IDs, queue names, database state, worker identities or infrastructure topology. An absent, expired or disabled feature reads as not_enabled.",
+  endpoints:[["GET","/v1/status","anonymous"]],
+  db:["dhumi_customer_api (global, not tenant-scoped)"], txn:["withCustomerApiTransaction"],
+  sql:[{label:"Function",items:["app.get_platform_status"]}],
+  codepath:[["route","routes/statusRoutes.ts"],["controller","controllers/statusController.ts"],
+    ["service","services/status/getPlatformStatusService.ts"],["repository","services/status/getPlatformStatusRepository.ts"]]
+},
+{
+  id:"C11", name:"Marketplace Stored-Sample Preview", actor:"customer", status:"local", userLabel:"User",
+  user:"An authenticated customer inspecting LinkedIn Posts or standard LinkedIn People before any purchase.",
+  flow:[{steps:["open dataset card and metadata","read an immutable stored sample","filter, sort, select fields","page through sample-only matches"]}],
+  functionality:"The sample and field dictionary are resolved from Dhumi's governed storage. Match counts describe only the stored sample, not the full provider dataset. Masked/suppressed fields are not disclosed or made filterable. Querying creates no Service, Run, Attempt, outbox event or provider call. The public filter grammar and runtime evaluator still have an open alignment finding.",
+  endpoints:[["GET","/v1/catalog/templates/{slug}/sample","catalog:read"],["POST","/v1/catalog/templates/{slug}/sample/query","catalog:read + browser CSRF"]],
+  db:["dhumi_customer_api"], txn:["withTenantTransaction"],
+  sql:[{label:"Function",items:["app.resolve_marketplace_sample_preview"]},
+       {label:"Tables",items:["app.marketplace_sample_versions","app.marketplace_sample_deletions","app.service_templates","app.service_template_versions"]}],
+  codepath:[["route","routes/catalogueRoutes.ts"],["controller","controllers/catalogueController.ts"],
+    ["service","services/marketplacePreview/marketplacePreviewService.ts"],
+    ["repository","services/marketplacePreview/marketplacePreviewRepository.ts"],
+    ["frontend","front-end/src/features/marketplace/*"]],
+  note:{type:"info",title:"Current evidence.",text:"LinkedIn Posts uses retained five-record provider sample v3 with 37 verified fields and 11 masked. Standard LinkedIn People uses five synthetic preview records; exact metadata observation has 46 fields, 42 active. Contact-enriched modes remain unavailable."}
+},
+{
+  id:"C12", name:"Governed Sample Download", actor:"customer", status:"local", userLabel:"User",
+  user:"An authenticated customer exporting a limited, still-masked preview as JSON or CSV.",
+  flow:[{steps:["request bounded projection with an idempotency key","reserve Tenant-owned authorization","serialize exact masked bytes","store and checksum","complete audit","return short-lived signed link"]}],
+  functionality:"Sample download creates no purchase/provider request. CSV neutralizes formula-leading cells for spreadsheet viewing; JSON preserves values. Generated-object cleanup (0064) handles confirmed failures and bounded retention, preserving uncertain/authorized commits. Source-sample orphan handling is a separate open gap.",
+  endpoints:[["POST","/v1/catalog/templates/{slug}/sample/downloads","catalog:read + idempotency + browser CSRF"]],
+  db:["dhumi_customer_api"], txn:["withTenantTransaction"],
+  sql:[{label:"Functions",items:["app.reserve_marketplace_sample_download","app.complete_marketplace_sample_download","app.fail_marketplace_sample_download_for_cleanup"]},
+       {label:"Tables",items:["app.marketplace_sample_download_authorizations","app.audit_events","app.marketplace_sample_versions"]}],
+  codepath:[["route","routes/catalogueRoutes.ts"],["controller","controllers/catalogueController.ts"],
+    ["service","services/marketplaceSampleDownload/marketplaceSampleDownloadService.ts"],
+    ["repository","services/marketplaceSampleDownload/marketplaceSampleDownloadRepository.ts"],
+    ["storage","services/marketplaceSampleDownload/marketplaceSampleDownloadStore.ts"]],
+  note:{type:"trap",title:"Not a paid snapshot.",text:"This serializes only the governed masked sample, never a paid snapshot. Generated downloads use retention v1 (confirmed failed reservations immediately, abandoned reservations after one hour, authorized copies one hour after signed expiry). JSON is lossless; CSV is spreadsheet-oriented. Source samples retain their separate 30-day policy."}
+},
+{
+  id:"C13", name:"Talk to a Data Expert", actor:"customer", status:"local", userLabel:"User",
+  user:"An authenticated customer asking about a dataset before purchasing it.",
+  flow:[{steps:["submit enquiry with idempotency key","bind to Tenant and preview Template version","record received state","return the existing open enquiry on replay"]}],
+  functionality:"This records an enquiry only. It creates no payment, entitlement, Service, Run, outbox event or provider request, and does not imply that an expert-response or commerce workflow is implemented.",
+  endpoints:[["POST","/v1/catalog/templates/{slug}/expert-enquiries","catalog:read + idempotency + browser CSRF"]],
+  db:["dhumi_customer_api"], txn:["withTenantTransaction"],
+  sql:[{label:"Function",items:["app.create_marketplace_expert_enquiry"]},
+       {label:"Tables",items:["app.marketplace_expert_enquiries","app.audit_events"]}],
+  codepath:[["route","routes/catalogueRoutes.ts"],["controller","controllers/catalogueController.ts"],
+    ["service","services/marketplaceExpertEnquiry/marketplaceExpertEnquiryService.ts"],
+    ["repository","services/marketplaceExpertEnquiry/marketplaceExpertEnquiryRepository.ts"]]
+},
+{
+  id:"S1", name:"Outbox Dispatch", actor:"system", status:"live", userLabel:"Actor",
+  user:"The Outbox Dispatcher process — npm run worker:outbox. One of the three long-running Dhumi services.",
+  flow:[{steps:["claim committed outbox rows (topic-filtered)","publish to Service Bus","mark published"]}],
+  functionality:"The transactional outbox exists so PostgreSQL never publishes to a queue directly. A transaction inserts a row; this process, after that commit, turns the row into a message. That ordering is what makes a run durable before any provider work is attempted.",
+  endpointsNone:"None. Consumes app.outbox_events, produces queue messages.",
+  db:["dhumi_outbox_dispatcher"], txn:["withOutboxDispatcherTransaction"],
+  sql:[{label:"Functions",items:["app.claim_job_outbox_events","app.mark_outbox_event_published"]}],
+  codepath:[["entry","worker/outboxDispatcher.ts"],["service","services/jobs/outboxDispatcherService.ts"],
+    ["repository","services/jobs/outboxDispatcherRepository.ts"],
+    ["queue port","services/jobs/executionQueue.ts · services/jobs/serviceBusExecutionQueue.ts"]]
+},
+{
+  id:"S2", name:"Durable Job Execution", actor:"system", status:"live", userLabel:"Actor",
+  user:"The Job Manager process — npm run worker:jobs. The only component permitted to write run lifecycle status.",
+  flow:[{steps:["consume command","claim attempt with a fence token","acquire Redis capacity lease","run the executor","renew claim while working","transition","finish","settle the queue delivery"]}],
+  topics:"jobs.execute · jobs.cancel · jobs.reconcile · jobs.recover",
+  functionality:"PostgreSQL attempt fencing prevents duplicate provider egress; Redis capacity leases are separate, fail closed, and are always released in a finally path. A stale or null fence cannot write lifecycle state. The local executor is configured separately: controlled mode produces synthetic bytes; bright_data mode may incur cost and must never be enabled by this atlas. The new versioned dispatcher is used only after an explicit shared-pipeline opt-in; the default remains false.",
+  endpointsNone:"None. Consumes queue commands, writes run state.",
+  db:["dhumi_job_manager"], txn:["withJobManagerTenantTransaction"],
+  sql:[{label:"Functions",items:["app.claim_run_attempt","app.renew_run_attempt_claim","app.transition_run_fenced","app.finish_run_attempt_claim","app.schedule_run_reconciliation","app.inspect_run_reconciliation","app.complete_run_execution_with_usage","app.complete_run_reconciliation","app.complete_run_reconciliation_with_usage"]}],
+  codepath:[["entry","worker/jobManager.ts · worker/jobManagerSubscription.ts"],
+    ["service","services/jobs/jobManagerService.ts · services/jobs/jobCommand.ts"],
+    ["repository","services/jobs/runExecutionRepository.ts"],
+    ["lease","services/jobs/capacityLease.ts · services/jobs/redisCapacityLeaseStore.ts"],
+    ["executor","services/jobs/controlledRunExecutor.ts · services/brightdata/brightDataRunExecutor.ts (see S3) · services/brightdata/versionedProviderRunExecutor.ts (see S5)"]]
+},
+{
+  id:"S3", name:"Provider Integration", actor:"system", status:"local", userLabel:"Actor",
+  user:"The Job Manager, running with RUN_EXECUTOR_DRIVER=bright_data. This directory is the only code permitted to resolve the provider secret or reach api.brightdata.com.",
+  flow:[{steps:["resolve pinned execution plan","reveal the protected dataset ID","fetch the key from SecretProvider","submit"]},
+        {tag:"200",steps:["bounded inline bytes","ingest"]},
+        {tag:"202",steps:["protect snapshot reference","poll progress","parts","download","ingest"]},
+        {steps:["normalize through the pinned output contract","ingest normalized"]}],
+  functionality:"Amazon execution has fixed-origin, redirect-denying, bounded transport. Dataset IDs, snapshot references, bearer tokens and raw provider errors stay protected. Ambiguous cost-creating POSTs reconcile rather than automatically resubmit. Products Collect by URL v4 has a previously verified real customer Run. The Marketplace Filter adapter exists for fixture/qualification use but is deliberately not composed into the customer Job Manager before MPayment and release gates.",
+  epNote:"No public route. Private provider calls only:",
+  endpoints:[["POST","/datasets/v3/scrape","primary",1],["POST","/datasets/v3/trigger","pinned per operation",1],
+             ["GET","/datasets/v3/progress/{snapshot_id}","202 branch",1],["GET","/datasets/v3/snapshot/{snapshot_id}/parts","multipart",1],
+             ["GET","/datasets/v3/snapshot/{snapshot_id}","download",1],["POST","/datasets/v3/snapshot/{snapshot_id}/cancel","best effort",1]],
+  db:["dhumi_job_manager"], txn:["withJobManagerTenantTransaction"],
+  sql:[{label:"Functions",items:["app.resolve_provider_execution_plan_v2","app.resolve_provider_normalization_plan","app.resolve_provider_reconciliation_plan_v2","app.record_provider_reference_fenced","app.is_run_cancellation_requested_fenced"]},
+       {label:"Tables",items:["app.provider_mappings","app.provider_credentials","app.run_attempts"]}],
+  codepath:[["executor","services/brightdata/brightDataRunExecutor.ts"],["transport","services/brightdata/brightDataIntegrationClient.ts"],
+    ["repository","services/brightdata/providerExecutionPlanRepository.ts"],
+    ["secrets","services/secrets/secretProvider.ts · services/secrets/localEnvironmentSecretProvider.ts"],
+    ["protection","services/brightdata/providerReferenceProtector.ts"],
+    ["amazon","services/brightdata/amazon/{amazonOperationDefinitions, amazonOperationSerializer, amazonResultNormalizer, amazonOutputContracts}.ts"]],
+  note:{type:"guard",title:"Enforced by test.",text:"tests/security/integration-boundary.test.ts fails the build if an Identity or Workspace module imports this directory — the layer-first layout makes them siblings, so nothing structural prevents it."}
+},
+{
+  id:"S4", name:"Result Ingestion & Usage Finalization", actor:"system", status:"local", userLabel:"Actor",
+  user:"The Job Manager, inside the executor path, writing through a separate restricted result-recorder login.",
+  flow:[{steps:["stream bytes to object storage","SHA-256 + byte count","finalize artifact","insert or exactly reuse one usage event","complete run and attempt atomically"]}],
+  functionality:"Raw provider bytes reach deterministic object storage before RESULT_RECEIVED is committed, so a run is never marked successful over bytes that are not durable. Usage becomes observable only once a validated normalized artifact exists; quantity is that artifact's record count. A valid empty result is a real zero-quantity observation, not a missing one.",
+  endpointsNone:"None. Writes storage objects and database state.",
+  db:["dhumi_result_recorder","dhumi_job_manager"], txn:["withResultRecorderTenantTransaction","withJobManagerTenantTransaction"],
+  sql:[{label:"Function",items:["app.complete_run_execution_with_usage"]},
+       {label:"Tables",items:["app.artifacts","app.usage_events","app.runs"]}],
+  codepath:[["ingestion","services/storage/resultIngestionService.ts"],
+    ["object store","services/storage/{resultObjectStore, azuriteResultObjectStore, resultObjectIdentity}.ts"],
+    ["finalizer","services/storage/resultArtifactFinalizer.ts"],
+    ["repository","services/storage/resultArtifactFinalizerRepository.ts"],
+    ["composition","services/storage/resultStorageComposition.ts"]],
+  note:{type:"info",title:"Storage today.",text:"Azurite in a local container, volume back-end_pattern3-azurite-data, containers dhumi-dev-results / dhumi-test-results. Azure Blob with managed identity and user-delegation SAS is a deployment gate."}
+},
+{
+  id:"S5", name:"Versioned Shared Scraper Execution", actor:"system", status:"local", userLabel:"Actor",
+  user:"The Job Manager after an explicit SHARED_SCRAPER_PIPELINE_ENABLED=true opt-in and only for exact registered adapter identities.",
+  flow:[{steps:["resolve adapter code + semantic version + digest under the live Attempt fence","exact-dispatch Amazon compatibility identities or the shared Scraper Library identity","resolve the pinned operation contract and protected plan","serialize through the compiled operation contract","reuse S3 transport, bounded polling and reconciliation","normalize once through the immutable projection","reuse S4 persistence and usage finalization"]}],
+  functionality:"One worker, client, queue, database pool and result pipeline serve every compatible scraper operation. Dispatch requires an exact immutable adapter identity; validators are cached by immutable contract hash. Operation packages supply schemas, URL/request rules, projection, limits and fixtures; they do not create site-specific workers or tables. Unknown adapter tuples, unavailable plans and contract mismatches fail closed.",
+  endpointsNone:"None. This is a default-off Job Manager execution path behind the existing Service/Run APIs.",
+  db:["dhumi_job_manager"], txn:["withJobManagerTenantTransaction"],
+  sql:[{label:"Functions",items:["app.resolve_provider_executor_identity","app.resolve_shared_scraper_execution_plan","app.record_provider_reference_fenced","app.checkpoint_provider_poll_fenced"]},
+       {label:"Tables",items:["app.runs","app.run_attempts","app.provider_mappings","app.provider_credentials","app.artifacts"]}],
+  codepath:[["composition","worker/jobManager.ts"],["exact dispatcher","services/brightdata/versionedProviderRunExecutor.ts"],
+    ["shared executor","services/brightdata/scrapers/sharedScraperRunExecutor.ts"],
+    ["plan repository","services/brightdata/scrapers/scraperExecutionRepository.ts"],
+    ["data-driven processing","services/scrapers/scraperProcessing.ts · services/scrapers/scraperContract.ts"],
+    ["release identity","services/scrapers/sharedScraperVersion.ts"]],
+  note:{type:"gate",title:"Installed is not enabled or published.",text:"Migrations 0066–0069 are installed locally, but the worker flag remains default false. Target, Lowe's, Home Depot, Etsy and Walmart are offline characterization packages only. A new operation still needs exact provider evidence, protected mapping, approved commercial policy, independent qualification and controlled publication before customer execution."}
+},
+{
+  id:"O1", name:"Amazon Qualification", actor:"operator", status:"local", userLabel:"Actor",
+  user:"An engineer proving one Amazon operation against the real Bright Data account — npm run operator:amazon-qualification.",
+  flow:[{steps:["discover (--confirm-live)","encrypted candidates stored","review one candidate","qualify (--confirm-billable, --execution-mode, --max-provider-requests)","immutable request/response evidence","accept or reject","a disabled protected mapping"]}],
+  functionality:"Acceptance can create only an approved evidence record and a disabled mapping. It cannot enable an adapter or credential, flip a feature flag, or publish a template — publication is a separate gate. Qualifying one operation proves nothing about the other twelve, and the endpoint (scrape or trigger) must be pinned explicitly, never inferred and never used as a fallback.",
+  endpointsNone:"None. A private command; the frontend cannot invoke qualification.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Functions",items:["app.begin_amazon_scraper_catalog_import_v2","app.complete_amazon_scraper_catalog_import","app.fail_amazon_scraper_catalog_import","app.review_amazon_scraper_catalog_candidate","app.resolve_amazon_qualification_candidate_v2","app.begin_amazon_provider_qualification_v3","app.complete_amazon_provider_qualification","app.resolve_amazon_qualification_acceptance_plan_v3","app.accept_amazon_provider_qualification_v3","app.reject_amazon_provider_qualification"]},
+       {label:"Tables",items:["app.catalog_imports","app.catalog_candidates","app.provider_mappings","app.launch_evidence"]}],
+  codepath:[["entry","worker/amazonQualification.ts"],["service","services/qualification/amazonQualificationService.ts"],
+    ["repository","services/qualification/amazonQualificationRepository.ts"],
+    ["evidence","services/qualification/qualificationEvidenceStore.ts"],
+    ["reuses","the S3 client, serializer, normalizer and secret provider — not duplicated"]],
+  note:{type:"guard",title:"Twelve operations remain gated.",text:"Only Products Collect by URL is published, now at v4. Every sibling Amazon operation needs its own mapping, output contract, qualification evidence and publication. A future billable qualification call requires separate authorization."}
+},
+{
+  id:"O4", name:"Controlled Publication", actor:"operator", status:"live", userLabel:"Actor",
+  user:"An independent reviewer releasing one already-accepted operation — npm run operator:amazon-release. Deliberately a different person and a different command from the one that qualified it.",
+  flow:[{steps:["accepted qualification (disabled mapping exists)","explicit publication review","immutable version and protected mapping become customer-visible","existing Services keep their pinned versions"]}],
+  functionality:"Qualification acceptance and publication are separate operator gates. Publishing one Amazon operation does not publish its siblings. The forward-only v4 Products contract advanced the public pointer without rewriting v3 or changing existing Services. Local/test release tooling is not a production publication path.",
+  endpointsNone:"None. The published operation is served by the existing generic catalogue, service and run APIs — no Amazon-specific customer route is added.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Function",items:["app.publish_qualified_amazon_operation_v1"]},
+       {label:"Reads",items:["app.provider_qualification_attempts","app.service_templates","app.service_template_versions","app.adapter_versions","app.provider_mappings","app.provider_credentials","app.launch_evidence"]},
+       {label:"Writes",items:["app.adapter_versions","app.service_template_versions","app.provider_mappings","app.launch_evidence","app.feature_flags","app.audit_events","app.service_templates (current_public_version_id)","app.provider_credentials"]}],
+  codepath:[["entry","worker/amazonOperationRelease.ts"],["config","config/releaseEnvironment.ts"],
+    ["service","services/release/amazonOperationReleaseService.ts"],["repository","services/release/amazonOperationReleaseRepository.ts"],
+    ["migration","scripts/migrations/0041_amazon_controlled_publication.sql · scripts/migrations/0042_provider_mapping_aad_lineage.sql"]],
+  note:{type:"ok",title:"Current customer pointer.",text:"Amazon Products Collect by URL v4 is published. Version 3 remains immutable for pinned Services. Migration 0043 introduced the v4 input contract; the release and encrypted mapping lineage remain independently controlled."}
+},
+{
+  id:"O2", name:"Dead-Letter Recovery", actor:"operator", status:"live", userLabel:"Actor",
+  user:"An operator recovering a run command that the queue dead-lettered — npm run worker:dlq-recover.",
+  flow:[{steps:["inspect dead-letter queue","recover one command under operator authority","re-enter normal execution"]}],
+  functionality:"Controlled, one command at a time. Recovery re-enters the same fenced execution path rather than bypassing it, so a recovered command cannot double-finalize a run that already reached a terminal state.",
+  endpointsNone:"None.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Function",items:["app.recover_dead_lettered_run_command"]}],
+  codepath:[["entry","worker/deadLetterRecovery.ts"],["service","services/jobs/deadLetterRecoveryService.ts"],
+    ["repository","services/jobs/deadLetterRecoveryRepository.ts"]]
+},
+{
+  id:"O3", name:"Envelope Janitor", actor:"operator", status:"live", userLabel:"Actor",
+  user:"A scheduled maintenance process with its own credential — npm run worker:envelope. It must never run with the web application's database identities.",
+  flow:[{steps:["find due response envelopes","destroy them","idempotency tombstones survive"]}],
+  functionality:"Stored idempotent response bodies expire; the tombstone that proves a mutation already happened is permanent. Destroying the envelope reclaims space without ever letting a replayed request execute a second time.",
+  endpointsNone:"None.",
+  db:["dhumi_envelope_janitor"], txn:["withEnvelopeJanitorTransaction"],
+  sql:[{label:"Function",items:["app.destroy_due_response_envelopes"]},{label:"Tables",items:["app.idempotency_records"]}],
+  codepath:[["entry","worker/envelopeJanitor.ts"],["repository","services/envelopeJanitor/envelopeJanitorRepository.ts"]]
+},
+{
+  id:"O5", name:"Marketplace Catalogue Import", actor:"operator", status:"local", userLabel:"Actor",
+  user:"An operator importing and reviewing Marketplace dataset metadata; not a customer page-load request.",
+  flow:[{steps:["import fixture or authorized provider metadata","persist observations and protected candidate","review release evidence","expose only approved safe catalogue projection"]}],
+  functionality:"Imports and reviews are private. Customer GETs read Dhumi's stored Template and preview projection; they do not forward each browse request to Bright Data. Provider GET metadata is a separate operator action, not permission for Search, Filter, purchase or export POSTs.",
+  endpointsNone:"None. Existing generic catalogue GETs serve reviewed public data.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Functions",items:["app.begin_marketplace_catalog_import","app.complete_marketplace_catalog_import","app.review_marketplace_catalog_candidate"]},
+       {label:"Tables",items:["app.catalog_imports","app.catalog_candidates","app.catalog_import_candidate_observations"]}],
+  codepath:[["entry","worker/marketplaceCatalogue.ts"],
+    ["service","services/marketplaceCatalogue/marketplaceCatalogueService.ts"],
+    ["repository","services/marketplaceCatalogue/marketplaceCatalogueRepository.ts"]]
+},
+{
+  id:"O6", name:"Governed Sample Lifecycle", actor:"operator", status:"local", userLabel:"Actor",
+  user:"An operator ingesting a synthetic sample or promoting an exact qualified provider sample.",
+  flow:[{steps:["resolve reviewed Template/version and rights boundary","write private sample bytes","record immutable checksum, mask policy and expiry","publish sample pointer","expire fixture samples with deletion evidence"]}],
+  functionality:"Sample versions are immutable; current preview resolves a nonexpired, approved version. LinkedIn Posts sample v3 retains exactly five qualified provider records while masking 11 of 37 fields before purchase. Standard LinkedIn People preview contains five synthetic records. Formal production agreement scope remains a gate; this local-demo state is not universal rights approval.",
+  endpointsNone:"None. Samples reach customers only through C11 and C12.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Functions",items:["app.record_marketplace_fixture_sample","app.record_marketplace_provider_sample_v2","app.record_marketplace_fixture_deletion"]},
+       {label:"Tables",items:["app.marketplace_sample_versions","app.marketplace_sample_deletions","app.marketplace_qualification_packets"]}],
+  codepath:[["entry","worker/marketplaceSample.ts · worker/marketplacePeopleSample.ts"],
+    ["service","services/marketplaceSample/{marketplaceSampleService, marketplaceProviderSampleService}.ts · services/marketplacePeople/marketplacePeopleSampleService.ts"],
+    ["repository","services/marketplaceSample/marketplaceSampleRepository.ts · services/marketplacePeople/marketplacePeopleSampleRepository.ts"]],
+  note:{type:"gate",title:"Not automatically production-cleared.",text:"The retained LinkedIn Posts provider sample is approved for the local pre-purchase demo while the formal agreement reference and production storage/display/filter/download scope remain pending."}
+},
+{
+  id:"O7", name:"LinkedIn People Metadata & Contact Contract", actor:"operator", status:"local", userLabel:"Actor",
+  user:"An operator retaining standard People metadata evidence and registering safe contact-mode choices.",
+  flow:[{steps:["observe exact standard People metadata","record immutable field evidence","prepare synthetic preview","register private contact contract","project safe choices into the catalogue"]}],
+  functionality:"The standard People metadata observation has 46 fields, with 42 reviewed as active; the sample masks 12 fields. The database-backed contact choices are standard, enriched when available and contacts only. Only standard preview is available. Both contact-enabled fulfillment modes remain not_enabled pending DM-010 endpoint, request/response, entitlement, presence, omission, rights and qualification evidence.",
+  endpointsNone:"None. Contact-mode projection is returned by generic catalogue GETs.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Functions",items:["app.record_linkedin_people_metadata_observation","app.record_linkedin_people_synthetic_sample_v2","app.record_linkedin_people_contact_contract","app.resolve_marketplace_contact_modes"]},
+       {label:"Tables",items:["app.marketplace_catalog_metadata_observations","app.marketplace_contact_contract_packets","app.marketplace_contact_mode_contracts"]}],
+  codepath:[["entry","worker/marketplacePeopleMetadata.ts · worker/marketplacePeopleSample.ts · worker/marketplaceContactContract.ts"],
+    ["repository","services/marketplacePeople/{marketplacePeopleMetadataRepository, marketplacePeopleSampleRepository, marketplaceContactContractRepository}.ts"]],
+  note:{type:"guard",title:"No invented provider mode.",text:"The customer UI renders contact choices from the database. No generic Filter request sends an invented contact_mode."}
+},
+{
+  id:"O8", name:"Marketplace Qualification", actor:"operator", status:"local", userLabel:"Actor",
+  user:"An authorized engineer proving a bounded Marketplace Filter adapter independently of customer purchase.",
+  flow:[{steps:["resolve and prepare exact qualification packet","explicitly authorize capped request","claim one submission","persist polling and result evidence","accept or fail the packet"]}],
+  functionality:"Preflight and execution are operator-only and separately controlled. The qualification path retains attempt/checkpoint evidence and prevents automatic duplicate cost-creating submissions. It does not grant a customer entitlement, publish a paid Template or enable the customer Job Manager's Marketplace executor.",
+  endpointsNone:"None. This is a private operator command, not a customer endpoint.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Functions",items:["app.prepare_marketplace_qualification_packet","app.authorize_marketplace_qualification_packet","app.claim_marketplace_qualification_submission","app.record_marketplace_qualification_poll_checkpoint"]},
+       {label:"Tables",items:["app.marketplace_qualification_packets","app.marketplace_qualification_poll_checkpoints"]}],
+  codepath:[["entry","worker/marketplaceQualificationPreflight.ts · worker/marketplaceQualification.ts"],
+    ["service","services/marketplaceQualification/{marketplaceQualificationPreflightService, marketplaceQualificationExecutionService}.ts"],
+    ["repository","services/marketplaceQualification/{marketplaceQualificationPreflightRepository, marketplaceQualificationExecutionRepository}.ts"]],
+  note:{type:"trap",title:"Potentially billable operator path.",text:"This pattern documents existing evidence only. A future provider Filter/Search/export POST requires call-specific authorization and a fail-closed cost cap; viewing this atlas never invokes one."}
+},
+{
+  id:"O9", name:"Disabled Marketplace Export Candidate", actor:"operator", status:"blocked", userLabel:"Actor",
+  user:"An operator registering a technically qualified but intentionally disabled M10 export candidate.",
+  flow:[{steps:["verify accepted packet and protected mapping","register immutable disabled candidate","retain evidence for sample promotion","wait for MPayment and release approval"]}],
+  functionality:"The candidate table has retained rows and is read during provider-sample promotion, so it is not unused. But this is not a customer purchase: no payment/order, entitlement, paid Run, Service or outbox work is created. The customer Job Manager does not compose the live Marketplace Filter executor.",
+  endpointsNone:"None. No public paid-export endpoint is active.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Functions",items:["app.resolve_marketplace_export_candidate_source","app.register_marketplace_export_candidate_v1","app.resolve_marketplace_provider_sample_source"]},
+       {label:"Tables",items:["app.marketplace_export_candidates","app.marketplace_qualification_packets","app.provider_mappings"]}],
+  codepath:[["entry","worker/marketplaceExportCandidate.ts"],
+    ["service","services/marketplaceExportCandidate/marketplaceExportCandidateService.ts"],
+    ["repository","services/marketplaceExportCandidate/marketplaceExportCandidateRepository.ts"],
+    ["gate","services/brightdata/marketplace/marketplaceRunExecutor.ts is not composed for customer jobs"]],
+  note:{type:"gate",title:"MPayment remains future work.",text:"Payment authority, signed/replay-safe webhooks, Tenant entitlements, versioned spending limits, atomic admission and refund/reconciliation tests must precede activation. Contact-enriched People also needs independent DM-010 proof."}
+},
+{
+  id:"O10", name:"Generated Sample-Download Cleanup", actor:"operator", status:"local", userLabel:"Actor",
+  user:"An explicitly installed maintenance schedule or engineer using the restricted operator capability.",
+  flow:[{steps:["inventory bounded generated-download pages","commit database eligibility/fence","verify exact receipt and ETag","conditionally delete eligible object","repeat inventory; alert on uncertainty or incomplete scan"]}],
+  functionality:"0064 adds narrow cleanup functions, no new table. Preserve authorized/in-flight objects until eligible; a lost COMMIT acknowledgement is never blind deletion permission. The local schedule runs every 15 minutes with IgnoreNew/shared lock and a five-minute health watchdog. This describes retained Sep17 activation evidence, not a fresh scheduler health check. No provider work is created.",
+  endpointsNone:"None. Private maintenance CLI only; no customer cleanup route.",
+  db:["dhumi_operator"], txn:["withOperatorTransaction"],
+  sql:[{label:"Function",items:["app.claim_marketplace_sample_download_cleanup"]},
+       {label:"Tables",items:["app.marketplace_sample_download_authorizations"]}],
+  codepath:[["entry","worker/marketplaceSampleDownloadCleanup.ts"],
+    ["service","services/marketplaceSampleDownload/marketplaceSampleDownloadCleanup.ts"],
+    ["repository","services/marketplaceSampleDownload/marketplaceSampleDownloadCleanupRepository.ts"],
+    ["storage","services/marketplaceSampleDownload/azuriteMarketplaceSampleDownloadStore.ts"],
+    ["schedule","scripts/Register-SampleDownloadCleanupSchedule.ps1"],
+    ["runbook","docs/runbooks/sample-download-cleanup.md (repository root)"]],
+  note:{type:"gate",title:"Scope and cloud gate.",text:"Only marketplace/sample-downloads/ is eligible. Source marketplace/samples/, Run results and authorization/audit rows are preserved. One-hour safety grace is Dhumi policy, not an exact outage-proof deletion SLA. Production Blob identity/compute/lifecycle and centralized alerts remain open."}
+},
+{
+  id:"O11", name:"Shared Scraper Contract Onboarding", actor:"operator", status:"local", userLabel:"Actor",
+  user:"A developer or operator validating a reviewed, data-only scraper-operation package offline and optionally staging only a private draft.",
+  flow:[{steps:["build a package from exact provider input/output evidence and fixtures","validate the package offline with operator:scraper-contract","review the contract hash and required release evidence","stage with operator:scraper-onboard and explicit --confirm-draft","verify the expected database identity and exact replay","retain a private coming-soon Template version and pending launch evidence","complete protected mapping, commercial approval, qualification and publication separately"]}],
+  functionality:"The offline validator compiles the package schemas, serializes fixture input and normalizes fixture output through the shared processing module without loading environment configuration or connecting to PostgreSQL, storage or the provider. The staging command accepts only reviewed_candidate packages with strict presentation metadata and calls one operator-only database function. It does not create a protected mapping, credential, Service, Run, outbox event or public Template pointer.",
+  endpointsNone:"None. Validation and private draft staging are command-line workflows, not public customer routes.",
+  db:["dhumi_operator (staging only; validation has no database capability)"], txn:["withOperatorTransaction"],
+  sql:[{label:"Function",items:["app.stage_shared_scraper_operation_v1"]},
+       {label:"Tables",items:["app.service_templates","app.service_template_versions","app.launch_evidence","app.audit_events"]}],
+  codepath:[["offline validator","worker/scraperContract.ts"],["private staging + database call","worker/scraperOnboard.ts"],
+    ["contract model, validator cache, serialization and normalization","services/scrapers/scraperProcessing.ts"],
+    ["release identity","services/scrapers/sharedScraperVersion.ts"]],
+  note:{type:"gate",title:"Draft staging is not release.",text:"A passing fixture package proves only offline characterization. Every new operation still requires exact provider evidence, an encrypted protected mapping, approved commercial capacity, independent qualification and controlled immutable publication. The shared worker path remains default false until deliberately activated and verified."}
+}
+];
+
+/* ---------- helpers ---------- */
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+const STATUS_LABEL = {live:"Live", local:"Local only", blocked:"Blocked"};
+const ACTOR_LABEL = {customer:"Customer", system:"System", operator:"Operator"};
+
+function flowHTML(lines){
+  return lines.map(function(line){
+    const steps = line.steps.map(esc).join('<span class="arr">→</span>');
+    const tag = line.tag ? '<span class="tagchip '+(line.tag==="200"?"b200":"b202")+'">'+esc(line.tag)+"</span>" : "";
+    return '<div class="flowline">'+tag+steps+"</div>";
+  }).join("");
+}
+function endpointsHTML(p){
+  if(p.endpointsNone) return '<p class="ep-none">'+esc(p.endpointsNone)+"</p>";
+  let out = "";
+  if(p.epNote) out += '<p class="ep-none">'+esc(p.epNote)+"</p>";
+  out += p.endpoints.map(function(e){
+    return '<div class="ep'+(e[3]?" provider":"")+'"><span class="m '+esc(e[0])+'">'+esc(e[0])+'</span><code>'+esc(e[1])+
+           '</code><span class="scope">'+esc(e[2])+"</span></div>";
+  }).join("");
+  return out;
+}
+function sqlHTML(p){
+  return p.sql.map(function(g){
+    return '<div class="sqlrow"><div class="sl">'+esc(g.label)+"</div><div class='kv'>"+
+      g.items.map(function(i){return '<span class="v">'+esc(i)+"</span>";}).join("")+"</div></div>";
+  }).join("");
+}
+function codepathHTML(p){
+  return p.codepath.map(function(r){
+    const files = r[1].split(" · ").map(function(f){return '<span class="f">'+esc(f)+"</span>";}).join("");
+    return '<div class="cprow"><span class="cl">'+esc(r[0])+'</span><div class="cf">'+files+"</div></div>";
+  }).join("");
+}
+
+/* ---------- render map ---------- */
+function renderMap(){
+  const root = document.getElementById("mapRoot");
+  root.innerHTML = SECTIONS.map(function(s){
+    const cards = PATTERNS.filter(function(p){return p.actor===s.key;}).map(function(p){
+      return '<div class="map-card" data-id="'+p.id+'" data-actor="'+p.actor+'" data-status="'+p.status+'">'+
+        '<span class="mid '+p.actor+'">'+p.id+'</span><span class="mname">'+esc(p.name)+'</span><span class="mdot '+p.status+'"></span></div>';
+    }).join("");
+    return '<div class="grp"><h3 style="font-size:15px;margin:0 0 2px" class="t '+s.cls+'">'+esc(s.title)+"</h3>"+
+      '<p class="gcap">'+esc(s.mapCap)+'</p><div class="grid">'+cards+"</div></div>";
+  }).join("");
+  root.querySelectorAll(".map-card").forEach(function(c){
+    c.addEventListener("click",function(){
+      const el = document.getElementById("p-"+c.dataset.id);
+      if(!el) return;
+      el.scrollIntoView({behavior:"smooth",block:"start"});
+      el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+      setTimeout(function(){el.classList.remove("flash");},1700);
+    });
+  });
+}
+
+/* ---------- render sections ---------- */
+function renderSections(){
+  const root = document.getElementById("sections");
+  root.innerHTML = SECTIONS.map(function(s){
+    const cards = PATTERNS.filter(function(p){return p.actor===s.key;}).map(function(p){
+      const flow = flowHTML(p.flow) +
+        (p.subflows ? p.subflows.map(function(sf){
+          return '<div class="flowline"><span class="tagchip sub">'+esc(sf.tag)+"</span>"+
+            sf.steps.map(esc).join('<span class="arr">→</span>')+"</div>";
+        }).join("") : "") +
+        (p.topics ? '<span class="topics">'+esc(p.topics)+"</span>" : "");
+      const txn = p.txn.length
+        ? p.txn.map(function(t){return '<span class="v">'+esc(t)+"</span>";}).join("")
+        : "";
+      const txnWarn = p.txnWarning ? '<span class="v warn">'+esc(p.txnWarning)+"</span>" : "";
+      return '<section class="pattern" id="p-'+p.id+'" data-actor="'+p.actor+'" data-status="'+p.status+'" '+
+        'data-search="'+esc((p.id+" "+p.name+" "+p.user+" "+p.functionality+" "+
+          (p.endpoints?p.endpoints.map(function(e){return e[1];}).join(" "):"")+" "+
+          p.codepath.map(function(r){return r[1];}).join(" ")).toLowerCase())+'">'+
+        '<div class="phead"><span class="pid '+p.actor+'">'+p.id+'</span><h3>'+esc(p.name)+"</h3>"+
+        '<span class="actor-tag t '+p.actor+'">'+ACTOR_LABEL[p.actor]+'</span><span class="pill '+p.status+'">'+STATUS_LABEL[p.status]+"</span></div>"+
+        '<div class="cols"><div>'+
+          '<div class="blk"><div class="bl">'+esc(p.userLabel)+"</div><p>"+esc(p.user)+"</p></div>"+
+          '<div class="blk"><div class="bl">Flow</div>'+flow+"</div>"+
+          '<div class="blk"><div class="bl">Functionality</div><p class="dim">'+esc(p.functionality)+"</p></div>"+
+          '<div class="blk"><div class="bl">Endpoints</div>'+endpointsHTML(p)+"</div>"+
+        '</div><div>'+
+          '<div class="blk"><div class="bl">Database</div><div class="kv">'+
+            p.db.map(function(d){return '<span class="v role">'+esc(d)+"</span>";}).join("")+"</div>"+
+            '<div class="sl" style="font-size:11px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase">Transaction</div>'+
+            '<div class="kv">'+txn+txnWarn+"</div>"+sqlHTML(p)+"</div>"+
+          '<div class="blk"><div class="bl">Code path</div>'+codepathHTML(p)+"</div>"+
+        "</div></div>"+
+        (p.note ? '<div class="note '+p.note.type+'"><b>'+esc(p.note.title)+"</b><p>"+esc(p.note.text)+"</p></div>" : "")+
+        "</section>";
+    }).join("");
+    return '<div class="sect" data-sect="'+s.key+'"><div class="shead"><h2 class="t '+s.cls+'">'+esc(s.title)+"</h2></div>"+
+      '<p class="sintro">'+esc(s.intro)+"</p>"+cards+"</div>";
+  }).join("");
+}
+
+/* ---------- canonical chain ---------- */
+(function(){
+  const steps = ["route","controller","service","repository","transaction + role","SQL function or table"];
+  document.getElementById("canonChain").innerHTML =
+    steps.map(function(s,i){return '<span class="st'+(i===0?" hot":"")+'">'+s+"</span>";}).join('<span class="a">→</span>');
+})();
+
+/* ---------- filtering ---------- */
+let activeFilter = "all";
+function applyFilters(){
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  let shown = 0;
+  PATTERNS.forEach(function(p){
+    const matchesFilter = activeFilter==="all" || p.actor===activeFilter || p.status===activeFilter;
+    const card = document.getElementById("p-"+p.id);
+    const mapCard = document.querySelector('.map-card[data-id="'+p.id+'"]');
+    const matchesSearch = !q || (card && card.dataset.search.indexOf(q)!==-1);
+    const vis = matchesFilter && matchesSearch;
+    if(card) card.classList.toggle("hide",!vis);
+    if(mapCard) mapCard.classList.toggle("hide",!vis);
+    if(vis) shown++;
+  });
+  document.querySelectorAll(".sect").forEach(function(sec){
+    const any = sec.querySelectorAll(".pattern:not(.hide)").length>0;
+    sec.style.display = any ? "" : "none";
+  });
+  document.querySelectorAll(".grp").forEach(function(grp){
+    const any = grp.querySelectorAll(".map-card:not(.hide)").length>0;
+    grp.style.display = any ? "" : "none";
+  });
+  document.getElementById("count").textContent = "Showing "+shown+" of "+PATTERNS.length+" patterns";
+}
+document.getElementById("filters").addEventListener("click",function(e){
+  const chip = e.target.closest(".chip");
+  if(!chip) return;
+  document.querySelectorAll("#filters .chip").forEach(function(c){c.classList.remove("on");});
+  chip.classList.add("on");
+  activeFilter = chip.dataset.f;
+  applyFilters();
+});
+document.getElementById("q").addEventListener("input",applyFilters);
+
+document.getElementById("patternTotal").textContent = String(PATTERNS.length);
+renderMap();
+renderSections();
+applyFilters();
+</script>
+</body>
+</html>

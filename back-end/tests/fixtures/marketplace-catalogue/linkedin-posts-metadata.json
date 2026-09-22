@@ -1,0 +1,17 @@
+{
+  "id": "gd_lyy3tktm25m4avu764",
+  "fields": {
+    "url": {
+      "type": "url",
+      "active": true,
+      "required": true,
+      "description": "Fixture URL field using the documented metadata shape"
+    },
+    "text": {
+      "type": "text",
+      "active": true,
+      "required": false,
+      "description": "Fixture text field using the documented metadata shape"
+    }
+  }
+}

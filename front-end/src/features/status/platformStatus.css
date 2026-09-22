@@ -1,0 +1,60 @@
+.platform-status {
+  display: inline-flex;
+  min-width: max-content;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--workspace-line);
+  padding: 7px 10px;
+  background: var(--workspace-panel);
+  color: var(--workspace-muted);
+  font-family: Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.platform-status > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #89918c;
+}
+
+.platform-status--operational > span {
+  background: var(--workspace-safe);
+  box-shadow: 0 0 0 4px rgba(36, 116, 88, 0.1);
+}
+
+.platform-status--degraded > span,
+.platform-status--maintenance > span {
+  background: #c47c0c;
+  box-shadow: 0 0 0 4px rgba(196, 124, 12, 0.1);
+}
+
+.platform-status--unavailable > span {
+  background: #a73119;
+  box-shadow: 0 0 0 4px rgba(167, 49, 25, 0.1);
+}
+
+.platform-status--checking > span {
+  animation: platform-status-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes platform-status-pulse {
+  to {
+    opacity: 0.25;
+  }
+}
+
+@media (max-width: 960px) {
+  .platform-status {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-status--checking > span {
+    animation: none;
+  }
+}

@@ -1,0 +1,1691 @@
+openapi: 3.1.0
+info:
+  title: Dhumi Demo Production API
+  version: 0.1.0
+  description: |
+    Accepted mock-first implementation contract for the Dhumi Marketplace Dataset
+    and Scraper Library demo. Customers call only Dhumi. Bright Data credentials,
+    dataset IDs, snapshot IDs and raw errors are never public fields.
+
+    This contract has no activation, customer plan, subscription, billing,
+    credit, quota, invite, membership or team-management endpoints.
+    Live Bright Data traffic remains controlled by external evidence gates.
+  contact:
+    name: Dhumi Engineering
+  license:
+    name: Proprietary - internal implementation contract
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: https://api.dhumi.example
+    description: Reserved documentation placeholder; deployment base URL is pending.
+tags:
+  - name: Authentication
+    description: Dhumi signup and browser-session lifecycle.
+  - name: Workspace
+    description: The Tenant workspace resolved from authenticated identity.
+  - name: API Keys
+    description: Dhumi-issued customer API keys, never Bright Data keys.
+  - name: Catalogue
+    description: Published provider-neutral Dhumi service templates.
+  - name: Services
+    description: Tenant-owned saved configurations.
+  - name: Runs
+    description: Durable asynchronous work and stored results.
+  - name: Usage
+    description: Informational tenant usage without quotas or billing.
+  - name: Status
+    description: Customer-safe Dhumi platform and product status.
+
+paths:
+  /v1/auth/signup:
+    post:
+      tags: [Authentication]
+      operationId: signUp
+      summary: Submit a local Dhumi signup
+      description: |
+        Creates local User, Tenant, owner Tenant Access, legal evidence, audit
+        and notification outbox atomically. Makes no Bright Data request.
+        Response is deliberately generic. An existing email follows the same
+        accepted flow; 409 is reserved for the same Idempotency-Key used with a
+        different canonical request body.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpInput'
+      responses:
+        '202':
+          description: Signup submission accepted
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthAccepted'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409':
+          description: "Same Idempotency-Key was used with a different canonical request (IDEMPOTENCY_CONFLICT); never a duplicate-email signal"
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/auth/sign-in:
+    post:
+      tags: [Authentication]
+      operationId: signIn
+      summary: Sign in to Dhumi
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInInput'
+      responses:
+        '200':
+          description: Authenticated
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      operationId: refreshSession
+      summary: Rotate the browser session token family
+      description: Refresh token is supplied through the approved secure cookie.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Session refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: Revoke the current browser session family
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '204':
+          description: Signed out
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /v1/workspace:
+    get:
+      tags: [Workspace]
+      operationId: getWorkspace
+      summary: Get the authenticated Tenant workspace
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Workspace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /v1/keys:
+    get:
+      tags: [API Keys]
+      operationId: listApiKeys
+      summary: List Dhumi API-key metadata
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Paginated API keys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyPage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    post:
+      tags: [API Keys]
+      operationId: createApiKey
+      summary: Create a Dhumi API key
+      description: |
+        Plaintext secret is never stored. A KMS-envelope-encrypted successful
+        response is retained for a 10-minute idempotent recovery window. An exact
+        replay during that window returns the original 201 response. After the
+        envelope is destroyed, replay returns IDEMPOTENCY_REPLAY_EXPIRED and
+        creates no second key.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreateInput'
+      responses:
+        '201':
+          description: API key created; secret appears only in creation or its exact unexpired idempotent replay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCreated'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: "IDEMPOTENCY_CONFLICT or IDEMPOTENCY_REPLAY_EXPIRED; no new key is created"
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/keys/{key_id}:
+    delete:
+      tags: [API Keys]
+      operationId: revokeApiKey
+      summary: Revoke a Dhumi API key
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '204':
+          description: Key revoked
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/catalog/templates:
+    get:
+      tags: [Catalogue]
+      operationId: listTemplates
+      summary: List published Dhumi service templates
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - name: family
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ProductFamily'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Paginated templates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplatePage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v1/catalog/templates/{slug}:
+    get:
+      tags: [Catalogue]
+      operationId: getTemplate
+      summary: Get one published Dhumi template
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateSlug'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceTemplate'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/catalog/templates/{slug}/sample:
+    get:
+      tags: [Catalogue]
+      operationId: getMarketplaceSample
+      summary: Read one page from a governed stored Marketplace sample
+      description: Counts are relative to the immutable stored sample. This operation makes no provider request.
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateSlug'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Stored sample page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MarketplaceSampleQueryResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/catalog/templates/{slug}/sample/query:
+    post:
+      tags: [Catalogue]
+      operationId: queryMarketplaceSample
+      summary: Filter and project a governed stored Marketplace sample
+      description: Filtering is local to Dhumi's immutable stored sample and makes no provider request.
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateSlug'
+        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MarketplaceSampleQueryInput' }
+      responses:
+        '200':
+          description: Filtered and projected stored sample page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MarketplaceSampleQueryResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/catalog/templates/{slug}/sample/downloads:
+    post:
+      tags: [Catalogue]
+      operationId: authorizeMarketplaceSampleDownload
+      summary: Authorize a bounded download of a governed stored Marketplace sample
+      description: >-
+        Serializes the exact masked, filtered and selected projection of Dhumi's
+        immutable stored sample as JSON or CSV. JSON preserves projected field
+        values and types, but is not byte-identical source JSON. CSV is for
+        spreadsheet viewing and prefixes formula-like cells with a tab inside
+        quotes; it is not a lossless interchange format or a universal
+        spreadsheet-security guarantee. This operation makes no provider
+        request and does not create a Service, Run or outbox event.
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateSlug'
+        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MarketplaceSampleDownloadInput' }
+      responses:
+        '201':
+          description: Short-lived read-only sample-download authorization
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MarketplaceSampleDownloadAuthorization' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/catalog/templates/{slug}/expert-enquiries:
+    post:
+      tags: [Catalogue]
+      operationId: createMarketplaceExpertEnquiry
+      summary: Ask a Dhumi data expert about a Marketplace dataset
+      description: >-
+        Records one authenticated, Tenant-scoped enquiry against the exact
+        Marketplace preview Template version. This operation creates no
+        payment, entitlement, Service, Run, outbox event or provider request.
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateSlug'
+        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MarketplaceExpertEnquiryInput' }
+      responses:
+        '201':
+          description: Enquiry recorded, or the existing open enquiry returned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MarketplaceExpertEnquiry' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/services:
+    get:
+      tags: [Services]
+      operationId: listServices
+      summary: List tenant-owned services
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Paginated services
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicePage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    post:
+      tags: [Services]
+      operationId: createService
+      summary: Create a tenant-owned service configuration
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreateInput'
+      responses:
+        '201':
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/services/{service_id}:
+    get:
+      tags: [Services]
+      operationId: getService
+      summary: Get one tenant-owned service
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /v1/services/{service_id}/runs:
+    post:
+      tags: [Runs]
+      operationId: createRun
+      summary: Admit and queue a service run
+      description: Returns after durable local admission; provider work is asynchronous.
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunCreateInput'
+      responses:
+        '202':
+          description: Run durably accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunAccepted'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/runs:
+    get:
+      tags: [Runs]
+      operationId: listRuns
+      summary: List tenant runs
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/RunStatus'
+        - $ref: '#/components/parameters/ServiceIdFilter'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Paginated runs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunPage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /v1/runs/{run_id}:
+    get:
+      tags: [Runs]
+      operationId: getRun
+      summary: Get one tenant run
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /v1/runs/{run_id}/cancel:
+    post:
+      tags: [Runs]
+      operationId: cancelRun
+      summary: Request best-effort cancellation
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '202':
+          description: Cancellation request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/runs/{run_id}/retry:
+    post:
+      tags: [Runs]
+      operationId: retryRun
+      summary: Create a new run from an eligible terminal run
+      description: Never blindly repeats an unresolved provider attempt.
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '202':
+          description: New run accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunAccepted'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/runs/{run_id}/events:
+    get:
+      tags: [Runs]
+      operationId: listRunEvents
+      summary: List customer-safe run events
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Paginated events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunEventPage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /v1/runs/{run_id}/result:
+    get:
+      tags: [Runs]
+      operationId: getRunResult
+      summary: Get an authorized Dhumi result
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: representation
+          in: query
+          required: false
+          description: Select the validated Dhumi result or the durable original provider response. Defaults to normalized.
+          schema:
+            type: string
+            enum: [normalized, raw]
+            default: normalized
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Result metadata and short-lived download URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResult'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/usage/summary:
+    get:
+      tags: [Usage]
+      operationId: getUsageSummary
+      summary: Get informational tenant usage summary
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/FromTime'
+        - $ref: '#/components/parameters/ToTime'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Informational usage summary; no quota or billing fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageSummary'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /v1/usage/events:
+    get:
+      tags: [Usage]
+      operationId: listUsageEvents
+      summary: List informational tenant usage events
+      security:
+        - BrowserBearer: []
+        - DhumiApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/FromTime'
+        - $ref: '#/components/parameters/ToTime'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Paginated usage events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageEventPage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /v1/status:
+    get:
+      tags: [Status]
+      operationId: getPlatformStatus
+      summary: Get customer-safe Dhumi platform/product status
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformStatus'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+components:
+  securitySchemes:
+    BrowserBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived Dhumi browser access token.
+    DhumiApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: DhumiApiKey
+      description: Dhumi-issued customer API key. Never a Bright Data key.
+
+  headers:
+    RequestId:
+      description: Dhumi request correlation ID
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+    RetryAfter:
+      description: Seconds before a safe retry may be attempted
+      schema:
+        type: integer
+        minimum: 1
+
+  parameters:
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+      description: Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Opaque caller key scoped by authenticated actor/Tenant and operation.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: Required for state-changing browser session operations.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 512
+    ConditionalCsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      description: Required when BrowserBearer is used; not used with a Dhumi API key.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 512
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor returned by the previous page.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 2048
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    KeyId:
+      name: key_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TemplateSlug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+        minLength: 3
+        maxLength: 100
+    ServiceId:
+      name: service_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ServiceIdFilter:
+      name: service_id
+      in: query
+      required: false
+      description: Restrict the page to Runs owned by one Tenant-visible Service.
+      schema: { type: string, format: uuid }
+    RunId:
+      name: run_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    FromTime:
+      name: from
+      in: query
+      required: true
+      description: Inclusive lower bound for usage `observed_at` in RFC 3339 form.
+      schema: { type: string, format: date-time }
+    ToTime:
+      name: to
+      in: query
+      required: true
+      description: Exclusive upper bound for usage `observed_at`; must be later than `from`.
+      schema: { type: string, format: date-time }
+
+  schemas:
+    SignUpInput:
+      type: object
+      additionalProperties: false
+      required: [email, password, workspace_name, legal_acceptances]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          format: password
+          minLength: 12
+          maxLength: 256
+        workspace_name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        legal_acceptances:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/LegalAcceptanceInput'
+    LegalAcceptanceInput:
+      type: object
+      additionalProperties: false
+      required: [document_type, document_version, content_hash, accepted]
+      properties:
+        document_type:
+          type: string
+          minLength: 1
+          maxLength: 64
+        document_version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        content_hash:
+          type: string
+          pattern: '^[A-Fa-f0-9]{64}$'
+        accepted:
+          const: true
+    AuthAccepted:
+      type: object
+      additionalProperties: false
+      required: [accepted, message]
+      properties:
+        accepted: { type: boolean, const: true, readOnly: true }
+        message:
+          type: string
+          readOnly: true
+          example: Account request accepted. Sign in to continue.
+    SignInInput:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        password: { type: string, format: password, minLength: 1, maxLength: 256 }
+    AuthSession:
+      type: object
+      additionalProperties: false
+      required: [access_token, token_type, expires_in, csrf_token]
+      properties:
+        access_token: { type: string, readOnly: true }
+        token_type: { type: string, const: Bearer, readOnly: true }
+        expires_in: { type: integer, minimum: 1, readOnly: true }
+        csrf_token: { type: string, readOnly: true }
+    Workspace:
+      type: object
+      additionalProperties: false
+      required: [id, name, state, created_at]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string, readOnly: true }
+        state:
+          type: string
+          enum: [active, suspended, closing, closed]
+          readOnly: true
+        created_at: { type: string, format: date-time, readOnly: true }
+    ApiScope:
+      type: string
+      enum:
+        - catalog:read
+        - services:read
+        - services:write
+        - runs:read
+        - runs:write
+        - results:read
+        - usage:read
+    ApiKeyCreateInput:
+      type: object
+      additionalProperties: false
+      required: [name, scopes]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/ApiScope' }
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+    ApiKeyMetadata:
+      type: object
+      additionalProperties: false
+      required: [id, name, prefix, scopes, state, created_at]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string, minLength: 1, maxLength: 100, readOnly: true }
+        prefix: { type: string, minLength: 1, readOnly: true }
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          readOnly: true
+          items: { $ref: '#/components/schemas/ApiScope' }
+        state:
+          type: string
+          enum: [active, revoked, expired]
+          readOnly: true
+        created_at: { type: string, format: date-time, readOnly: true }
+        last_used_at: { type: [string, 'null'], format: date-time, readOnly: true }
+        expires_at: { type: [string, 'null'], format: date-time, readOnly: true }
+        revoked_at: { type: [string, 'null'], format: date-time, readOnly: true }
+    ApiKeyCreated:
+      type: object
+      additionalProperties: false
+      required: [id, name, prefix, scopes, state, created_at, secret]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string, minLength: 1, maxLength: 100, readOnly: true }
+        prefix: { type: string, minLength: 1, readOnly: true }
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          readOnly: true
+          items: { $ref: '#/components/schemas/ApiScope' }
+        state:
+          type: string
+          enum: [active, revoked, expired]
+          readOnly: true
+        created_at: { type: string, format: date-time, readOnly: true }
+        last_used_at: { type: [string, 'null'], format: date-time, readOnly: true }
+        expires_at: { type: [string, 'null'], format: date-time, readOnly: true }
+        revoked_at: { type: [string, 'null'], format: date-time, readOnly: true }
+        secret:
+          type: string
+          minLength: 1
+          readOnly: true
+          description: Plaintext Dhumi API key returned only by creation or its exact unexpired idempotent replay.
+    ProductFamily:
+      type: string
+      enum: [marketplace_dataset, scraper_library]
+    Availability:
+      type: string
+      enum: [available, preview_available, temporarily_unavailable, coming_soon]
+    ServiceTemplate:
+      type: object
+      additionalProperties: false
+      required: [slug, version, family, name, description, availability, presentation, configuration_schema, input_schema]
+      properties:
+        slug: { type: string, readOnly: true }
+        version: { type: integer, minimum: 1, readOnly: true }
+        family: { $ref: '#/components/schemas/ProductFamily' }
+        name: { type: string, readOnly: true }
+        description: { type: string, readOnly: true }
+        availability: { $ref: '#/components/schemas/Availability' }
+        presentation:
+          $ref: '#/components/schemas/TemplatePresentation'
+        configuration_schema:
+          type: object
+          readOnly: true
+          description: Provider-neutral JSON Schema for settings saved in an immutable Service version. Changing product URLs do not belong here.
+          additionalProperties: true
+        input_schema:
+          type: object
+          readOnly: true
+          description: Provider-neutral JSON Schema for input supplied separately to each Run, including Amazon product URLs.
+          additionalProperties: true
+        marketplace:
+          $ref: '#/components/schemas/MarketplaceMetadata'
+    TemplatePresentation:
+      type: object
+      additionalProperties: false
+      required: [domain_slug, domain_name, category, icon_key, operation_group, operation_name, display_priority]
+      properties:
+        domain_slug:
+          type: string
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+          readOnly: true
+        domain_name: { type: string, minLength: 1, maxLength: 120, readOnly: true }
+        category: { type: string, minLength: 1, maxLength: 80, readOnly: true }
+        icon_key:
+          type: string
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+          readOnly: true
+          description: Key into Dhumi's approved frontend asset registry; never a provider-hosted URL.
+        operation_group: { type: string, minLength: 1, maxLength: 120, readOnly: true }
+        operation_name: { type: string, minLength: 1, maxLength: 120, readOnly: true }
+        display_priority: { type: integer, minimum: 0, maximum: 1000000, readOnly: true }
+    MarketplaceCapabilityState:
+      type: string
+      enum: [available, not_enabled, temporarily_unavailable]
+    MarketplaceContactMode:
+      type: object
+      additionalProperties: false
+      required: [code, display_order, customer_meaning, preview_state, fulfillment_state]
+      properties:
+        code:
+          type: string
+          enum: [standard, enriched_when_available, contacts_only]
+          readOnly: true
+        display_order: { type: integer, minimum: 1, maximum: 3, readOnly: true }
+        customer_meaning: { type: string, minLength: 8, maxLength: 512, readOnly: true }
+        preview_state: { type: string, enum: [available, not_enabled], readOnly: true }
+        fulfillment_state: { type: string, const: not_enabled, readOnly: true }
+    MarketplaceField:
+      type: object
+      additionalProperties: false
+      required: [name, type, active, required, description, sample_visibility, allowed_operators]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160, readOnly: true }
+        type: { type: string, enum: [text, url, date, number, array, object, boolean], readOnly: true }
+        active: { type: boolean, readOnly: true }
+        required: { type: boolean, readOnly: true }
+        description: { type: string, readOnly: true }
+        sample_visibility: { type: string, enum: [visible, masked, suppressed], readOnly: true }
+        allowed_operators:
+          type: array
+          uniqueItems: true
+          readOnly: true
+          items: { $ref: '#/components/schemas/MarketplaceFilterOperator' }
+    MarketplaceMetadata:
+      type: object
+      additionalProperties: false
+      required: [record_count, record_count_as_of, sample, capabilities, fields, contact_modes]
+      properties:
+        record_count: { type: [integer, 'null'], minimum: 0, readOnly: true }
+        record_count_as_of: { type: string, format: date-time, readOnly: true }
+        sample:
+          type: object
+          additionalProperties: false
+          required: [state, version, record_count, display_page_size, collected_at, expires_at, masking_notice]
+          properties:
+            state: { type: string, const: available, readOnly: true }
+            version: { type: integer, minimum: 1, readOnly: true }
+            record_count: { type: integer, minimum: 1, readOnly: true }
+            display_page_size: { type: integer, minimum: 1, maximum: 100, readOnly: true }
+            collected_at: { type: string, format: date-time, readOnly: true }
+            expires_at: { type: string, format: date-time, readOnly: true }
+            masking_notice: { type: string, minLength: 1, readOnly: true }
+        capabilities:
+          type: object
+          additionalProperties: false
+          required: [sample_query, sample_download, full_export]
+          properties:
+            sample_query: { $ref: '#/components/schemas/MarketplaceCapabilityState' }
+            sample_download: { $ref: '#/components/schemas/MarketplaceCapabilityState' }
+            full_export: { $ref: '#/components/schemas/MarketplaceCapabilityState' }
+        fields:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/MarketplaceField' }
+        contact_modes:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/MarketplaceContactMode' }
+          readOnly: true
+    MarketplaceFilterOperator:
+      type: string
+      enum: ['=', '!=', in, not_in, includes, not_includes, is_null, is_not_null]
+    MarketplaceFilterPredicate:
+      type: object
+      additionalProperties: false
+      required: [name, operator]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        operator: { $ref: '#/components/schemas/MarketplaceFilterOperator' }
+        value:
+          oneOf:
+            - type: string
+            - type: array
+              minItems: 1
+              maxItems: 1000
+              items: { type: string }
+    MarketplaceFilterGroup:
+      type: object
+      additionalProperties: false
+      required: [operator, filters]
+      properties:
+        operator: { type: string, enum: [and, or] }
+        filters:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items: { $ref: '#/components/schemas/MarketplaceFilterPredicate' }
+    MarketplaceSortItem:
+      type: object
+      additionalProperties: false
+      required: [field, direction]
+      properties:
+        field: { type: string, minLength: 1, maxLength: 160 }
+        direction: { type: string, enum: [asc, desc] }
+    MarketplaceSampleQueryInput:
+      type: object
+      additionalProperties: false
+      required: [expected_sample_version, selected_fields, page]
+      properties:
+        expected_sample_version: { type: integer, minimum: 1 }
+        selected_fields:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 160 }
+        filter:
+          oneOf:
+            - $ref: '#/components/schemas/MarketplaceFilterPredicate'
+            - $ref: '#/components/schemas/MarketplaceFilterGroup'
+        sort:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/MarketplaceSortItem' }
+        page:
+          type: object
+          additionalProperties: false
+          required: [limit]
+          properties:
+            limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
+            cursor: { type: [string, 'null'], minLength: 1, maxLength: 2048 }
+    MarketplaceSampleQueryResult:
+      type: object
+      additionalProperties: false
+      required: [template_slug, template_version, sample_version, sample_record_count, matches_in_sample, selected_fields, rows, masking_notice, page]
+      properties:
+        template_slug: { type: string, readOnly: true }
+        template_version: { type: integer, minimum: 1, readOnly: true }
+        sample_version: { type: integer, minimum: 1, readOnly: true }
+        sample_record_count: { type: integer, minimum: 1, readOnly: true }
+        matches_in_sample: { type: integer, minimum: 0, readOnly: true }
+        selected_fields:
+          type: array
+          items: { type: string }
+          readOnly: true
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          readOnly: true
+        masking_notice: { type: string, readOnly: true }
+        page: { $ref: '#/components/schemas/Page' }
+    MarketplaceSampleDownloadInput:
+      type: object
+      additionalProperties: false
+      required: [expected_sample_version, selected_fields, format, record_limit]
+      properties:
+        expected_sample_version: { type: integer, minimum: 1 }
+        selected_fields:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 160 }
+        filter:
+          oneOf:
+            - $ref: '#/components/schemas/MarketplaceFilterPredicate'
+            - $ref: '#/components/schemas/MarketplaceFilterGroup'
+        sort:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/MarketplaceSortItem' }
+        format:
+          type: string
+          enum: [json, csv]
+          description: >-
+            Use json for exact projected values and types. CSV is a
+            spreadsheet-oriented representation that can alter formula-like
+            cell values with a leading tab; use JSON for machine ingestion.
+        record_limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: >-
+            Dhumi's preview-download ceiling. It is intentionally independent
+            of provider purchase/export limits and is further bounded by the
+            current stored sample.
+    MarketplaceSampleDownloadAuthorization:
+      type: object
+      additionalProperties: false
+      required: [sample_version, format, record_count, content_type, byte_count, checksum, download_url, download_expires_at]
+      properties:
+        sample_version: { type: integer, minimum: 1, readOnly: true }
+        format: { type: string, enum: [json, csv], readOnly: true }
+        record_count: { type: integer, minimum: 0, readOnly: true }
+        content_type: { type: string, readOnly: true }
+        byte_count: { type: integer, minimum: 0, readOnly: true }
+        checksum:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          readOnly: true
+        download_url: { type: string, format: uri, readOnly: true }
+        download_expires_at: { type: string, format: date-time, readOnly: true }
+    MarketplaceExpertEnquiryInput:
+      type: object
+      additionalProperties: false
+      required: [expected_template_version]
+      properties:
+        expected_template_version:
+          type: integer
+          minimum: 1
+          description: Immutable Marketplace Template version shown to the customer.
+    MarketplaceExpertEnquiry:
+      type: object
+      additionalProperties: false
+      required: [id, template_slug, template_version, state, submitted_at]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        template_slug: { type: string, readOnly: true }
+        template_version: { type: integer, minimum: 1, readOnly: true }
+        state:
+          type: string
+          enum: [received, in_review, contacted, closed]
+          readOnly: true
+        submitted_at: { type: string, format: date-time, readOnly: true }
+    ServiceCreateInput:
+      type: object
+      additionalProperties: false
+      required: [template_slug, name, configuration]
+      properties:
+        template_slug:
+          type: string
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+        name: { type: string, minLength: 1, maxLength: 120 }
+        configuration:
+          type: object
+          additionalProperties: true
+          description: Validated against the selected Template configuration_schema. Per-Run input is supplied only when a Run is created.
+    Service:
+      type: object
+      additionalProperties: false
+      required: [id, name, template_slug, template_version, version, family, state, created_at]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string, readOnly: true }
+        template_slug: { type: string, readOnly: true }
+        template_version: { type: integer, minimum: 1, readOnly: true }
+        version: { type: integer, minimum: 1, readOnly: true }
+        family: { $ref: '#/components/schemas/ProductFamily' }
+        state:
+          type: string
+          enum: [active, disabled]
+          readOnly: true
+        configuration:
+          type: object
+          readOnly: true
+          additionalProperties: true
+        created_at: { type: string, format: date-time, readOnly: true }
+    RunCreateInput:
+      type: object
+      additionalProperties: false
+      required: [input]
+      properties:
+        input:
+          type: object
+          additionalProperties: true
+          description: Validated against the pinned Service/Template version.
+    RunStatus:
+      type: string
+      enum: [queued, running, ready, failed, cancelled, expired]
+    RunAccepted:
+      type: object
+      additionalProperties: false
+      required: [run_id, status, accepted_at]
+      properties:
+        run_id: { type: string, format: uuid, readOnly: true }
+        status:
+          type: string
+          const: queued
+          readOnly: true
+        accepted_at: { type: string, format: date-time, readOnly: true }
+    Run:
+      type: object
+      additionalProperties: false
+      required: [id, service_id, status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        service_id: { type: string, format: uuid, readOnly: true }
+        status: { $ref: '#/components/schemas/RunStatus' }
+        progress_message: { type: [string, 'null'], readOnly: true }
+        error_code: { type: [string, 'null'], readOnly: true }
+        retryable: { type: boolean, readOnly: true }
+        created_at: { type: string, format: date-time, readOnly: true }
+        updated_at: { type: string, format: date-time, readOnly: true }
+        completed_at: { type: [string, 'null'], format: date-time, readOnly: true }
+    RunEvent:
+      type: object
+      additionalProperties: false
+      required: [id, type, message, occurred_at]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        type:
+          type: string
+          enum: [accepted, queued, started, progress, result_received, completed, failed, cancellation_requested, cancelled, expired]
+          readOnly: true
+        message: { type: string, readOnly: true }
+        occurred_at: { type: string, format: date-time, readOnly: true }
+    RunResult:
+      type: object
+      additionalProperties: false
+      required: [run_id, content_type, byte_count, checksum, download_url, download_expires_at]
+      properties:
+        run_id: { type: string, format: uuid, readOnly: true }
+        content_type: { type: string, readOnly: true }
+        byte_count: { type: integer, minimum: 0, readOnly: true }
+        checksum:
+          type: string
+          readOnly: true
+          description: Lowercase hexadecimal encoding of Dhumi's stored Artifact checksum bytes.
+        download_url: { type: string, format: uri, readOnly: true }
+        download_expires_at: { type: string, format: date-time, readOnly: true }
+    UsageItem:
+      type: object
+      additionalProperties: false
+      required: [meter, quantity, unit]
+      properties:
+        meter: { type: string, readOnly: true }
+        quantity: { type: number, minimum: 0, readOnly: true }
+        unit: { type: string, readOnly: true }
+    UsageSummary:
+      type: object
+      additionalProperties: false
+      required: [from, to, items, updated_at, state]
+      properties:
+        from: { type: string, format: date-time, readOnly: true }
+        to: { type: string, format: date-time, readOnly: true }
+        items:
+          type: array
+          readOnly: true
+          items: { $ref: '#/components/schemas/UsageItem' }
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Database time at which the informational projection was evaluated.
+        state:
+          type: string
+          enum: [observed, partially_reconciled, reconciled]
+          readOnly: true
+          description: Reconciliation state of the usage included in this projection.
+    UsageEvent:
+      type: object
+      additionalProperties: false
+      required: [id, run_id, product_family, meter, quantity, unit, outcome, observed_at]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        run_id: { type: string, format: uuid, readOnly: true }
+        product_family: { $ref: '#/components/schemas/ProductFamily' }
+        meter: { type: string, readOnly: true }
+        quantity: { type: number, minimum: 0, readOnly: true }
+        unit: { type: string, readOnly: true }
+        outcome: { type: string, enum: [accepted, succeeded, failed, cancelled], readOnly: true }
+        observed_at: { type: string, format: date-time, readOnly: true }
+    ProductStatus:
+      type: object
+      additionalProperties: false
+      required: [family, state, updated_at]
+      properties:
+        family: { $ref: '#/components/schemas/ProductFamily' }
+        state:
+          type: string
+          enum: [operational, degraded, unavailable, not_enabled, unknown]
+          readOnly: true
+          description: Customer-safe release availability for this Dhumi product family; it is not a provider account or dependency-health detail.
+        message: { type: [string, 'null'], readOnly: true }
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Database time at which the stored product release projection was evaluated.
+    PlatformStatus:
+      type: object
+      additionalProperties: false
+      required: [state, products, updated_at]
+      properties:
+        state:
+          type: string
+          enum: [operational, degraded, unavailable, maintenance, unknown]
+          readOnly: true
+          description: State of the Dhumi status/control surface; product release availability is reported separately in products.
+        products:
+          type: array
+          readOnly: true
+          items: { $ref: '#/components/schemas/ProductStatus' }
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Database time at which the complete stored projection was evaluated.
+    Page:
+      type: object
+      additionalProperties: false
+      required: [next_cursor, has_more]
+      properties:
+        next_cursor: { type: [string, 'null'], readOnly: true }
+        has_more: { type: boolean, readOnly: true }
+    ApiKeyPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ApiKeyMetadata' } }
+        page: { $ref: '#/components/schemas/Page' }
+    TemplatePage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ServiceTemplate' } }
+        page: { $ref: '#/components/schemas/Page' }
+    ServicePage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Service' } }
+        page: { $ref: '#/components/schemas/Page' }
+    RunPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Run' } }
+        page: { $ref: '#/components/schemas/Page' }
+    RunEventPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/RunEvent' } }
+        page: { $ref: '#/components/schemas/Page' }
+    UsageEventPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/UsageEvent' } }
+        page: { $ref: '#/components/schemas/Page' }
+    ProblemField:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        field: { type: [string, 'null'] }
+        message: { type: string }
+    ProblemCode:
+      type: string
+      enum:
+        - BAD_REQUEST
+        - AUTHENTICATION_REQUIRED
+        - ACCESS_DENIED
+        - RESOURCE_NOT_FOUND
+        - IDEMPOTENCY_CONFLICT
+        - IDEMPOTENCY_REPLAY_EXPIRED
+        - STATE_CONFLICT
+        - PAYLOAD_TOO_LARGE
+        - UNSUPPORTED_MEDIA_TYPE
+        - VALIDATION_ERROR
+        - SERVICE_INPUT_INVALID
+        - PLATFORM_CAPACITY_LIMIT
+        - INTERNAL_ERROR
+        - SERVICE_UNAVAILABLE
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, request_id]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'], format: uri-reference }
+        code: { $ref: '#/components/schemas/ProblemCode' }
+        request_id: { type: string }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/ProblemField' }
+
+  responses:
+    BadRequest:
+      description: Malformed request
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PayloadTooLarge:
+      description: Request body exceeds the accepted one-mebibyte limit
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedMediaType:
+      description: Request body does not use a supported media type
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Missing or invalid Dhumi authentication
+      headers:
+        WWW-Authenticate:
+          schema: { type: string }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Authenticated but not authorized or Tenant unavailable
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Resource does not exist or is not visible to this Tenant
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Idempotency or current-state conflict
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationError:
+      description: Semantically invalid request
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Temporary Dhumi platform/product capacity limit; not a customer quota
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    InternalServerError:
+      description: Unexpected Dhumi server error; internal detail is never exposed
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServiceUnavailable:
+      description: Dhumi or enabled product dependency temporarily unavailable
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }

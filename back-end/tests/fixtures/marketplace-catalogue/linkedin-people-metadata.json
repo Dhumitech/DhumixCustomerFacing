@@ -1,0 +1,17 @@
+{
+  "id": "gd_l1viktl72bvl7bjuj0",
+  "fields": {
+    "url": {
+      "type": "url",
+      "active": true,
+      "required": true,
+      "description": "Fixture URL field using the documented metadata shape"
+    },
+    "name": {
+      "type": "text",
+      "active": true,
+      "required": false,
+      "description": "Fixture name field using the documented metadata shape"
+    }
+  }
+}
