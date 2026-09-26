@@ -1,0 +1,1621 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>DataxDhumi · Workflow + AI Responsibilities</title>
+    <style>
+        :root {
+            --bg: #202323;
+            --panel: #2a2e2e;
+            --line: #454b4b;
+            --ink: #edf1ed;
+            --muted: #aab5ae;
+            --mint: #d5e8d4;
+            --screen: #e1d5e7;
+            --decision: #ffe6cc;
+            --bad: #f8cecc;
+            --rule: #f5f5f5;
+            --blue: #dae8fc
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            height: 100dvh;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: "Trebuchet MS", Verdana, sans-serif;
+            font-size: 14px
+        }
+
+        button,
+        input {
+            font: inherit
+        }
+
+        button {
+            cursor: pointer;
+            color: inherit
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        a:focus-visible {
+            outline: 2px solid #b8d8b5;
+            outline-offset: 3px
+        }
+
+        button {
+            background: #303535;
+            border: 1px solid #505858;
+            border-radius: 5px;
+            padding: 8px 12px
+        }
+
+        button:hover {
+            background: #414848
+        }
+
+        button[aria-pressed=true] {
+            background: var(--mint);
+            color: #243327;
+            border-color: #a0bb9a
+        }
+
+        button:disabled {
+            opacity: .4;
+            cursor: default
+        }
+
+        [hidden] {
+            display: none !important
+        }
+
+        .app {
+            height: 100%;
+            display: grid;
+            grid-template-rows: auto auto auto minmax(0, 1fr) auto
+        }
+
+        .masthead {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 26px 17px;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .eyebrow {
+            font: 11px/1.3 Consolas, monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #b3c6b3;
+            margin: 0 0 7px
+        }
+
+        .masthead h1 {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -.6px;
+            margin: 0
+        }
+
+        .subtitle {
+            margin: 7px 0 0;
+            color: var(--muted);
+            font-size: 12px
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        .scope {
+            font: 11px Consolas, monospace;
+            color: #c3d0c6;
+            border: 1px solid #4b5b50;
+            padding: 8px 10px;
+            border-radius: 4px;
+            white-space: nowrap
+        }
+
+        .schema-button {
+            background: #e1d5e7;
+            color: #38283c;
+            border-color: #baa5c3;
+            font-weight: bold
+        }
+
+        .schema-button:hover {
+            background: #eee3f3
+        }
+
+        .stages {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 1px;
+            background: #464d4d;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .stage-btn {
+            border: 0;
+            border-radius: 0;
+            background: #292d2d;
+            padding: 13px 15px;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            line-height: 1.3
+        }
+
+        .stage-btn .num {
+            font: 19px Consolas, monospace;
+            opacity: .55
+        }
+
+        .stage-btn strong {
+            font-size: 12px;
+            font-weight: 600
+        }
+
+        .stage-btn small {
+            font-size: 10px;
+            display: block;
+            opacity: .6;
+            margin-top: 2px
+        }
+
+        .stage-btn[aria-current=step] {
+            background: #3d4c41;
+            box-shadow: inset 0 -3px #bdd8b6;
+            color: #e4f1df
+        }
+
+        .stage-btn[aria-current=step] .num {
+            color: #c3dfbc;
+            opacity: 1
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 20px;
+            background: #252929;
+            border-bottom: 1px solid var(--line);
+            min-height: 55px
+        }
+
+        .tools {
+            display: flex;
+            align-items: center;
+            gap: 5px
+        }
+
+        .tools button {
+            padding: 6px 10px;
+            font-size: 12px
+        }
+
+        .zoom-readout {
+            min-width: 46px;
+            text-align: center;
+            color: #d5ddd7;
+            font: 12px Consolas, monospace
+        }
+
+        .legend {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            font-size: 11px;
+            color: #c2cbc5
+        }
+
+        .legend span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap
+        }
+
+        .swatch {
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border-radius: 2px;
+            background: var(--screen)
+        }
+
+        .swatch.decision {
+            background: var(--decision);
+            transform: rotate(45deg);
+            border-radius: 0;
+            width: 9px;
+            height: 9px;
+            margin-right: 2px
+        }
+
+        .swatch.good {
+            background: var(--mint)
+        }
+
+        .swatch.warn {
+            background: #fff2cc
+        }
+
+        .swatch.bad {
+            background: var(--bad)
+        }
+
+        .swatch.rule {
+            background: var(--rule);
+            border: 1px dashed #888
+        }
+
+        .search {
+            width: 195px;
+            background: #1c2020;
+            color: var(--ink);
+            border: 1px solid #505858;
+            border-radius: 4px;
+            padding: 7px 9px;
+            font-size: 12px
+        }
+
+        .search-wrap {
+            position: relative
+        }
+
+        .search-results {
+            position: absolute;
+            right: 0;
+            top: 39px;
+            width: 330px;
+            max-height: 330px;
+            overflow: auto;
+            background: #282e2b;
+            border: 1px solid #5d6d60;
+            box-shadow: 0 12px 30px #0007;
+            z-index: 20;
+            border-radius: 6px;
+            padding: 5px
+        }
+
+        .search-results button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            border: 0;
+            line-height: 1.5;
+            padding: 9px
+        }
+
+        .search-results small {
+            display: block;
+            color: #a7b8a8;
+            font-size: 10px
+        }
+
+        .search-results p {
+            padding: 8px;
+            color: var(--muted)
+        }
+
+        .workspace {
+            position: relative;
+            min-height: 0;
+            overflow: hidden
+        }
+
+        .canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #202323;
+            touch-action: none;
+            cursor: grab
+        }
+
+        .canvas.dragging {
+            cursor: grabbing
+        }
+
+        .node {
+            cursor: pointer;
+            outline: none
+        }
+
+        .node .shape {
+            stroke-width: 2;
+            transition: filter .12s
+        }
+
+        .node:hover .shape,
+        .node:focus .shape {
+            filter: brightness(1.15);
+            stroke-width: 4
+        }
+
+        .node.selected .shape {
+            stroke: #eefcf0;
+            stroke-width: 5;
+            filter: drop-shadow(0 0 7px #b5deb559)
+        }
+
+        .node .label {
+            pointer-events: none;
+            font-family: "Trebuchet MS", Verdana, sans-serif
+        }
+
+        .node .node-title {
+            font-size: 22px;
+            font-weight: 600
+        }
+
+        .node .node-body {
+            font-size: 18px
+        }
+
+        .process .shape {
+            fill: #232727;
+            stroke: #a9b5af
+        }
+
+        .process .label {
+            fill: #ecf0ec
+        }
+
+        .screen .shape {
+            fill: #e1d5e7;
+            stroke: #9673a6
+        }
+
+        .decision .shape {
+            fill: #ffe6cc;
+            stroke: #d79b00
+        }
+
+        .good .shape {
+            fill: #d5e8d4;
+            stroke: #82b366
+        }
+
+        .warn .shape {
+            fill: #fff2cc;
+            stroke: #d6b656
+        }
+
+        .bad .shape {
+            fill: #f8cecc;
+            stroke: #b85450
+        }
+
+        .startEnd .shape {
+            fill: #dae8fc;
+            stroke: #6c8ebf
+        }
+
+        .rule .shape {
+            fill: #f5f5f5;
+            stroke: #999;
+            stroke-dasharray: 6 5
+        }
+
+        .screen .label,
+        .decision .label,
+        .good .label,
+        .warn .label,
+        .bad .label,
+        .rule .label,
+        .startEnd .label {
+            fill: #242a24
+        }
+
+        .edge {
+            fill: none;
+            stroke: #c0cbc3;
+            stroke-width: 2;
+            stroke-linejoin: round;
+            stroke-linecap: round
+        }
+
+        .edge.recovery {
+            stroke: #d8bb69;
+            stroke-dasharray: 7 5
+        }
+
+        .edge.stop {
+            stroke: #d98f89
+        }
+
+        .edge.note {
+            stroke: #9aaa9e;
+            stroke-dasharray: 4 6;
+            stroke-width: 1.5
+        }
+
+        .edge-label rect {
+            fill: #343b37;
+            stroke: #566158;
+            stroke-width: .7;
+            rx: 4
+        }
+
+        .edge-label text {
+            fill: #e0e8df;
+            font: 16px "Trebuchet MS", Verdana, sans-serif
+        }
+
+        .phase-bg {
+            fill: #353b38;
+            stroke: #626e64;
+            stroke-width: 1.3
+        }
+
+        .phase-heading {
+            fill: #edf3e9;
+            font: 600 29px "Trebuchet MS", Verdana, sans-serif
+        }
+
+        .phase-caption {
+            fill: #bccbbc;
+            font: 18px "Trebuchet MS", Verdana, sans-serif
+        }
+
+        .chapter-link {
+            stroke: #c4dabb;
+            stroke-width: 3;
+            fill: none
+        }
+
+        .global-rule {
+            fill: #b7c6b6;
+            font: 19px "Trebuchet MS", Verdana, sans-serif
+        }
+
+        .map-hint {
+            position: absolute;
+            bottom: 14px;
+            left: 18px;
+            color: #aab9ae;
+            font: 11px Consolas, monospace;
+            background: #202523e8;
+            border: 1px solid #47534a;
+            padding: 8px 11px;
+            border-radius: 4px;
+            pointer-events: none
+        }
+
+        .collection-jumps {
+            position: absolute;
+            left: 18px;
+            top: 14px;
+            display: flex;
+            gap: 5px;
+            padding: 6px;
+            background: #252b27ee;
+            border: 1px solid #536151;
+            border-radius: 5px
+        }
+
+        .collection-jumps button {
+            font-size: 11px;
+            padding: 6px 9px
+        }
+
+        .detail {
+            position: absolute;
+            right: 16px;
+            top: 16px;
+            bottom: 16px;
+            width: 355px;
+            background: #f1f1e8;
+            color: #283329;
+            border: 1px solid #a7b8a1;
+            border-radius: 7px;
+            box-shadow: 0 15px 45px #0006;
+            overflow: auto;
+            z-index: 10;
+            padding: 24px
+        }
+
+        .detail .close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: none;
+            border-color: #bcc7b6;
+            color: #41533c;
+            padding: 4px 9px
+        }
+
+        .detail .kind {
+            font: 10px Consolas, monospace;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            color: #63755b;
+            margin-top: 8px
+        }
+
+        .detail h2 {
+            font-size: 23px;
+            line-height: 1.2;
+            margin: 14px 0 18px;
+            font-weight: 600
+        }
+
+        .detail h3 {
+            font-size: 11px;
+            letter-spacing: .6px;
+            text-transform: uppercase;
+            color: #586d50;
+            margin-top: 25px
+        }
+
+        .detail p {
+            font-size: 13px;
+            line-height: 1.7
+        }
+
+        .detail .next-nodes {
+            display: flex;
+            flex-direction: column;
+            gap: 7px
+        }
+
+        .detail .next-nodes button {
+            background: #e2e6d9;
+            border-color: #bdc8b4;
+            color: #34472f;
+            text-align: left;
+            font-size: 12px
+        }
+
+        .detail .next-nodes small {
+            display: block;
+            color: #607553;
+            margin-top: 3px
+        }
+
+        .detail .schema-button {
+            margin-top: 15px;
+            color: #332437
+        }
+
+        .detail .ref {
+            border-top: 1px solid #cdd4c5;
+            margin-top: 24px;
+            padding-top: 12px;
+            font: 11px Consolas, monospace;
+            color: #66795d
+        }
+
+        .footer {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            justify-content: space-between;
+            padding: 11px 22px;
+            border-top: 1px solid var(--line);
+            background: #252a27;
+            font-size: 11px;
+            color: #b8c5b6
+        }
+
+        .footer strong {
+            color: #d8e7d3;
+            font-weight: 500
+        }
+
+        .footer .nav {
+            display: flex;
+            gap: 6px
+        }
+
+        .footer button {
+            font-size: 11px;
+            padding: 5px 10px
+        }
+
+        .footer .progress-track {
+            width: 150px;
+            height: 3px;
+            background: #465144;
+            position: relative
+        }
+
+        .footer .progress-track span {
+            display: block;
+            height: 100%;
+            background: #a8c99d;
+            transition: width .15s
+        }
+
+        .footer-main {
+            display: flex;
+            align-items: center;
+            gap: 16px
+        }
+
+        .footer .count {
+            font: 11px Consolas, monospace;
+            white-space: nowrap
+        }
+
+        dialog {
+            background: #f1f1e8;
+            color: #283329;
+            border: 1px solid #9eaf97;
+            border-radius: 8px;
+            padding: 0;
+            max-width: min(1020px, 94vw);
+            width: 1020px;
+            max-height: 88dvh;
+            box-shadow: 0 25px 80px #0008
+        }
+
+        dialog::backdrop {
+            background: #111b16c9
+        }
+
+        .dialog-head {
+            padding: 25px 28px 20px;
+            border-bottom: 1px solid #c7cebf;
+            display: flex;
+            gap: 15px;
+            align-items: start;
+            justify-content: space-between
+        }
+
+        .dialog-head h2 {
+            margin: 0;
+            font-size: 23px
+        }
+
+        .dialog-head p {
+            margin: 8px 0 0;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #5c6c54
+        }
+
+        .dialog-head button {
+            background: #e0e6d7;
+            color: #35472e;
+            border-color: #b3c0a8
+        }
+
+        .dialog-body {
+            padding: 20px 28px 28px;
+            overflow: auto
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 13px
+        }
+
+        th {
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 10px;
+            color: #586d50;
+            padding: 13px 10px;
+            border-bottom: 2px solid #c3cdbb
+        }
+
+        td {
+            padding: 13px 10px;
+            border-bottom: 1px solid #d5dcce;
+            vertical-align: top;
+            line-height: 1.8
+        }
+
+        td:first-child {
+            color: #778871;
+            width: 35px
+        }
+
+        td:nth-child(2) {
+            width: 260px;
+            font-weight: 600
+        }
+
+        code {
+            font: 12px Consolas, monospace;
+            background: #e0e7d9;
+            padding: 3px 5px;
+            border-radius: 3px;
+            color: #374831;
+            white-space: nowrap
+        }
+
+        .required {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            color: #8a3630;
+            margin-right: 6px;
+            font-weight: bold
+        }
+
+        .contract-note {
+            font-size: 12px;
+            line-height: 1.75;
+            color: #526348;
+            padding: 15px;
+            background: #e3e9da;
+            border-left: 3px solid #7d936f;
+            margin-top: 20px
+        }
+
+        .read-section {
+            margin: 0 0 25px
+        }
+
+        .read-section h3 {
+            font-size: 17px;
+            margin-bottom: 12px
+        }
+
+        .read-step {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: #e7eadf;
+            border-color: #c7cfbc;
+            color: #30442a;
+            margin: 7px 0;
+            padding: 11px 14px
+        }
+
+        .read-step span {
+            display: block;
+            font-size: 12px;
+            font-weight: normal;
+            line-height: 1.6;
+            margin-top: 5px;
+            color: #5b6e52
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0
+        }
+
+        @media(max-width:1080px) {
+            .legend {
+                display: none
+            }
+
+            .masthead {
+                padding: 16px 18px
+            }
+
+            .stage-btn {
+                padding: 12px 10px;
+                gap: 7px
+            }
+
+            .stage-btn small {
+                display: none
+            }
+
+            .scope {
+                display: none
+            }
+
+            .masthead h1 {
+                font-size: 21px
+            }
+
+            .subtitle {
+                font-size: 11px
+            }
+
+            .header-actions button {
+                font-size: 12px
+            }
+        }
+
+        @media(max-width:650px) {
+            .masthead {
+                padding: 13px 14px;
+                align-items: flex-start;
+                gap: 8px
+            }
+
+            .masthead h1 {
+                font-size: 18px;
+                max-width: 230px
+            }
+
+            .eyebrow {
+                font-size: 9px
+            }
+
+            .subtitle {
+                display: none
+            }
+
+            .header-actions {
+                flex-direction: column;
+                gap: 5px
+            }
+
+            .header-actions button {
+                font-size: 10px;
+                padding: 6px 8px
+            }
+
+            .stages {
+                grid-template-columns: repeat(3, 1fr)
+            }
+
+            .stage-btn {
+                padding: 9px 10px
+            }
+
+            .stage-btn strong {
+                font-size: 10px
+            }
+
+            .stage-btn .num {
+                font-size: 14px
+            }
+
+            .toolbar {
+                padding: 8px;
+                gap: 4px;
+                flex-wrap: wrap
+            }
+
+            .tools {
+                gap: 3px
+            }
+
+            .tools button {
+                font-size: 10px;
+                padding: 6px 7px
+            }
+
+            .search {
+                width: 140px;
+                font-size: 11px
+            }
+
+            .search-results {
+                width: 280px
+            }
+
+            .detail {
+                left: 10px;
+                right: 10px;
+                top: 10px;
+                bottom: 10px;
+                width: auto;
+                padding: 23px
+            }
+
+            .footer {
+                padding: 8px 10px;
+                gap: 8px
+            }
+
+            .footer-main {
+                gap: 6px
+            }
+
+            .footer .progress-track,
+            .footer .count,
+            .map-hint {
+                display: none
+            }
+
+            .footer button {
+                font-size: 10px;
+                padding: 5px 7px
+            }
+
+            .collection-jumps {
+                left: 8px;
+                top: 8px;
+                right: 8px;
+                flex-wrap: wrap
+            }
+
+            .collection-jumps button {
+                font-size: 9px;
+                padding: 5px 6px
+            }
+
+            .dialog-head,
+            .dialog-body {
+                padding: 17px
+            }
+
+            .dialog-head h2 {
+                font-size: 19px
+            }
+
+            td {
+                font-size: 11px;
+                padding: 9px 5px
+            }
+
+            td:nth-child(2) {
+                width: 120px
+            }
+
+            code {
+                font-size: 10px
+            }
+
+            dialog {
+                max-width: 96vw
+            }
+        }
+
+        .ai-button {
+            background: #d5e8d4;
+            color: #263b2a;
+            border-color: #a3bf9d;
+            font-weight: bold
+        }
+
+        .ai-button:hover {
+            background: #e5f1df
+        }
+
+        .detail .owner {
+            font-size: 12px;
+            line-height: 1.6;
+            padding: 10px;
+            border-left: 3px solid #738d69;
+            background: #e2e8db
+        }
+
+        .detail .ai-button {
+            font-size: 11px;
+            margin-top: 5px
+        }
+
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px
+        }
+
+        .role-card {
+            border: 1px solid #bdcbb5;
+            border-radius: 5px;
+            padding: 18px;
+            background: #e8ecdf;
+            min-width: 0
+        }
+
+        .role-card h3 {
+            font-size: 17px;
+            margin: 10px 0
+        }
+
+        .role-card p {
+            font-size: 12px;
+            line-height: 1.65;
+            margin: 8px 0
+        }
+
+        .role-card .role-model {
+            font: 11px Consolas, monospace;
+            letter-spacing: .3px;
+            color: #385a43
+        }
+
+        .role-card[data-model=terra] {
+            border-top: 3px solid #b68f52
+        }
+
+        .role-card[data-model=luna] {
+            border-top: 3px solid #749ca5
+        }
+
+        .role-card button {
+            font-size: 11px;
+            background: #d7e1cd;
+            color: #31482b;
+            border-color: #afc0a3;
+            margin: 8px 6px 0 0
+        }
+
+        .role-card a {
+            color: #365a43
+        }
+
+        .ai-summary {
+            margin: 0 0 18px;
+            font-size: 13px;
+            line-height: 1.7
+        }
+
+        .ai-policy {
+            margin: 20px 0 0;
+            border-top: 1px solid #bac8b0;
+            padding-top: 15px
+        }
+
+        .ai-policy h3 {
+            font-size: 16px
+        }
+
+        .ai-policy p {
+            font-size: 12px;
+            line-height: 1.75
+        }
+
+        .ai-policy a {
+            color: #345d42
+        }
+
+        .node .node-owner {
+            font-size: 14px;
+            font-weight: 600
+        }
+
+        .node.process[data-model=luna] .shape {
+            stroke: #94bdc5
+        }
+
+        .node.process[data-model=terra] .shape {
+            stroke: #d4b178
+        }
+
+        .header-actions {
+            flex-wrap: wrap;
+            justify-content: flex-end
+        }
+
+        .masthead>div:first-child {
+            min-width: 0
+        }
+
+        @media(max-width:1250px) {
+            .scope {
+                display: none
+            }
+        }
+
+        @media(max-width:650px) {
+            .role-grid {
+                grid-template-columns: 1fr
+            }
+
+            .role-card {
+                padding: 14px
+            }
+
+            .header-actions {
+                flex-shrink: 0
+            }
+
+            .ai-summary {
+                font-size: 12px
+            }
+        }
+
+        @media(prefers-reduced-motion:reduce) {
+            * {
+                transition: none !important
+            }
+        }
+
+        @media print {
+            body {
+                height: auto;
+                overflow: visible;
+                background: white
+            }
+
+            .app {
+                display: block
+            }
+
+            .masthead {
+                color: black
+            }
+
+            .stages,
+            .toolbar,
+            .footer,
+            .map-hint,
+            .collection-jumps,
+            .detail {
+                display: none !important
+            }
+
+            .workspace {
+                height: 800px
+            }
+
+            .canvas {
+                height: 800px
+            }
+
+            dialog {
+                display: none
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <header class="masthead">
+            <div>
+                <p class="eyebrow">DataxDhumi / Workflow + AI</p>
+                <h1>Price &amp; Competitor Analysis</h1>
+                <p class="subtitle">Own PDP review → platforms → dashboard · Azure AI Foundry: Luna + Terra.</p>
+            </div>
+            <div class="header-actions"><span class="scope">4 required AI roles + 1 optional · 2 models</span><button
+                    class="ai-button" id="openAgents">AI roles &amp; limits</button><button class="schema-button"
+                    id="openSchemas">Dataset inputs ↗</button><button id="openRead">Read the flow</button></div>
+        </header>
+        <nav class="stages" id="stageNav" aria-label="Workflow stages"></nav>
+        <div class="toolbar">
+            <div class="tools"><button id="zoomOut" aria-label="Zoom out">−</button><output class="zoom-readout"
+                    id="zoomLabel" aria-label="Current zoom">65%</output><button id="zoomIn"
+                    aria-label="Zoom in">+</button><button id="fitStage">Fit stage</button><button id="overview">All
+                    stages</button><button id="exportSvg">Save SVG</button></div>
+            <div class="legend" aria-label="Diagram legend"><span><i class="swatch"></i>Customer screen</span><span><i
+                        class="swatch decision"></i>Decision</span><span><i
+                        class="swatch good"></i>Accepted</span><span><i class="swatch warn"></i>Recovery</span><span><i
+                        class="swatch bad"></i>Stop / exclude</span></div>
+            <div class="search-wrap"><label class="sr-only" for="search">Find a step</label><input class="search"
+                    id="search" type="search" placeholder="Find a step…" autocomplete="off">
+                <div class="search-results" id="searchResults" hidden></div>
+            </div>
+        </div>
+        <main class="workspace" id="workspace"><svg class="canvas" id="canvas" xmlns="http://www.w3.org/2000/svg"
+                tabindex="0" role="group"
+                aria-label="Interactive workflow diagram. Drag to pan. Control plus mouse wheel to zoom. Select a step for its rules.">
+                <title>Price and competitor analysis — corrected workflow</title>
+                <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8"
+                        orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#bccbbd" />
+                    </marker>
+                    <marker id="arrow-recovery" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8"
+                        orient="auto">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#d8bb69" />
+                    </marker>
+                    <marker id="arrow-stop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8"
+                        orient="auto">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#d98f89" />
+                    </marker>
+                </defs>
+                <g id="world"></g>
+            </svg>
+            <div class="collection-jumps" id="collectionJumps" hidden aria-label="Collection stage areas"><button
+                    data-focus="collectionscope">Automatic scope</button><button data-focus="inputgate">PDP &amp;
+                    schema</button><button data-focus="job">Collection &amp; retries</button><button
+                    data-focus="outgate">Result normalization</button></div>
+            <div class="map-hint">DRAG TO PAN · CTRL + SCROLL TO ZOOM · CLICK A STEP TO READ</div>
+            <aside class="detail" id="detail" aria-labelledby="detailTitle" hidden><button class="close"
+                    id="closeDetail" aria-label="Close step details">×</button>
+                <div class="kind" id="detailKind"></div>
+                <h2 id="detailTitle"></h2>
+                <p class="owner" id="detailOwner"></p><button class="ai-button" id="detailAgentsButton">AI
+                    responsibilities &amp; limits</button>
+                <p id="detailText"></p>
+                <h3>Recovery / boundary</h3>
+                <p id="detailFailure"></p>
+                <div id="detailSchemaAction" hidden><button class="schema-button" id="detailSchemaButton">View all 11
+                        dataset contracts</button></div>
+                <h3>Connected steps</h3>
+                <div class="next-nodes" id="nextNodes"></div>
+                <div class="ref" id="detailRef"></div>
+            </aside>
+        </main>
+        <footer class="footer">
+            <div class="footer-main"><strong id="stageCaption"></strong><span class="count" id="stageCount"></span>
+                <div class="progress-track" aria-hidden="true"><span id="progress"></span></div>
+            </div>
+            <div class="nav"><button id="previous">← Previous stage</button><button id="next">Next stage →</button>
+            </div>
+        </footer>
+    </div>
+    <dialog id="schemaDialog" aria-labelledby="schemaTitle">
+        <div class="dialog-head">
+            <div>
+                <h2 id="schemaTitle">Fixed dataset input contracts</h2>
+                <p>AI normalizes verified evidence. The system validates it. Only then may the external scraper run.</p>
+            </div><button data-close="schemaDialog" aria-label="Close dataset contracts">×</button>
+        </div>
+        <div class="dialog-body">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Platform / Dataset</th>
+                        <th>Supported input fields</th>
+                    </tr>
+                </thead>
+                <tbody id="schemaRows"></tbody>
+            </table>
+            <div class="contract-note"><strong>Every submitted listing needs a verified PDP in <code>url</code>,
+                    including Amazon.</strong> Use exact field names, types, allowed values, and request structure from
+                the fixed external contract. This field list does not invent unspecified types. Never substitute a
+                category/search link, rename a key, guess an ID, or omit a required value. Preserve meaningful variant
+                parameters. Optional fields are omitted only when allowed; error reasons and internal metadata stay
+                outside the payload.<br><br>Best Buy requires <code>url</code>, <code>store_id</code>, and
+                <code>zip</code>. An unresolved shared requirement blocks that platform; a listing-specific failure
+                blocks only that listing. Schema repair is limited to one attempt.</div>
+        </div>
+    </dialog>
+    <dialog id="readDialog" aria-labelledby="readTitle">
+        <div class="dialog-head">
+            <div>
+                <h2 id="readTitle">Read the flow, one stage at a time</h2>
+                <p>Aligned with logic+workflow2.md and refinedlogic-workflow.md. Select a step for its rules. Automatic
+                    recovery keeps the existing limits; an eligible customer retry creates a separate bounded run.</p>
+            </div><button data-close="readDialog" aria-label="Close readable workflow">×</button>
+        </div>
+        <div class="dialog-body" id="readBody"></div>
+    </dialog>
+    <dialog id="agentDialog" aria-labelledby="agentTitle">
+        <div class="dialog-head">
+            <div>
+                <h2 id="agentTitle">4 required AI roles + 1 optional</h2>
+                <p>Two Azure AI Foundry deployments. One software-controlled workflow. A2 alone has a bounded
+                    tool-selection loop.</p>
+            </div><button data-close="agentDialog" aria-label="Close AI responsibilities">×</button>
+        </div>
+        <div class="dialog-body">
+            <p class="ai-summary"><strong>Terra:</strong> discovery and scraper inputs. <strong>Luna:</strong> intent,
+                returned data, and optional explanation. Reuse these roles across products and retailers; they are
+                functions in one application, not separate services or agent conversations that delegate to one another.
+            </p>
+            <div class="role-grid" id="agentRoles"></div>
+            <section class="ai-policy">
+                <h3>Software owns acceptance and execution</h3>
+                <p>The backend validates schemas, source evidence, exact identity, variants, quantity, PDPs, and
+                    location. It selects final competitors and offers, invokes scrapers, records provider jobs, prevents
+                    duplicates, applies retries/cancellation, calculates metrics, and decides final status. No model can
+                    approve its own output, change the frozen setup, invent an ID, or extend a budget. Competitors and
+                    sellers stay read-only.</p>
+                <h3>Minimal Azure execution</h3>
+                <p>Use direct model calls through the official SDK and Responses API with fixed prompts and structured
+                    outputs. A2 uses strict tool arguments with <code>parallel_tool_calls: false</code>; software still
+                    schedules independent workflow work within shared limits. Foundry Agent Service and another agent
+                    framework are not required. Keep one codebase and one persisted workflow. For a fresh Azure
+                    implementation, one Azure Functions app with Durable Functions is the proposed background runtime:
+                    outbound calls run in activities and waiting uses durable timers. Keep the orchestrator
+                    deterministic. Activities can repeat, so provider reconciliation and duplicate-safe writes remain
+                    required. Persist business state separately from model conversations and reference large raw
+                    evidence by ID.</p>
+                <h3>Conservative initial capacity</h3>
+                <p><strong>Application-wide:</strong> at most 2 Luna calls + 2 Terra calls across all workers/replicas.
+                    <strong>Per run/draft:</strong> at most 2 concurrent model calls across both models combined. One
+                    active analysis/recovery run per customer analysis workspace. Per external provider account: at most
+                    2 active HTTP calls and 2 outstanding accepted or acceptance-uncertain collection jobs, or lower
+                    vendor limits. Pending or uncertain jobs keep their slots until verified completion/cancellation,
+                    confirmed non-acceptance, or provider-confirmed expiry. Use the existing runtime/storage for
+                    capacity controls. Recover temporary request reservations after crashes using saved operation IDs
+                    and expiry tied to the bounded request lifetime. Exhausted job reconciliation reports a blocker; it
+                    never creates endless polling or a duplicate submission. These settings require quota checks and
+                    load tests before release.</p>
+                <p>Configure finite phase/run query, candidate, page, tool/model-call, input/output-token, spend, and
+                    time limits. Reserve capacity and allowance before dispatch; waiting does not reset deadlines. Use
+                    compact evidence, structured extraction first, verified PDP reuse, and one normalization per record
+                    or small identified batch. A3 receives only the selected retailer schema and verified facts; A4
+                    receives only the internal result schema and relevant record/context. Do not send all contracts, the
+                    workflow document, or unrelated history. Keep only the current A2 task, compact evidence,
+                    visited/rejected identifiers, and API-required active tool state. Use the lowest supported reasoning
+                    effort that passes evaluation and count reported reasoning tokens in billed usage. Model assignments
+                    stay fixed; no automatic escalation chain. Status polling and page refresh never trigger new model
+                    calls. Optional A5 has lowest priority.</p>
+                <h3>Failures remain bounded</h3>
+                <p>Each logical model generation has at most 3 actual requests total, sharing that ceiling between the
+                    initial request, SDK/transport retries, and at most one semantic repair with the same
+                    evidence/schema. A repair never gets three new attempts. An invalid third response stops without
+                    another repair request. A2 cannot rename a failed step to reset limits; valid next steps also
+                    consume the enclosing model/tool-call allowance. Every actual call consumes enclosing token, spend,
+                    and time budgets. Refusal/policy blocks stop affected work without bypass attempts. Missing facts
+                    remain missing; identity uncertainty uses the existing single evidence recheck. A3 failure prevents
+                    scraping; A4 failure preserves raw evidence and other cells; A5 failure only omits the explanation.
+                    Stop dependent work on shared authentication, hard-quota, or deployment blockers.</p>
+                <h3>Strict contracts and evaluation</h3>
+                <p>Keep 11 fixed external input contracts and one shared internal result schema. A deterministic
+                    serializer handles contract-permitted optional omissions and request packaging; unsupported nulls
+                    and internal metadata never enter scraper requests. Reuse accepted normalization only for matching
+                    tenant, evidence, context, freshness, and versions. Reuse cannot refresh timestamps or make stale
+                    successes retryable. Evaluate identity errors, unsupported facts, contract compliance, coverage,
+                    cost, and latency before changing prompts/models or increasing load. The requested A3/Terra and
+                    A4/Luna normalization remains the initial policy. Benchmark it against deterministic mapping of
+                    structured records; revise that policy explicitly if code produces the same verified output more
+                    efficiently. Test typical runs and maximum scope before claiming optimized cost or latency.</p>
+                <p>Detailed policy: <a
+                        href="logic+workflow2.md#45-ai-and-software-engineering-boundaries">logic+workflow2.md · section
+                        45</a>. Microsoft references: <a
+                        href="https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure"
+                        target="_blank" rel="noopener noreferrer">model capabilities</a>, <a
+                        href="https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs"
+                        target="_blank" rel="noopener noreferrer">structured outputs</a>, <a
+                        href="https://learn.microsoft.com/en-us/azure/durable-task/durable-functions/durable-functions-overview"
+                        target="_blank" rel="noopener noreferrer">Durable Functions</a>.</p>
+            </section>
+        </div>
+    </dialog>
+    <div class="sr-only" role="status" aria-live="polite" id="announce"></div>
+    <noscript>
+        <p>This local interactive diagram needs JavaScript enabled. No internet connection is required.</p>
+    </noscript>
+    <script>
+        'use strict';
+        const stages = [
+            { name: 'Starting inputs', short: 'Inputs', subtitle: 'Luna intent · software checks', caption: 'Validate website, ZIP and parsed intent before discovery.', width: 2140 },
+            { name: 'Customer products', short: 'Products', subtitle: 'Terra discovery · customer review', caption: 'Software validates; the customer confirms 1–5 distinct variants.', width: 2140 },
+            { name: 'Retailer platforms', short: 'Platforms', subtitle: 'Select · validate · open dashboard', caption: 'Start from platform selection; the next customer screen is the dashboard.', width: 2140 },
+            { name: 'Direct competitors', short: 'Competitors', subtitle: 'Terra evidence · software selection', caption: 'Up to 3 per product; customer views read-only competitor and seller facts.', width: 2140 },
+            { name: 'Automatic collection', short: 'Collection', subtitle: 'Terra inputs · Luna results', caption: 'Software validates before scraping and before publishing; reuse verified work.', width: 4540 },
+            { name: 'Analysis & results', short: 'Results', subtitle: 'Software metrics · optional Luna', caption: 'Close required work; optional explanation cannot block completion.', width: 2500 }
+        ];
+        let cursor = 30; stages.forEach((s, i) => { s.index = i; s.x = cursor; cursor += s.width + 100 });
+        const totalWidth = cursor - 70, totalHeight = 1380, nodes = [], edges = [], byId = new Map();
+        function n(stage, id, x, y, kind, title, body, detail, failure, section) { const obj = { stage, id, x: x + stages[stage].x, y, kind, title, body: body || [], detail, failure, section, w: kind === 'decision' ? 300 : kind === 'rule' ? 310 : kind === 'startEnd' ? 190 : 280, h: kind === 'decision' ? 200 : kind === 'rule' ? 165 : kind === 'startEnd' ? 90 : 150 }; nodes.push(obj); byId.set(id, obj); return obj; }
+        function e(from, to, label = '', options = {}) { edges.push({ from, to, label, ...options }); }
+        const B = 'Discovery, retries, one recheck, and fallback share finite parent time/work budgets. Stop when any applicable limit is reached. No automatic reset.';
+        const U = 'A correction is a customer action, not an automatic retry loop. Preserve valid work and validate the changed inputs before continuing.';
+        // 1 — Starting inputs
+        n(0, 'start', 170, 560, 'startEnd', 'START', [], 'Begin a new draft. The customer has not authorized full retailer collection yet.', 'Cancellation is available throughout the draft and analysis.', '1');
+        n(0, 'intake', 510, 560, 'screen', 'Starting page', ['Website + prompt', 'US ZIP / ZIP+4'], 'Collect three required inputs. Version 1 supports the United States and USD comparisons. Preserve leading zeros in the ZIP.', 'Malformed, unsupported, or contradictory inputs need correction before dependent discovery.', '1–4');
+        n(0, 'website', 850, 560, 'decision', 'Website valid?', [], 'Validate public HTTP/HTTPS, verified store domain, redirects, and real product access. Reject credentials, internal/private destinations, and login/admin/file URLs.', 'A temporary outage is an access failure, not proof of an invalid customer URL.', '2');
+        n(0, 'zip', 1190, 560, 'decision', 'US ZIP valid?', [], 'Validate the US ZIP format and retain its original string. Format validity does not prove delivery, stock, or a store identifier.', U, '3');
+        n(0, 'intent', 1530, 560, 'decision', 'Intent clear?', [], 'Extract product names, identifiers, count, category, constraints, named competitors, and comparison needs. Explicit requirements must agree.', 'Do not silently drop conflicting hard constraints. Ask for clarification.', '4');
+        n(0, 'count', 1870, 560, 'good', 'Resolve product set', ['1–5 target products', 'Show caps and fallback'], 'An explicit count sets the target, capped at 5. Without a count, use explicitly named products. Only an open-ended request defaults to up to 5. Stated priority, then request order, governs a named list above the limit.', 'Zero, negative, fractional, or contradictory counts need correction. Never promise that enough valid matches will exist.', '4');
+        n(0, 'fixurl', 850, 235, 'warn', 'Correct website', ['Customer correction'], 'Ask the customer to correct malformed or disallowed website input.', U, '2');
+        n(0, 'fixzip', 1190, 235, 'warn', 'Correct ZIP', ['Preserve leading zeros'], 'Ask for a supported US ZIP. Do not guess a store or turn a ZIP into a number.', U, '3');
+        n(0, 'clarify', 1530, 235, 'warn', 'Clarify request', ['Resolve conflicts'], 'Resolve missing intent, contradictory product constraints, or invalid counts.', U, '4');
+        n(0, 'accessretry', 850, 905, 'warn', 'Bounded access retry', ['3 attempts total', 'Increasing delay'], 'Retry only recoverable reachability failures. The initial request counts as attempt 1.', 'If retries or the parent deadline are exhausted, stop this lookup and show the reason.', '2, 28');
+        n(0, 'draftstop', 1190, 905, 'bad', 'Draft cannot proceed', ['Correct later or finish'], 'Keep usable inputs, expose the blocker, and offer customer correction. A finished empty draft records NO_RESULTS or FAILED according to its evidence.', 'Do not keep discovering in the background while waiting for correction.', '9, 41–42');
+        n(0, 'countrule', 1870, 905, 'rule', 'Selection boundary', ['Named set stays named', 'Open-ended → up to 5'], 'Do not add 4 unrelated products to a request for one named product. Use bestseller labels only when source evidence supports them.', 'A shortfall is shown for customer acceptance. No manufactured matches.', '4');
+        e('start', 'intake'); e('intake', 'website'); e('website', 'zip', 'Valid'); e('zip', 'intent', 'Valid'); e('intent', 'count', 'Clear');
+        e('website', 'fixurl', 'Invalid', { fromPort: 'top', toPort: 'bottom', type: 'stop' }); e('fixurl', 'intake', 'Customer corrects', { fromPort: 'left', toPort: 'top', viaY: 130, type: 'recovery' });
+        e('zip', 'fixzip', 'Invalid', { fromPort: 'top', toPort: 'bottom', type: 'stop' }); e('fixzip', 'zip', 'Corrected', { fromPort: 'right', toPort: 'right', viaX: 1360, type: 'recovery' });
+        e('intent', 'clarify', 'Unclear', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('clarify', 'intent', 'Customer clarifies', { fromPort: 'right', toPort: 'right', viaX: 1710, type: 'recovery' });
+        e('website', 'accessretry', 'Temporary failure', { fromPort: 'bottom', toPort: 'top', type: 'recovery' }); e('accessretry', 'website', 'Budget remains', { fromPort: 'left', toPort: 'left', viaX: 675, type: 'recovery' }); e('accessretry', 'draftstop', 'Exhausted', { type: 'stop' }); e('count', 'countrule', 'Rule', { fromPort: 'bottom', toPort: 'top', type: 'note' }); e('count', 'site');
+        // 2 — Products
+        n(1, 'site', 170, 560, 'decision', 'Website type?', [], 'Choose the available extraction path internally: supported store or custom/unknown. The customer does not need to understand the platform.', 'Unsupported extraction does not authorize unlimited AI browsing.', '5');
+        n(1, 'known', 510, 320, 'process', 'Supported store', ['Available extraction'], 'Use the available discovery method for Shopify, Wix, WooCommerce, or another supported store.', B, '5–6');
+        n(1, 'custom', 510, 860, 'process', 'Custom / unknown', ['Bounded discovery', 'Manual PDP fallback'], 'Make a bounded discovery attempt and one permitted fallback. Offer manual customer-store PDP URLs if discovery is unsuccessful.', 'Manual URLs still need domain, identity, variant, and constraint validation.', '5–6');
+        n(1, 'discover', 850, 560, 'process', 'Discover products', ['Identity · variant · PDP', 'Source facts when present'], 'Collect candidate identity, selected variant, pack quantity, price/currency, specifications, stock, ratings, and provenance when available.', B, '5–6');
+        n(1, 'productvalid', 1190, 560, 'decision', 'Product valid?', [], 'Require a real customer-store PDP, reliable product/variant identity, matching prompt constraints, and no duplicate slot.', 'Missing optional price or image does not invalidate reliable identity. Uncertain identity gets one evidence recheck.', '7');
+        n(1, 'productreview', 1530, 560, 'screen', 'Product review', ['Confirm · replace · remove', 'Show missing information'], 'Show product, variant, PDP, identifiers and available facts. A replacement must validate before it replaces an existing valid selection.', 'Accept a shortfall explicitly. Customer confirmation cannot override known identity contradictions.', '8–9');
+        n(1, 'productgate', 1870, 560, 'decision', '1–5 confirmed?', [], 'Only valid, explicitly confirmed products continue. One failed product does not destroy the rest.', 'Zero confirmed products cannot enter retailer analysis.', '9');
+        n(1, 'productrecheck', 1190, 230, 'warn', 'Identity recheck', ['One evidence recheck'], 'Check the uncertain product identity once using additional evidence.', 'Still uncertain: customer correction, replacement, or removal. No second automatic identity recheck.', '7');
+        n(1, 'productreject', 1190, 900, 'bad', 'Reject candidate', ['Next only within budget'], 'Reject duplicates, wrong products, and invalid identities. Another candidate may be attempted within the existing discovery budget.', 'Do not repeatedly rediscover rejected candidates. On exhaustion, return fewer valid products.', '6–7');
+        n(1, 'productedit', 1530, 230, 'warn', 'Edit / replace', ['Customer PDPs only'], 'Validate the new customer URL or variant, then check duplicates and prompt requirements. Preserve the old valid selection until replacement succeeds.', 'After launch, edit a new setup draft. Opening a draft does not stop the current run; only an accepted new start cancels an active prior run and revalidates affected dependencies.', '9, 33');
+        n(1, 'productshort', 1530, 900, 'warn', 'Return fewer', ['Show shortfall / gaps'], 'Discovery stops at its finite boundary. Offer the validated products that actually exist.', 'The customer accepts the reduced scope or corrects the selection.', '6, 8');
+        n(1, 'productzero', 1870, 900, 'bad', 'No confirmed product', ['Correct or finish draft'], 'Keep the draft at review. Offer manual PDP correction, replacement, or an explicit empty/failure finish.', 'No automatic restart and no retailer collection with zero confirmed products.', '9, 42');
+        e('site', 'known', 'Supported', { fromPort: 'top', toPort: 'left' }); e('site', 'custom', 'Custom', { fromPort: 'bottom', toPort: 'left' }); e('known', 'discover', 'Candidates', { toPort: 'top' }); e('custom', 'discover', 'Candidates', { toPort: 'bottom' }); e('discover', 'productvalid'); e('productvalid', 'productreview', 'Valid'); e('productreview', 'productgate', 'Confirm'); e('productvalid', 'productrecheck', 'Uncertain', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('productrecheck', 'productreview', 'Valid / needs correction', { fromPort: 'right', toPort: 'top', viaX: 1390, type: 'recovery' }); e('productvalid', 'productreject', 'Invalid', { fromPort: 'bottom', toPort: 'top', type: 'stop' }); e('productreject', 'discover', 'Budget remains', { fromPort: 'left', toPort: 'bottom', type: 'recovery' }); e('productreject', 'productshort', 'Budget exhausted', { type: 'stop' }); e('productshort', 'productreview', 'Review valid results', { fromPort: 'top', toPort: 'bottom' }); e('productreview', 'productedit', 'Customer edits', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('productedit', 'productvalid', 'Revalidate', { fromPort: 'left', toPort: 'left', viaY: 140, type: 'recovery' }); e('productgate', 'productzero', 'No', { fromPort: 'bottom', toPort: 'top', type: 'stop' }); e('productzero', 'productreview', 'Customer corrects', { fromPort: 'left', toPort: 'right', viaX: 1705, type: 'recovery' }); e('productgate', 'platforms', 'Yes');
+        // 3 — Platforms
+        n(2, 'platforms', 170, 560, 'screen', 'Select platforms & start', ['1–5 distinct datasets', 'Next screen: dashboard'], 'After confirming their own PDPs, the customer chooses platforms, resolves shared inputs, reviews requested metrics and the 3-competitor cap, and selects Start Analysis on this screen. Own Listings, where released, is an option here and is off by default.', 'Only the accepted Start action authorizes automatic discovery and collection. Platform toggles do not launch work. No later competitor review or final confirmation screen is required.', '10–13, 17, 19');
+        n(2, 'shared', 510, 560, 'process', 'Prepare shared inputs', ['ZIP · market · store', 'Verified metadata'], 'Prepare only shared platform requirements before competitor discovery. Preserve ZIPs as strings and verify retailer store metadata.', 'Do not require undiscovered competitor URLs at this stage. A ZIP is not a store ID.', '11');
+        n(2, 'sharedvalid', 850, 560, 'decision', 'Shared inputs valid?', [], 'Validate supported market, required ZIP/store/location values, and shared settings against the fixed dataset contract.', 'Best Buy requires store_id and zip. Required values cannot be bypassed by general-availability fallback.', '11–12');
+        n(2, 'platformgate', 1190, 560, 'decision', 'Selected set ready?', [], 'Require 1–5 distinct usable platforms and valid shared requirements for every included platform. The customer explicitly corrects, removes or replaces a blocked platform before Start can be accepted.', 'No silent exclusion. With zero usable platforms, remain on setup or cancel. A provider failure after launch stays in the frozen platform set as a visible gap.', '12');
+        n(2, 'frozenplatforms', 1530, 560, 'screen', 'Open dashboard', ['RUNNING · start once', 'Finding competitors'], 'Accept one Start action, freeze customer PDPs, platforms, ZIP/store/fulfillment, requested metrics and Own Listings settings, and open the dashboard immediately. Repeated clicks, refresh, reconnect or redelivery of that action return the same run, even if already finished.', 'If launch is rejected, retain setup. If acceptance is uncertain, reconcile that same action before another launch. Competitors and sellers are read-only; a new accepted setup creates a new run and cancels an active predecessor without overwriting its results.', '12–13, 17–18, 33');
+        n(2, 'contracts', 1870, 300, 'rule', '11 fixed contracts', ['Exact keys · exact shape', 'Click for input table'], 'The external input schemas are fixed. AI fits verified facts into them. Each dataset accepts only its listed fields and externally defined types and values.', 'Never rename url, interchange zip and zipcode, or add internal confidence/error fields to an external payload.', '10, 21');
+        n(2, 'sharednote', 510, 230, 'rule', 'Shared inputs only', ['Listing URL comes later', 'No guessed store IDs'], 'Resolve location and platform-wide settings now. Full per-listing input normalization happens only after an exact retailer PDP is found.', 'Optional fields may be omitted only if the fixed contract permits omission.', '11');
+        n(2, 'metriccheck', 1190, 230, 'rule', 'Requested metrics', ['Freeze checklist at launch', 'Supplementary ≠ required'], 'When no metrics are specified, request standard item-price positioning and stock/availability. If supported metrics are specified, use that set; a request for only one metric gains no unrelated requirements. Show supplementary available facts without counting their absence as a requested failure.', 'Resolve unsupported or contradictory requests during setup. Missing, stale or failed requested facts cannot later be relabeled optional. Identity, verified PDP and strict schema gates cannot be waived.', '17');
+        n(2, 'platformfix', 850, 905, 'warn', 'Correct / remove / replace', ['Only blocked platform'], 'Offer verified store choices when needed. Resolve shared missing inputs within the budget, or remove/replace the platform.', 'Do not automatically retry unchanged invalid input. Unrelated usable platforms stay available.', '12');
+        n(2, 'platformzero', 1190, 905, 'bad', 'No usable platform', ['Choose another or stop'], 'A run cannot proceed without a usable selected platform.', 'No competitor-discovery loop while required platform inputs remain unresolved.', '12');
+        n(2, 'locationrule', 1870, 900, 'rule', 'Location is explicit', ['General ≠ local stock', 'Required fields stay required'], 'If location is optional and cannot be applied, label results general. Never claim ZIP-specific delivery or pickup without evidence.', 'A generic fallback must not bypass a required store/location field.', '11');
+        e('platforms', 'shared'); e('shared', 'sharedvalid'); e('sharedvalid', 'platformgate', 'Ready'); e('platformgate', 'frozenplatforms', 'Start accepted'); e('shared', 'sharednote', 'Boundary', { fromPort: 'top', toPort: 'bottom', type: 'note' }); e('platformgate', 'metriccheck', 'Launch scope', { fromPort: 'top', toPort: 'bottom', type: 'note' }); e('frozenplatforms', 'contracts', 'Fixed schema', { fromPort: 'top', toPort: 'left', type: 'note' }); e('frozenplatforms', 'locationrule', 'Location rule', { fromPort: 'bottom', toPort: 'left', type: 'note' }); e('sharedvalid', 'platformfix', 'Missing / invalid', { fromPort: 'bottom', toPort: 'top', type: 'stop' }); e('platformfix', 'shared', 'Customer resolves', { fromPort: 'left', toPort: 'bottom', type: 'recovery' }); e('platformfix', 'platformgate', 'Customer removes platform', { fromPort: 'right', toPort: 'bottom', via: [[1015, 905], [1015, 730], [1190, 730]], type: 'recovery' }); e('platformgate', 'platformzero', 'None usable', { fromPort: 'bottom', toPort: 'top', viaX: 1390, type: 'stop' }); e('platformzero', 'platforms', 'Customer changes selection', { fromPort: 'bottom', toPort: 'bottom', viaY: 1080, type: 'recovery' }); e('frozenplatforms', 'candidates', 'Automatic discovery');
+        // 4 — Competitors
+        n(3, 'candidates', 170, 560, 'process', 'Discover candidates', ['Per confirmed product', 'Bounded candidate set'], 'Find products in the same relevant category, intended use and segment, with comparable specifications and supported price tier. Evaluate customer-named products first. For an explicit named set, do not fill unavailable named slots with other products unless the prompt allows alternatives.', 'A brand is a constraint or preference, not a complete product identity. ' + B, '14, 16');
+        n(3, 'eligible', 510, 560, 'decision', 'Relevant & identifiable?', [], 'Require reliable product/variant identity, direct relevance, and a product distinct from the customer’s exact product.', 'One uncertainty recheck. Reject unresolved identity or essential comparability.', '14, 16');
+        n(3, 'coverage', 850, 560, 'process', 'Verify PDP coverage', ['Frozen platform denominator', 'Preserve PDP evidence'], 'Locate actual matching PDPs and preserve URLs and identity evidence. Search snippets alone are insufficient. The denominator is the platform set frozen at launch; later provider failures remain failed or unknown rather than shrinking that set.', 'Verified listing presence, no accepted listing and operational failure remain separate. Coverage is not stock or delivery. A provider outage cannot erase previously verified presence; show its age and current uncertainty.', '12, 15, 26');
+        n(3, 'coveragegate', 1190, 560, 'decision', 'Verified on ≥1?', [], 'A final competitor requires at least one verified listing on a selected platform.', 'A failed lookup is unknown, not evidence that the product is never sold.', '16');
+        n(3, 'rank', 1530, 560, 'good', 'Select up to 3', ['Relevant named products', 'Relevance before coverage'], 'Honor eligible named products. For an open-ended set or permitted alternatives, rank by relevance and matching evidence, coverage among comparable candidates, then stable identity ordering. Named products above the cap follow stated priority, otherwise request order.', 'Return 0, 1 or 2 rather than force weak matches. Deduplicate slots per customer product. Explicit cap exclusions are outside the accepted scope and do not make the run partial.', '16, 42');
+        n(3, 'lockcompetitors', 1870, 560, 'good', 'Keep selected competitors', ['Automatic · no review screen', 'Same set across platforms'], 'Finalize the verified competitor set per customer product and keep those identities fixed across platforms for the run. Show reasons, variants, sources and coverage as read-only facts. The customer cannot edit, replace or remove competitor or seller information.', 'Show named-competitor gaps separately from cap exclusions. Once selected, do not silently swap identities during collection or failed-item recovery. Invalid listings do not block unrelated work.', '16, 18, 32');
+        n(3, 'competitorrecheck', 510, 230, 'warn', 'One identity recheck', ['Evidence must resolve'], 'Use one bounded evidence recheck for uncertain identity or relevance.', 'Still unresolved: reject the candidate. Rechecks do not create new discovery budgets.', '16');
+        n(3, 'nextcandidate', 510, 905, 'bad', 'Reject / next candidate', ['Only if budget remains'], 'Reject invalid or unsupported competitors and continue only within the existing discovery allowance and authorized candidate scope.', 'When the budget is exhausted, stop and return eligible candidates already found. Keep operational failures distinct from a successful shortfall.', '6, 16');
+        n(3, 'coverageunknown', 850, 230, 'rule', 'Coverage ≠ availability', ['4 verified + 1 failed', 'Show 4/5 + 1 unknown'], 'A PDP can exist while out of stock. Location-specific delivery needs separate evidence.', 'Do not use NOT_SOLD merely because a lookup failed or found no match.', '15, 26');
+        n(3, 'caprule', 1530, 230, 'rule', 'Cap ≠ missing result', ['Maximum 3 · fixed priority', 'Explain scope exclusions'], 'Names excluded solely because supported slots are filled are outside the accepted comparison scope. Show Excluded by the 3-competitor cap; create no cells and no partial-status penalty. An unevaluated lower-priority name is Not assessed — cap reached, not verified eligible.', 'Do not perform extra lookups merely to justify the cap. Failed, invalid or unresolved named checks stay visible and cannot be relabeled cap exclusions.', '16–17, 41–42');
+        n(3, 'fewcompetitors', 1530, 905, 'warn', 'Return fewer / zero', ['Show gaps on dashboard'], 'Continue automatically with the eligible competitors found. Zero candidates for one product does not block other products and does not require customer approval.', 'If every product has zero competitors, only already-enabled own-listing checks provide a remaining collection purpose. Otherwise finish on the dashboard with the discovery reasons.', '16, 42');
+        n(3, 'purpose', 1870, 895, 'decision', 'Collection work exists?', [], 'At least one automatically selected competitor overall, or already-enabled own-listing checks, provides work for collection. A single product may retain a visible gap while others proceed.', 'With no collection work, report the discovery outcome on the existing dashboard. Do not ask the customer to edit competitors or approve another screen.', '16–17');
+        n(3, 'emptypurpose', 1530, 1090, 'bad', 'No collection work', ['Keep dashboard and reasons'], 'Skip external collection when there are no selected competitors or enabled own-listing checks. Preserve discovery gaps and continue to dashboard completion.', 'Use NO_RESULTS when bounded discovery found no eligible candidates; use FAILED when operational failures prevented a usable outcome. No automatic restart.', '16, 41–42'); byId.get('emptypurpose').h = 110;
+        e('candidates', 'eligible'); e('eligible', 'coverage', 'Eligible'); e('coverage', 'coveragegate'); e('coveragegate', 'rank', 'Yes'); e('rank', 'lockcompetitors'); e('rank', 'caprule', 'Cap policy', { fromPort: 'top', toPort: 'bottom', type: 'note' }); e('eligible', 'competitorrecheck', 'Uncertain', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('competitorrecheck', 'coverage', 'Resolved', { fromPort: 'bottom', toPort: 'top', viaY: 375, type: 'recovery' }); e('competitorrecheck', 'nextcandidate', 'Still uncertain', { fromPort: 'left', toPort: 'left', viaX: 330, type: 'stop' }); e('eligible', 'nextcandidate', 'Invalid', { fromPort: 'bottom', toPort: 'top', type: 'stop' }); e('coveragegate', 'nextcandidate', 'No verified listing', { fromPort: 'bottom', toPort: 'right', viaY: 790, type: 'stop' }); e('nextcandidate', 'candidates', 'Budget remains', { fromPort: 'left', toPort: 'bottom', type: 'recovery' }); e('nextcandidate', 'fewcompetitors', 'Budget exhausted', { fromPort: 'bottom', toPort: 'left', via: [[510, 1060], [1310, 1060], [1310, 905]], type: 'stop' }); e('fewcompetitors', 'lockcompetitors', 'Keep valid set', { fromPort: 'top', toPort: 'bottom', viaY: 740 }); e('coverage', 'coverageunknown', 'Meaning', { fromPort: 'top', toPort: 'bottom', type: 'note' }); e('lockcompetitors', 'purpose', 'Automatic', { fromPort: 'bottom', toPort: 'top' }); e('purpose', 'collectionscope', 'Competitor / own checks', { fromPort: 'right', toPort: 'left' }); e('purpose', 'emptypurpose', 'None', { fromPort: 'bottom', toPort: 'right', type: 'stop' }); e('emptypurpose', 'aggregate', 'Finish with discovery gaps', { fromPort: 'bottom', toPort: 'bottom', viaY: 1190, type: 'stop' });
+        // 5 — Full collection, fixed schema inputs, async recovery, fixed result normalization
+        n(4, 'collectionscope', 170, 560, 'process', 'Build collection scope', ['Automatic · no confirmation', '75 cells + optional 25'], 'Use the authorized setup and finalized competitor sets. Commit one cell per selected competitor and frozen platform, including no-match and failed outcomes. Add at most 25 separate Own Listing cells only if already enabled. Keep discovery and named-competitor gaps even when no cells were created.', 'Totals remain provisional until all discovery closes. Cap exclusions create no cells. Cells are not API-call limits, and an empty current cell list is not run completion.', '17, 19, 41');
+        n(4, 'once', 510, 560, 'good', 'Schedule unique work', ['Reuse active analysis', 'Do not duplicate cells'], 'Schedule each logical cell once in the already-started run. Duplicate events reuse active or completed work. Baseline validation or refresh is required bounded work alongside retailer collection.', 'Track each cell separately from its attempts. Changed setup needs a new accepted start; old or late responses cannot overwrite current results.', '13, 17, 24, 27, 33');
+        n(4, 'listings', 850, 560, 'process', 'Reuse / find PDPs', ['Competitors + own listings', 'Same selected identities'], 'Reuse applicable verified discovery URLs, or perform bounded lookup for the same selected product. Automatically choose one representative new-condition standard offer using a stable offer policy. Seller identity and offer facts come from verified evidence and remain read-only to the customer.', 'Preserve variant and quantity. Reject auctions, used/open-box, mismatched bundles and conditional-only prices from the default comparison.', '19–20, 23');
+        n(4, 'match', 1190, 560, 'decision', 'Exact PDP match?', [], 'Verify retailer domain, redirects, brand/model/identifiers, selected variant, quantity and relevant specifications. Evidence fetches are permitted for validation.', 'An identifier match cannot override a known variant or quantity contradiction. Title alone is insufficient.', '22');
+        n(4, 'aimap', 1530, 560, 'process', 'AI normalizes input', ['Verified PDP → url', 'Exact dataset fields'], 'The AI maps verified PDPs, identifiers, shared ZIP/store context and configured flags into the selected fixed external schema. No prose, internal metadata or additional keys enter the payload.', 'Never fabricate a link or ID, rename url, replace zip with zipcode, or strip meaningful variant/offer parameters.', '10, 21');
+        n(4, 'inputgate', 1870, 560, 'decision', 'Strict input valid?', [], 'Validate allowed keys, required non-empty fields, exact types and allowed values, PDP identity, location consistency and request/batch structure. Every listing requires url.', 'Best Buy needs url + store_id + zip. Missing listing-specific input blocks that listing; missing shared input blocks that platform.', '21');
+        n(4, 'scrape', 2210, 560, 'process', 'Call external scraper', ['Validated payload only', 'Bounded operation'], 'Submit only the validated request to its selected dataset. Track the accepted job reference when asynchronous.', 'No API calls to test invalid AI payloads. Repeated launch actions or response delivery must not create duplicate work.', '21, 28–29');
+        n(4, 'job', 2550, 560, 'decision', 'Provider outcome?', [], 'Classify completed response, accepted/pending job, recoverable failure, permanent failure, or unknown submission outcome.', 'A pending accepted job is not a new scrape attempt. Rate limits and transport retries share the deadline.', '28–30');
+        n(4, 'rawvalid', 2890, 560, 'decision', 'Returned identity valid?', [], 'Check returned product/variant, seller/offer, source link and field evidence. A successful HTTP response is not proof of product correctness.', 'Wrong identity is rejected. Invalid optional fields are excluded while other trustworthy fields remain.', '24–25');
+        n(4, 'normalize', 3230, 560, 'process', 'AI normalizes result', ['One fixed internal schema', 'Keep PDP + raw evidence'], 'Normalize source facts into the shared product → listing/offer → observation result structure. Preserve actual observation time and submitted PDP evidence.', 'Do not match batch records by order alone. Reconcile changed links and preserve raw evidence. Formatting failure does not require a new scrape.', '35');
+        n(4, 'outgate', 3570, 560, 'decision', 'Normalized result valid?', [], 'Validate schema, identity, field meanings, source traceability and PDP association before any comparison.', 'Unknown values follow fixed missing-value rules. Untraceable identity or PDP prevents acceptance.', '25, 35');
+        n(4, 'save', 3910, 560, 'decision', 'Requested data usable?', [], 'After identity and normalization pass, check the metric checklist fixed at launch. All requested applicable facts valid gives SUCCESS; some usable requested facts with another requested gap gives PARTIAL. Preserve accepted evidence, source context and timestamps.', 'Missing supplementary image, rating or descriptive fields alone does not make the cell partial. Unknown values, identity and a PDP alone are not usable requested analytic data.', '17, 25, 35, 40');
+        n(4, 'unitoutcome', 4250, 560, 'process', 'Record cell outcome', ['Success · partial · not found', 'Skipped · failed'], 'Close a local cell once, after provider reconciliation and required local validation/normalization. Keep valid observations and record exact reasons. A provider failure remains locally RUNNING while safe automatic recovery is available.', 'Duplicate or late responses cannot close a cell twice or revive terminal work. A completed cell count does not finish the run while discovery, baseline work or other required processing remains.', '29–31, 40–41');
+        n(4, 'ownrule', 170, 230, 'rule', 'Own Listings optional', ['+25 maximum cells', 'Customer site is baseline'], 'Own-product retailer checks use the same strict identity, schema, offer and recovery rules.', 'They are not competitors and cannot silently replace the customer website baseline.', '19');
+        n(4, 'baseline', 510, 230, 'process', 'Validate baseline', ['Reuse fresh / bounded refresh', 'Other products continue'], 'Validate or refresh each customer website baseline within the run budget. It is tracked alongside retailer cells and must resolve or stop before completion. Valid retailer facts can be published independently.', 'Missing or changed baseline identity blocks only dependent comparisons. Do not silently switch variants. Failed-item recovery may repair a failed baseline operation, but unrelated successful stale baselines require New Analysis.', '17, 24, 32, 41');
+        n(4, 'identityretry', 1190, 230, 'warn', 'One evidence recheck', ['Bounded rediscovery'], 'Resolve uncertainty once. A wrong or dead URL may lead to another verified PDP for the same selected product within the remaining budget.', 'Still unverified: record no accepted match. It must not flow into scraping.', '20, 22');
+        n(4, 'inputrepair', 1870, 230, 'warn', 'Repair / resolve input', ['One schema repair', 'Required IDs stay verified'], 'Repair AI formatting once using the same fixed schema and evidence. Resolve missing facts automatically from verified evidence within the budget; otherwise exclude affected work and show the reason on the dashboard.', 'The AI cannot change the external contract to make a rejected payload pass. Do not ask customers to edit competitor or seller facts.', '21, 30');
+        n(4, 'reconcile', 2210, 230, 'warn', 'Reconcile submission', ['Accepted or not?'], 'If a submission times out, establish whether it was accepted. Continue with the existing job when found. A confirmed unaccepted request, or a repeat protected against duplicate submission, may enter the bounded retry gate.', 'If acceptance cannot be established and duplicates cannot be prevented, stop automatic resubmission and record FAILED with the uncertainty reason.', '29');
+        n(4, 'poll', 2550, 230, 'warn', 'Poll the same job', ['No resubmission', 'Finite polling deadline'], 'Check the accepted job reference at bounded intervals. Return ready or failed provider outcomes to classification; a recoverable provider failure still uses the retry gate. A failed download retries the same result retrieval.', 'Temporary polling and download failures get at most 3 attempts per operation within the unchanged parent deadline. Never restart collection for a transport failure. Stop when recovery is exhausted or unsafe.', '28–31');
+        n(4, 'outputrepair', 3570, 230, 'warn', 'Repair existing result', ['One constrained repair', 'Do not scrape again'], 'Retry normalization of the existing raw result once with the same fixed internal schema.', 'Still invalid: preserve raw evidence and stop processing that result. No bypass to metrics.', '35');
+        n(4, 'nomatch', 850, 905, 'bad', 'No accepted listing', ['NOT_FOUND or FAILED', 'Keep reason distinct'], 'Successful bounded discovery without a match yields NOT_FOUND. Operationally incomplete lookup is failed/unknown.', 'A 404 or empty search does not prove that a retailer never sells the product.', '20, 26, 40');
+        n(4, 'inputblocked', 1870, 905, 'bad', 'Do not call scraper', ['Stop listing / block platform', 'Keep explicit reason'], 'Unresolved required input, failed schema repair or invalid PDP cannot reach the scraper. Uncertain submission acceptance also prevents an unsafe repeat and records FAILED. Keep prerequisite-blocked, unstarted siblings distinct as SKIPPED.', 'Only affected work is blocked. Shared authentication, configuration or contract failures stop the affected provider/dataset without repeating the same doomed request for every listing.', '21, 29–30, 40');
+        n(4, 'retrygate', 2210, 905, 'decision', 'Safe retry left?', [], 'Retry only temporary recoverable operations, at most 3 total attempts including the initial call, with delays and remaining parent budget.', 'Do not retry an accepted pending job, an unknown submission unsafely, or unchanged permanent input problems.', '28–31');
+        n(4, 'collectionfailed', 2890, 905, 'bad', 'Stop affected unit', ['FAILED / SKIPPED', 'Keep exact failure cause'], 'Close affected work when safe automatic recovery is exhausted or ruled out. Record provider, identity, schema, normalization, deadline or prerequisite reasons, keeping valid requested evidence as PARTIAL where appropriate.', 'Terminal outcomes remain fixed. After the run finishes, an eligible customer retry creates a new bounded recovery run; it does not reopen this unit.', '30–32, 40');
+        n(4, 'retainedrule', 3230, 905, 'rule', 'Pending ≠ missing', ['Keep valid completed records', 'Reconcile final batches'], 'For a pending job with 8 completed valid records and 2 not returned, keep the 8 and leave the 2 pending. Provisional observations can appear In progress. Only provider-final records plus local validation may close a cell; reconcile the full batch once the job finishes.', 'A final missing record is an operational gap, not NOT_FOUND. Recover only safe failed/missing work within limits. Deadline uncertainty does not authorize duplicate submission; new batch packaging never resets counters.', '27, 29–31');
+        n(4, 'nofacts', 3910, 905, 'bad', 'No requested data', ['Keep identity and sources', 'SKIPPED / FAILED'], 'A verified listing with no usable requested analytic facts retains identity, coverage and supplementary evidence for display. If the source simply lacks those facts, use SKIPPED with NO_USABLE_REQUESTED_DATA.', 'Use FAILED when operational or validation failure prevented requested data. This is not NOT_FOUND; ordinary absent optional facts do not justify another scrape.', '17, 25, 40, 42');
+        e('collectionscope', 'once', 'Automatic'); e('collectionscope', 'ownrule', 'Scope', { fromPort: 'top', toPort: 'bottom', type: 'note' }); e('frozenplatforms', 'baseline', 'Baseline in parallel', { fromPort: 'top', toPort: 'top', viaY: 125 }); e('baseline', 'aggregate', 'Baseline resolved', { fromPort: 'top', toPort: 'top', viaY: 135 }); e('once', 'listings'); e('listings', 'match', 'Candidate'); e('match', 'aimap', 'Verified'); e('aimap', 'inputgate'); e('inputgate', 'scrape', 'Valid'); e('scrape', 'job'); e('job', 'rawvalid', 'Ready'); e('rawvalid', 'normalize', 'Verified'); e('normalize', 'outgate'); e('outgate', 'save', 'Valid'); e('save', 'unitoutcome', 'SUCCESS / PARTIAL'); e('save', 'nofacts', 'No', { fromPort: 'bottom', toPort: 'top', type: 'stop' }); e('nofacts', 'unitoutcome', 'Record data gap', { fromPort: 'bottom', toPort: 'bottom', viaY: 1130, type: 'stop' });
+        e('listings', 'nomatch', 'No verified PDP', { fromPort: 'bottom', toPort: 'top', type: 'stop' }); e('match', 'identityretry', 'Uncertain / wrong URL', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('identityretry', 'listings', 'Evidence / search budget remains', { fromPort: 'left', toPort: 'top', type: 'recovery' }); e('identityretry', 'nomatch', 'Unresolved / exhausted', { fromPort: 'top', toPort: 'left', viaY: 140, viaX: 675, type: 'stop' });
+        e('inputgate', 'inputrepair', 'Invalid shape', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('inputrepair', 'aimap', 'One repair', { fromPort: 'left', toPort: 'top', type: 'recovery' }); e('inputgate', 'inputblocked', 'Missing / unresolved', { fromPort: 'bottom', toPort: 'top', type: 'stop' }); e('inputrepair', 'inputblocked', 'Repair exhausted', { fromPort: 'right', toPort: 'right', viaX: 2035, type: 'stop' });
+        e('scrape', 'reconcile', 'Acceptance unknown', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('reconcile', 'poll', 'Existing job found', { type: 'recovery' }); e('reconcile', 'retrygate', 'Safe to repeat', { fromPort: 'left', toPort: 'left', viaX: 2050, type: 'recovery' }); e('reconcile', 'inputblocked', 'Cannot safely reconcile', { fromPort: 'top', toPort: 'left', viaY: 125, viaX: 1675, type: 'stop' }); e('job', 'poll', 'Accepted / pending', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('poll', 'job', 'Same-job outcome', { fromPort: 'right', toPort: 'right', viaX: 2720, type: 'recovery' }); e('poll', 'collectionfailed', 'Deadline / retries exhausted', { fromPort: 'top', toPort: 'right', viaY: 145, viaX: 3060, type: 'stop' });
+        e('job', 'retrygate', 'Recoverable failure', { fromPort: 'bottom', toPort: 'right', viaY: 775, type: 'recovery' }); e('retrygate', 'scrape', 'Safe + attempts < 3 + time left', { fromPort: 'left', toPort: 'left', viaX: 2045, type: 'recovery' }); e('retrygate', 'collectionfailed', 'No', { type: 'stop' }); e('job', 'collectionfailed', 'Permanent failure', { fromPort: 'right', toPort: 'top', viaY: 760, type: 'stop' }); e('rawvalid', 'collectionfailed', 'Wrong identity', { fromPort: 'bottom', toPort: 'top', type: 'stop' });
+        e('outgate', 'outputrepair', 'Invalid', { fromPort: 'top', toPort: 'bottom', type: 'recovery' }); e('outputrepair', 'normalize', 'One formatting repair', { fromPort: 'left', toPort: 'top', type: 'recovery' }); e('outputrepair', 'collectionfailed', 'Still invalid', { fromPort: 'right', toPort: 'right', via: [[3745, 230], [3745, 1060], [3060, 1060], [3060, 905]], type: 'stop' }); e('normalize', 'retainedrule', 'Batch / sibling rules', { fromPort: 'bottom', toPort: 'top', type: 'note' });
+        e('nomatch', 'unitoutcome', 'Record gap', { fromPort: 'bottom', toPort: 'bottom', viaY: 1160, type: 'stop' }); e('inputblocked', 'unitoutcome', 'Record blocked outcome', { fromPort: 'bottom', toPort: 'bottom', viaY: 1085, type: 'stop' }); e('collectionfailed', 'unitoutcome', 'Record failure', { fromPort: 'bottom', toPort: 'bottom', viaY: 1020, type: 'stop' }); e('unitoutcome', 'aggregate', 'Each resolved unit');
+        // 6 — Metrics, dashboard, completion and optional explanation
+        n(5, 'aggregate', 170, 560, 'process', 'Update progress', ['Discovery + baseline + cells', 'Keep totals provisional'], 'Track required discovery, finalized scope, baseline work, cell outcomes and normalization. Preserve product-level failures that created no cells. Publish valid results without losing successes.', 'Until scope is finalized, totals are provisional. 0/0 or 100% of currently created cells cannot prove completion. Repeated outcomes count each logical cell once.', '17, 27, 38, 40–42');
+        n(5, 'usable', 510, 560, 'decision', 'Usable observations?', [], 'Require at least one trustworthy, sufficiently fresh retailer observation with a requested analytic field, including enabled Own Listings. Valid requested stock or specifications may be useful without price.', 'Customer baseline, identity, a PDP, unknown values or supplementary decoration alone are not usable requested retailer analysis. Keep them visible without claiming completed comparisons.', '17, 41');
+        n(5, 'metrics', 850, 560, 'process', 'Software comparisons', ['Fresh, comparable facts', 'USD · variant · quantity'], 'Use the customer website baseline. Compare only compatible offers, units, tax basis, location and freshness. Price difference = customer − competitor; percent = 100 × difference / competitor, with positive denominator.', 'Missing or stale baselines suppress unsupported differences. Lower price is not overall superiority. Review volume is not a quality score.', '24, 36–37');
+        n(5, 'dashboard', 1190, 560, 'screen', 'Update same dashboard', ['Prices · stock · coverage', 'Read-only competitors / sellers'], 'Update the dashboard opened after platform selection. Show customer baseline, competitor and platform counts, collection progress, comparable prices, absolute and percentage price gaps, stock, ratings and specifications when supported. Include source PDPs, timestamps, seller/variant context and coverage gaps. Competitor and seller information has no edit, replace or remove controls.', 'Show loading, partial, empty or failed states in this same dashboard. Unsupported metrics display unavailable. Price parity is ±5% inclusive; missing evidence is never a disadvantage.', '38');
+        n(5, 'closed', 1530, 560, 'decision', 'All required work closed?', [], 'Require every discovery phase finished/stopped, competitor selections and scope finalized, no producer able to add work, baseline work terminal, every cell terminal including local normalization, and requested comparisons calculated or explicitly unavailable.', 'At the deadline, stop discovery/scheduling, finalize known gaps and close unfinished work with reasons. Optional AI is outside this gate. Empty current cells or a completed provider job alone cannot finish the run.', '17, 35, 40–41');
+        n(5, 'outcome', 1870, 560, 'good', 'Final run outcome', ['Complete / partial', 'No results / failed'], 'With usable requested retailer facts: COMPLETED if no requested gaps remain, otherwise COMPLETED_WITH_PARTIAL_RESULTS. Without them: FAILED if operational/validation blockers prevented required work, otherwise NO_RESULTS. Retain skipped siblings and discovery reasons in this decision.', 'Ordinary fewer-than-3 results, supplementary-field absence and explicit cap exclusions do not themselves create partial status. In-scope named failures or requested comparison gaps do. Active cancellation takes precedence; no terminal outcome is later rewritten.', '16–17, 40–42');
+        n(5, 'end', 2210, 560, 'startEnd', 'END', [], 'This run is terminal. Keep its accepted evidence and final outcome available. Closing or returning to the page does not restart it.', 'A later eligible Retry Failed Items action creates a separate bounded recovery run. Changed setup or refreshing unrelated expired successes uses New Analysis. Cancelled runs stay cancelled.', '24, 32–34, 41');
+        n(5, 'notyet', 510, 905, 'warn', 'No usable facts yet', ['Show progress or empty state'], 'Keep the dashboard visible with the customer baseline, progress and clear reasons. Comparison metrics remain unavailable until evidence arrives. Wait only within the launch deadline.', 'If all work closes without usable observations, show NO_RESULTS or FAILED on the same dashboard using the operational evidence.', '41–42');
+        n(5, 'pending', 1530, 905, 'warn', 'Wait within deadline', ['Required work still active', 'Close all work at deadline'], 'Continue already-authorized bounded discovery, baseline and cell processing while tracking scope changes until discovery closes. At the deadline, stop adding work, close remaining phases and record explicit gaps.', 'Waiting never resubmits accepted jobs or resets counters. Optional explanation cannot keep the core run waiting.', '17, 29, 40–41');
+        n(5, 'explain', 1190, 230, 'process', 'Optional AI explanation', ['Evidence-backed only', 'Dashboard already usable'], 'Explain accepted facts and software-calculated metrics. One constrained repair is allowed for invalid AI output.', 'Failure omits the explanation; it does not downgrade the core analysis.', '39');
+        n(5, 'report', 1530, 230, 'process', 'Optional dashboard summary', ['Verified differences', 'Supported opportunities'], 'Add explanations of observed price positioning and specification differences inside the same dashboard when supported.', 'Review sentiment and complaint summaries stay deferred until actual review-text collection exists.', '39');
+        n(5, 'freshness', 850, 905, 'rule', 'Freshness & context', ['Retry ≠ refresh successes', 'Compare matching scopes'], 'Normal analysis may refresh needed expired evidence within existing limits. Failed-item recovery reuses fresh successes; unrelated stale successes, including baselines, need New Analysis. A narrowly required repair may refresh facts from the same supported operation.', 'Keep old facts visible with age but exclude stale comparisons. Ratings/counts need compatible rated entities and aggregation scopes, not just scales; display incompatible ones separately. Never merge mismatched seller, variant, fulfillment or observation context.', '24–25, 32, 36–37');
+        n(5, 'recoverable', 1870, 905, 'decision', 'Safe recovery exists?', [], 'After a run finishes, determine eligibility from the recorded cause: recoverable FAILED operations, operationally failed requested components in PARTIAL cells, and provider-blocked SKIPPED work after its prerequisite is verifiably restored. Failed baseline/discovery work can qualify without a retailer cell.', 'Exclude cancellation, replacement, explicit exclusion, NO_USABLE_REQUESTED_DATA, normal NOT_FOUND and expiry alone. Resolve shared blockers and uncertain submission acceptance first. With no eligible work, offer no retry and create no empty run.', '24, 32, 40');
+        n(5, 'recoveryrun', 2210, 905, 'process', 'Recover in a new run', ['Explicit customer action', 'Same setup · eligible work'], 'Only an explicit eligible Retry Failed Items action starts a new bounded recovery run. Keep the old run terminal, reuse valid fresh successes and resume only eligible components plus necessary affected dependencies through the original validation/normalization gates. Emit a new outcome only after that processing.', 'Keep selected competitor identities; only failed discovery without a finalized set may be resumed. Preserve good evidence in PARTIAL cells; if the source requires a full listing request, validate all returned context. Repeated clicks attach to this new run. Never chain recoveries automatically or refresh unrelated stale successes.', '24, 31–32, 40–41');
+        e('aggregate', 'usable'); e('usable', 'metrics', 'Yes'); e('metrics', 'dashboard'); e('dashboard', 'closed'); e('closed', 'outcome', 'Yes / deadline closes all'); e('outcome', 'end'); e('usable', 'notyet', 'No', { fromPort: 'bottom', toPort: 'top', type: 'recovery' }); e('notyet', 'dashboard', 'Show progress / gaps', { fromPort: 'bottom', toPort: 'bottom', via: [[510, 1080], [1190, 1080]] }); e('closed', 'pending', 'Still pending', { fromPort: 'bottom', toPort: 'top', type: 'recovery' }); e('pending', 'aggregate', 'Next outcome / deadline', { fromPort: 'bottom', toPort: 'bottom', viaY: 1150, type: 'recovery' }); e('dashboard', 'explain', 'Independent optional branch', { fromPort: 'top', toPort: 'bottom', type: 'note' }); e('explain', 'report', 'If valid', { type: 'note' }); e('metrics', 'freshness', 'Comparison rules', { fromPort: 'bottom', toPort: 'top', type: 'note' }); e('outcome', 'recoverable', 'Later recovery eligibility', { fromPort: 'bottom', toPort: 'top', type: 'recovery' }); e('recoverable', 'recoveryrun', 'Yes + customer retries', { type: 'recovery' }); e('recoverable', 'end', 'No · retain outcome', { fromPort: 'top', toPort: 'bottom', viaY: 755 }); e('recoveryrun', 'aggregate', 'Validated recovery outcome', { fromPort: 'bottom', toPort: 'bottom', viaY: 1110, type: 'recovery' });
+        // Rules apply across every stage, not as extra services or sequential gates.
+        const rules = [
+            ['Trust evidence', 'AI normalizes; system validates.', 'Hard limits override prompts.', 'Never invent products, IDs, URLs, prices or stock. Website content is evidence, not an instruction.'],
+            ['Bounded work', 'Finite search + 3 total attempts.', 'One evidence/schema recheck.', 'All retries and fallbacks consume the existing parent budget. Invalid candidates do not cause infinite replacement loops.'],
+            ['Exact schemas', 'Verified retailer PDP in url.', 'No renamed or extra fields.', 'Use only the selected fixed external contract. The result is normalized into one fixed internal schema.'],
+            ['Read-only competitors & sellers', 'System selects; customer views.', 'Frozen platform set · explicit cap.', 'No competitor review or seller edits. Keep selected identities across platforms. A provider outage cannot shrink coverage; explicit cap exclusions are outside scope, not missing results.'],
+            ['Setup / retry / cancel', 'New setup never edits old results.', 'Keep accepted facts and counters.', 'Opening a setup draft leaves current work intact. Only an accepted new Start cancels an active predecessor. Cancel closes unfinished local work, preserves results and ignores late responses. Returning to the page restores the existing run.'],
+            ['Finish honestly', 'All required work must close.', 'Manual recovery is a separate run.', 'Close discovery, scope, baselines, cells, normalization and comparisons before finishing. Terminal runs remain terminal. An explicit eligible retry creates a bounded new run; optional AI cannot block or downgrade core completion.']
+        ];
+        rules.forEach((r, i) => { let a = n(i, 'rule' + i, stages[i].width / 2, 1275, 'rule', r[0], [r[1], r[2]], r[3], B, '0, 27–45'); a.w = Math.min(stages[i].width - 180, 1400); a.h = 120; });
+        // AI roles are shared application functions, not separate services or extra customer screens.
+        const aiRoles = [
+            { id: 'A1', name: 'Request Understanding', model: 'luna', kind: 'Structured task · required', when: 'Before customer-product discovery.', task: 'Extract product names/count, constraints, named competitors, requested metrics and ambiguities into a fixed intent schema. Reuse accepted intent for unchanged input.', output: 'Proposed analysis intent and setup ambiguities.', boundary: 'No browsing tools. Software validates scope, applies caps and handles clarification. Technical failure preserves setup; one constrained repair for malformed output.', links: [['intent', 'View intent gate']] },
+            { id: 'A2', name: 'Product & Competitor Discovery Agent', model: 'terra', kind: 'Bounded tool loop · required', when: 'Before own-PDP review, then after Start for competitors and retailer PDPs.', task: 'Use customer-product, competitor or selected-product retailer modes. Propose queries, candidates, PDPs and relevance/identity assessments with source evidence. Software reuses structured evidence first and executes approved search/fetch requests.', output: 'Candidate identities, PDPs, supporting evidence and unresolved gaps.', boundary: 'Cannot submit collection, write results, alter scope or spawn agents. Software enforces hard matches, visited/rejected sets, final selection and budgets. A confidence score is not verification.', links: [['discover', 'Customer products'], ['candidates', 'Competitors'], ['listings', 'Retailer PDPs']] },
+            { id: 'A3', name: 'Scraper Input Normalizer', model: 'terra', kind: 'Structured task · required', when: 'After the PDP and required facts have been verified.', task: 'Map verified PDP, identifiers, ZIP/store context and configured options into the selected dataset contract. Software packages and validates the exact outgoing request.', output: 'Proposed scraper input payload with verified PDP in url.', boundary: 'No tools or submission access. No invented IDs, renamed keys, unsupported nulls or internal metadata. Missing required facts stop before the model call. At most one schema repair.', links: [['aimap', 'Input normalization'], ['inputgate', 'Software input gate']] },
+            { id: 'A4', name: 'Scrape Result Normalizer', model: 'luna', kind: 'Structured task · required', when: 'When retailer or customer-baseline source evidence is available.', task: 'Normalize compact source records into one fixed internal schema. Preserve identity, variant/quantity, source PDP, seller/location/offer context, observation time and missing values.', output: 'Proposed normalized observations for software validation.', boundary: 'No browsing, scraper or database-write tools. Keep record IDs and raw evidence. One repair of the existing response; never re-scrape merely for formatting. Valid sibling records survive.', links: [['normalize', 'Result normalization'], ['baseline', 'Customer baseline'], ['outgate', 'Software result gate']] },
+            { id: 'A5', name: 'Results Explanation', model: 'luna', kind: 'Structured task · optional', when: 'After a completed run/result version has accepted facts and calculated metrics.', task: 'Explain supplied comparisons and gaps in a short dashboard summary. Disabled unless included in the release; one accepted summary per completed result version.', output: 'Optional evidence-backed explanation.', boundary: 'No tools, new facts or calculated numbers. Lowest priority; one permitted repair. Failure or unavailable capacity omits the explanation without changing core completion.', links: [['explain', 'Optional explanation']] }
+        ];
+        const rolesById = new Map(aiRoles.map(role => [role.id, role]));
+        function assignAI(id, roleId, context, body) { const node = byId.get(id), role = rolesById.get(roleId); node.aiRole = roleId; node.model = role.model; node.ownership = context; node.detail = context + ' ' + node.detail; node.section += ', 45'; if (body) node.body = body; }
+        assignAI('intent', 'A1', 'A1 / GPT-5.6 Luna extracts structured intent; software decides whether it is clear and supported.');
+        byId.get('intent').failure += ' A model outage preserves setup and reports unavailable; it does not prove the customer prompt is invalid.';
+        e('intent', 'draftstop', 'AI failure / exhausted', { fromPort: 'bottom', toPort: 'right', type: 'stop' });
+        assignAI('custom', 'A2', 'Software uses available extraction first. A2 / GPT-5.6 Terra supports unfamiliar-page interpretation and bounded discovery when needed.', ['A2 · Terra when needed', 'Manual PDP fallback']);
+        assignAI('discover', 'A2', 'A2 / GPT-5.6 Terra proposes evidence-backed candidates from compact source data. Software reuses structured evidence first and verifies accepted products.', ['A2 · Terra discovery', 'Evidence · variant · PDP']);
+        assignAI('productrecheck', 'A2', 'Software permits one evidence recheck; A2 / GPT-5.6 Terra assists only if semantic identity remains unresolved.', ['A2 · Terra if needed', 'One evidence recheck']);
+        assignAI('candidates', 'A2', 'A2 / GPT-5.6 Terra uses competitor mode with a focused context for each customer product. Software owns the final selection.', ['A2 · Terra discovery', 'Per product · bounded set']);
+        assignAI('coverage', 'A2', 'Software verifies and counts coverage. A2 / GPT-5.6 Terra supports queries or ambiguous evidence only when needed; reuse existing PDPs first.', ['Software coverage checks', 'Terra for ambiguity']);
+        assignAI('competitorrecheck', 'A2', 'Software permits the existing single evidence recheck; A2 / GPT-5.6 Terra cannot request an extra review loop.', ['A2 · Terra if needed', 'One evidence recheck']);
+        assignAI('listings', 'A2', 'Software reuses accepted matches. A2 / GPT-5.6 Terra uses retailer-listing mode only for missing or ambiguous evidence.', ['Reuse first · A2 Terra', 'Same selected identities']);
+        assignAI('identityretry', 'A2', 'Software controls the remaining lookup and evidence-recheck allowance; A2 / GPT-5.6 Terra supports unresolved matching.', ['A2 · Terra if needed', 'Bounded rediscovery']);
+        assignAI('aimap', 'A3', 'A3 / GPT-5.6 Terra makes a focused structured call after software prechecks required facts. It has no browsing or scraper tools.', ['A3 · Terra input mapping', 'Verified PDP → exact url']);
+        byId.get('aimap').detail += ' Send only the selected dataset schema, verified listing facts and configured options, without other contracts or discovery history. A deterministic serializer applies only contract-permitted optional omissions and batch packaging before validation. Never forward unsupported nulls or internal metadata.';
+        e('aimap', 'inputblocked', 'Precheck blocked; no AI', { fromPort: 'bottom', toPort: 'top', viaY: 800, type: 'stop' });
+        assignAI('inputrepair', 'A3', 'Software resolves missing evidence within existing limits; A3 / GPT-5.6 Terra only repairs payload shape from verified facts.', ['A3 · Terra schema repair', 'Required IDs stay verified']);
+        assignAI('baseline', 'A4', 'Software fetches and validates baseline evidence; A4 / GPT-5.6 Luna normalizes it when needed using the same internal result schema.', ['Software checks · A4 Luna', 'Other products continue']);
+        assignAI('normalize', 'A4', 'A4 / GPT-5.6 Luna makes a focused structured call on one compact record or small identified group. It has no tools.', ['A4 · Luna result mapping', 'Fixed schema · raw evidence']);
+        byId.get('normalize').detail += ' Send only the internal result schema and relevant source record/context; software preserves known identifiers and numeric values. Keep each record independent and reuse accepted normalization only for matching tenant, evidence, context, freshness and model/prompt/schema versions.';
+        assignAI('outputrepair', 'A4', 'A4 / GPT-5.6 Luna uses the existing response and fixed schema for the single permitted semantic repair.', ['A4 · Luna · one repair', 'No new scrape']);
+        assignAI('explain', 'A5', 'Optional A5 / GPT-5.6 Luna is disabled unless included. Run once per completed result version at lowest priority, never on every cell update or refresh. No tools.', ['A5 · Luna · optional', 'Accepted facts + metrics']);
+        byId.get('explain').failure += ' No capacity/budget: omit the summary. Do not extend the core deadline or change its outcome.';
+        edges.find(edge => edge.from === 'dashboard' && edge.to === 'explain').label = 'Completed version only';
+        byId.get('report').detail = 'Display the accepted A5 explanation in the same dashboard; this is not another model call. ' + byId.get('report').detail;
+        byId.get('frozenplatforms').detail += ' Software persists model/prompt/schema versions and budgets with the run. Capacity waiting consumes the accepted deadline.';
+        byId.get('once').detail += ' One persisted workflow controls admission across workers. Replayed work reconciles existing operation/job IDs before any new external submission.';
+        byId.get('retrygate').detail += ' For each logical model generation, the initial call, SDK/transport retries and one permitted semantic repair share at most 3 actual requests. A repair never resets that allowance. All calls consume parent budgets; A2 cannot rename a failed step to reset them. Refusal/policy blocks do not trigger bypass attempts or model switching.';
+        byId.get('dashboard').detail += ' Software polls status only while visible and active; page refresh and status checks never call a model or scraper.';
+        Object.assign(byId.get('rule0'), { title: '4 required AI roles + 1 optional', body: ['2 Foundry deployments · Luna + Terra', 'Only A2 uses a bounded tool loop.'], detail: 'A1/A4/optional A5 use Luna; A2/A3 use Terra. These are shared functions in one codebase. Software owns acceptance, execution and states. ' + byId.get('rule0').detail });
+        Object.assign(byId.get('rule1'), { title: 'Bound cloud work', body: ['Concurrent: 2 Luna + 2 Terra app-wide; 2 combined per run/draft.', 'Finite query, page, tool, token, spend and time limits.'], detail: 'Initial shared limits apply across all replicas; validate them against quotas and load tests. Reserve capacity and budget before dispatch. Provider accounts: 2 HTTP calls and 2 outstanding accepted or acceptance-uncertain collection jobs, or lower vendor limits. Pending or uncertain jobs keep slots until their outcomes are verified. Use existing runtime/storage; exhausted reconciliation reports a blocker instead of polling forever. ' + byId.get('rule1').detail });
+        byId.get('rule2').detail += ' A3/Terra maps verified input; software validates. A4/Luna normalizes results into the shared schema. Required facts are never guessed; optional omissions follow the external contract.';
+        byId.get('rule4').detail += ' One codebase and one persisted workflow; Durable Functions is the proposed background runtime. Use activities for external calls and timers for waiting. No agent-per-retailer services or stacked queue framework.';
+        byId.get('rule5').detail += ' Required local A4 normalization must finish. Optional A5 never blocks completion; avoid repeated summaries on dashboard refresh.';
+        function ownerText(node) { return node.ownership || (node.kind === 'screen' ? 'Customer screen · software validates actions and controls state.' : node.kind === 'rule' ? 'Software-enforced rule · applies across the workflow.' : 'Software · deterministic execution and validation; no autonomous AI decision.'); }
+        const schemas = [
+            ['Target.com', ['url', 'all_variations', 'zipcode'], ['url']],
+            ['Amazon Products — Collect by URL', ['url', 'zipcode', 'language', 'all_variations'], []],
+            ['Walmart — Products — Collect by URL', ['url', 'all_variations', 'zipcode', 'store_id'], ['url']],
+            ['Home Depot US', ['url', 'store_number', 'zipcode'], ['url']],
+            ['Etsy', ['url', 'all_variations'], ['url']],
+            ['Lowes.com', ['url', 'location'], ['url']],
+            ['Costco Products', ['url'], ['url']],
+            ['AliExpress Products — US', ['url'], ['url']],
+            ['IKEA', ['url'], ['url']],
+            ['eBay', ['url', 'country'], ['url']],
+            ['Best Buy', ['url', 'bsin', 'skuId', 'store_id', 'zip', 'include_open_box', 'include_marketplace'], ['url', 'store_id', 'zip']]
+        ];
+        // Rendering and navigation are local only. No external requests or libraries.
+        const $ = id => document.getElementById(id), NS = 'http://www.w3.org/2000/svg';
+        function sEl(tag, attrs = {}, text) { const x = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) x.setAttribute(k, String(v)); if (text !== undefined) x.textContent = text; return x; }
+        function html(tag, attrs = {}, text) { const x = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) x.setAttribute(k, String(v)); if (text !== undefined) x.textContent = text; return x; }
+        function wrap(text, max) { const out = []; let line = ''; for (const word of text.split(' ')) { if (line.length && line.length + word.length + 1 > max) { out.push(line); line = word } else line += (line ? ' ' : '') + word } if (line) out.push(line); return out; }
+        function port(node, side) { return side === 'top' ? [node.x, node.y - node.h / 2] : side === 'bottom' ? [node.x, node.y + node.h / 2] : side === 'left' ? [node.x - node.w / 2, node.y] : [node.x + node.w / 2, node.y]; }
+        function edgePoints(edge) {
+            const a = byId.get(edge.from), b = byId.get(edge.to); if (!a || !b) throw Error('Broken graph edge ' + edge.from + ' → ' + edge.to); const f = edge.fromPort || 'right', t = edge.toPort || 'left', p = port(a, f), q = port(b, t), list = [p]; const ox = stages[a.stage].x;
+            if (edge.via) { list.push(...edge.via.map(p => [p[0] + ox, p[1]])); }
+            else if (edge.viaX !== undefined && edge.viaY !== undefined) { const x = ox + edge.viaX, y = edge.viaY; list.push([p[0], y], [x, y], [x, q[1]]); }
+            else if (edge.viaY !== undefined) { const y = edge.viaY; list.push([p[0], y], [q[0], y]); }
+            else if (edge.viaX !== undefined) { const x = ox + edge.viaX; list.push([x, p[1]], [x, q[1]]); }
+            else if (p[0] !== q[0] && p[1] !== q[1]) { if (f === 'top' || f === 'bottom') { list.push([p[0], q[1]]); } else if (t === 'top' || t === 'bottom') { list.push([q[0], p[1]]); } else { const mx = (p[0] + q[0]) / 2; list.push([mx, p[1]], [mx, q[1]]); } }
+            list.push(q); return list.filter((pt, i, arr) => i === 0 || pt[0] !== arr[i - 1][0] || pt[1] !== arr[i - 1][1]);
+        }
+        function roundedPath(points) { let d = 'M ' + points[0].join(' '); for (let i = 1; i < points.length; i++) { const p = points[i], prev = points[i - 1], next = points[i + 1]; if (!next) { d += ' L ' + p.join(' '); break; } const l1 = Math.hypot(p[0] - prev[0], p[1] - prev[1]), l2 = Math.hypot(next[0] - p[0], next[1] - p[1]); const r = Math.min(12, l1 / 2, l2 / 2); const a = [p[0] - (p[0] - prev[0]) * r / l1, p[1] - (p[1] - prev[1]) * r / l1], b = [p[0] + (next[0] - p[0]) * r / l2, p[1] + (next[1] - p[1]) * r / l2]; d += ' L ' + a.join(' ') + ' Q ' + p.join(' ') + ' ' + b.join(' '); } return d; }
+        function labelPoint(points) { let best = 0, index = 0; for (let i = 1; i < points.length; i++) { const length = Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]); if (length > best) { best = length; index = i; } } const a = points[index - 1], b = points[index]; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 13]; }
+        function clearLabelPosition(points, w, h, placed) { const base = labelPoint(points); for (const dy of [0, -28, 28, -55, 55, -85, 85, -120, 120, -160, 160]) for (const dx of [0, -35, 35, -75, 75]) { const x = base[0] + dx, y = base[1] + dy, l = x - w / 2, r = x + w / 2, t = y - h / 2, b = y + h / 2; if (t < 135 || b > 1190) continue; const hits = nodes.some(n => r > n.x - n.w / 2 - 3 && l < n.x + n.w / 2 + 3 && b > n.y - n.h / 2 - 3 && t < n.y + n.h / 2 + 3) || placed.some(n => r > n.l - 3 && l < n.r + 3 && b > n.t - 3 && t < n.b + 3); if (!hits) { placed.push({ l, r, t, b }); return [x, y, base]; } } return [...base, base]; }
+        function render() {
+            const world = $('world'), bg = sEl('g'), edgeG = sEl('g', { 'aria-hidden': 'true' }), labels = sEl('g', { 'aria-hidden': 'true' }), nodeG = sEl('g'); world.append(bg, edgeG, labels, nodeG);
+            stages.forEach(s => { bg.append(sEl('rect', { x: s.x, y: 20, width: s.width, height: 1150, class: 'phase-bg', rx: 3 })); bg.append(sEl('text', { x: s.x + 36, y: 72, class: 'phase-heading' }, (s.index + 1) + ' · ' + s.name.toUpperCase())); bg.append(sEl('text', { x: s.x + 36, y: 108, class: 'phase-caption' }, s.subtitle + ' — ' + s.caption)); bg.append(sEl('text', { x: s.x + s.width / 2, y: 1198, 'text-anchor': 'middle', class: 'global-rule' }, 'HARD RULE · APPLIES THROUGHOUT')); });
+            const placedLabels = []; edges.forEach((edge, i) => { const points = edgePoints(edge), type = edge.type || 'normal'; edgeG.append(sEl('path', { d: roundedPath(points), class: 'edge ' + type, 'data-from': edge.from, 'data-to': edge.to, 'marker-end': type === 'note' ? 'none' : `url(#${type === 'recovery' ? 'arrow-recovery' : type === 'stop' ? 'arrow-stop' : 'arrow'})` })); if (edge.label) { const lines = wrap(edge.label, 24), w = Math.max(...lines.map(x => x.length)) * 8.1 + 16, h = lines.length * 20 + 8, [x, y, base] = clearLabelPosition(points, w, h, placedLabels); const g = sEl('g', { class: 'edge-label', 'data-edge': edge.from + '-' + edge.to }); if (Math.hypot(x - base[0], y - base[1]) > 35) g.append(sEl('path', { d: `M ${base[0]} ${base[1] + 13} L ${x} ${y}`, stroke: '#78917b', 'stroke-width': 1, 'stroke-dasharray': '2 4', fill: 'none' })); g.append(sEl('rect', { x: x - w / 2, y: y - h / 2, width: w, height: h })); lines.forEach((line, j) => g.append(sEl('text', { x, y: y - h / 2 + 18 + j * 20, 'text-anchor': 'middle' }, line))); labels.append(g); } });
+            nodes.forEach(node => { const g = sEl('g', { class: 'node ' + node.kind, id: 'node-' + node.id, transform: `translate(${node.x} ${node.y})`, tabindex: 0, role: 'button', 'aria-label': node.title + '. ' + node.body.join('. ') + '. ' + ownerText(node), 'data-node': node.id, 'data-model': node.model || '' }); let shape; if (node.kind === 'decision') shape = sEl('polygon', { points: `0,${-node.h / 2} ${node.w / 2},0 0,${node.h / 2} ${-node.w / 2},0`, class: 'shape' }); else shape = sEl('rect', { x: -node.w / 2, y: -node.h / 2, width: node.w, height: node.h, rx: node.kind === 'startEnd' ? 45 : node.kind === 'screen' ? 6 : 2, class: 'shape' }); g.append(shape); const max = node.w > 500 ? 80 : node.kind === 'decision' ? 18 : 23, title = wrap(node.title, max), body = node.kind === 'decision' ? [] : node.body.flatMap(t => wrap(t, node.w > 500 ? 100 : 29)), height = title.length * 27 + (body.length ? 12 + body.length * 23 : 0); let y = -height / 2 + 21; title.forEach(line => { g.append(sEl('text', { x: 0, y, 'text-anchor': 'middle', class: 'label node-title' }, line)); y += 27; }); y += 9; body.forEach(line => { g.append(sEl('text', { x: 0, y, 'text-anchor': 'middle', class: 'label node-body' }, line)); y += 23; }); if (node.kind === 'decision' && node.aiRole) g.append(sEl('text', { x: 0, y: node.h * .32, 'text-anchor': 'middle', class: 'label node-owner' }, node.aiRole + ' · ' + (node.model === 'luna' ? 'Luna' : 'Terra'))); g.append(sEl('title', {}, node.detail)); g.addEventListener('click', () => { if (!dragMoved) selectNode(node.id) }); g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); selectNode(node.id); } }); g.addEventListener('focus', () => { if (keyboardNavigation) focusNode(node.id, false) }); nodeG.append(g); });
+            stages.forEach((s, i) => { const btn = html('button', { class: 'stage-btn', 'data-stage': i, 'aria-current': i === 0 ? 'step' : 'false' }); btn.append(html('span', { class: 'num' }, String(i + 1).padStart(2, '0'))); const label = html('span'); label.append(html('strong', {}, s.name), html('small', {}, s.subtitle)); btn.append(label); btn.addEventListener('click', () => navigateStage(i)); $('stageNav').append(btn); });
+            schemas.forEach(([name, fields, req], i) => { const row = html('tr'); row.append(html('td', {}, i + 1), html('td', {}, name)); const cell = html('td'); fields.forEach((f, k) => { if (k) cell.append(document.createTextNode(' · ')); cell.append(html('code', {}, f)); if (req.includes(f)) cell.append(html('span', { class: 'required' }, ' Required')); }); row.append(cell); $('schemaRows').append(row); });
+            aiRoles.forEach(role => { const card = html('article', { class: 'role-card', 'data-role': role.id, 'data-model': role.model }); card.append(html('div', { class: 'role-model' }, role.id + ' / GPT-5.6 ' + (role.model === 'luna' ? 'Luna' : 'Terra')), html('h3', {}, role.name), html('p', {}, role.kind), html('p', {}, 'When: ' + role.when), html('p', {}, role.task), html('p', {}, 'Output: ' + role.output), html('p', {}, 'Boundary: ' + role.boundary)); role.links.forEach(([id, label]) => { const b = html('button', { 'data-role-target': id }, label); b.addEventListener('click', () => { $('agentDialog').close(); selectNode(id, true); }); card.append(b); }); $('agentRoles').append(card); });
+            stages.forEach(s => { const section = html('section', { class: 'read-section' }); section.append(html('h3', {}, `${s.index + 1}. ${s.name}`)); nodes.filter(n => n.stage === s.index).forEach(n => { const b = html('button', { class: 'read-step' }, n.title); b.append(html('span', {}, 'Owner: ' + ownerText(n)), html('span', {}, n.detail), html('span', {}, 'Recovery / boundary: ' + n.failure), html('span', {}, 'logic+workflow2.md · sections ' + n.section)); b.addEventListener('click', () => { $('readDialog').close(); selectNode(n.id, true) }); section.append(b); }); $('readBody').append(section); });
+        }
+        let activeStage = 0, scale = .6, panX = 0, panY = 0, selected = null, dragging = false, dragMoved = false, keyboardNavigation = false, dragStart = null;
+        const canvas = $('canvas'); function dimensions() { return { w: canvas.clientWidth, h: canvas.clientHeight }; }
+        function transform() { const { w, h } = dimensions(); panX = Math.max(-totalWidth * scale + w * .15, Math.min(w * .85, panX)); panY = Math.max(-totalHeight * scale + h * .15, Math.min(h * .85, panY)); $('world').setAttribute('transform', `translate(${panX} ${panY}) scale(${scale})`); $('zoomLabel').textContent = Math.round(scale * 100) + '%'; }
+        function setStage(i) { activeStage = i; document.querySelectorAll('.stage-btn').forEach((b, k) => b.setAttribute('aria-current', i === k ? 'step' : 'false')); $('stageCaption').textContent = stages[i].caption; $('stageCount').textContent = `${String(i + 1).padStart(2, '0')} / 06`; $('progress').style.width = (i + 1) / 6 * 100 + '%'; $('previous').disabled = i === 0; $('next').disabled = i === 5; $('collectionJumps').hidden = i !== 4; }
+        function navigateStage(i, fit = false) { closeDetails(); setStage(i); const s = stages[i], { w, h } = dimensions(); const visibleWidth = fit ? s.width : Math.min(s.width, 2140); scale = fit ? Math.min((w - 65) / s.width, (h - 35) / 1160) : w < 650 ? .65 : Math.min(1, (w - 60) / visibleWidth, (h - 22) / 1140); scale = Math.max(.08, scale); const centerX = w < 650 && !fit ? s.x + 510 : s.x + visibleWidth / 2; panX = w / 2 - centerX * scale; panY = w < 650 && !fit ? h / 2 - 565 * scale : 12 - 20 * scale; transform(); $('announce').textContent = `Stage ${i + 1}: ${s.name}`; }
+        function zoom(factor, cx, cy) { const { w, h } = dimensions(); cx ??= w / 2; cy ??= h / 2; const next = Math.max(.055, Math.min(2, scale * factor)); panX = cx - (cx - panX) * next / scale; panY = cy - (cy - panY) * next / scale; scale = next; transform(); }
+        function showAll() { closeDetails(); const { w, h } = dimensions(); scale = Math.min((w - 40) / totalWidth, (h - 40) / totalHeight); panX = (w - totalWidth * scale) / 2; panY = (h - totalHeight * scale) / 2; transform(); $('collectionJumps').hidden = true; $('announce').textContent = 'Overview of all six workflow stages. Choose a stage to read its steps.'; }
+        function focusNode(id, detailOpen = true) { const node = byId.get(id), { w, h } = dimensions(); setStage(node.stage); scale = w < 650 ? .82 : Math.max(.75, Math.min(1.1, scale)); const available = w >= 650 && detailOpen ? w - 390 : w; panX = available / 2 - node.x * scale; panY = h / 2 - node.y * scale; transform(); }
+        function selectNode(id, focus = false) { selected = id; const node = byId.get(id); document.querySelectorAll('.node.selected').forEach(el => el.classList.remove('selected')); $('node-' + id).classList.add('selected'); $('detail').hidden = false; $('detailKind').textContent = `STAGE ${node.stage + 1} / ${node.kind === 'process' ? 'SYSTEM STEP' : node.kind === 'screen' ? 'CUSTOMER SCREEN' : node.kind === 'startEnd' ? 'BOUNDARY' : node.kind.toUpperCase()}`; $('detailTitle').textContent = node.title; $('detailOwner').textContent = ownerText(node); $('detailText').textContent = node.detail; $('detailFailure').textContent = node.failure; $('detailRef').textContent = 'logic+workflow2.md · sections ' + node.section; $('detailSchemaAction').hidden = !['contracts', 'aimap', 'inputgate', 'inputrepair', 'sharedvalid', 'rule2'].includes(id); $('nextNodes').replaceChildren(); edges.filter(e => e.from === id && e.type !== 'note').forEach(edge => { const b = html('button', {}, byId.get(edge.to).title); b.append(html('small', {}, edge.label || 'Continue')); b.addEventListener('click', () => selectNode(edge.to, true)); $('nextNodes').append(b); }); if (!$('nextNodes').children.length) $('nextNodes').append(html('p', {}, 'This rule or terminal outcome does not schedule additional work.')); setStage(node.stage); if (focus) focusNode(id); $('announce').textContent = node.title + '. ' + node.detail; }
+        function closeDetails() { if (selected) $('node-' + selected)?.classList.remove('selected'); selected = null; $('detail').hidden = true; }
+        function openSchemas() { $('schemaDialog').showModal(); }
+        $('openAgents').onclick = () => $('agentDialog').showModal(); $('detailAgentsButton').onclick = () => $('agentDialog').showModal(); $('openSchemas').onclick = openSchemas; $('detailSchemaButton').onclick = openSchemas; $('openRead').onclick = () => $('readDialog').showModal(); document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).close()); $('closeDetail').onclick = closeDetails;
+        $('previous').onclick = () => navigateStage(Math.max(0, activeStage - 1)); $('next').onclick = () => navigateStage(Math.min(5, activeStage + 1)); $('zoomIn').onclick = () => zoom(1.25); $('zoomOut').onclick = () => zoom(.8); $('fitStage').onclick = () => navigateStage(activeStage, true); $('overview').onclick = showAll; document.querySelectorAll('[data-focus]').forEach(b => b.onclick = () => { closeDetails(); focusNode(b.dataset.focus, false); });
+        canvas.addEventListener('pointerdown', ev => { if (ev.button !== 0) return; keyboardNavigation = false; dragging = true; dragMoved = false; dragStart = { x: ev.clientX, y: ev.clientY, px: panX, py: panY }; canvas.setPointerCapture(ev.pointerId); canvas.classList.add('dragging'); });
+        canvas.addEventListener('pointermove', ev => { if (!dragging) return; const dx = ev.clientX - dragStart.x, dy = ev.clientY - dragStart.y; if (Math.hypot(dx, dy) > 5) dragMoved = true; if (dragMoved) { panX = dragStart.px + dx; panY = dragStart.py + dy; transform(); } });
+        canvas.addEventListener('pointerup', ev => { dragging = false; canvas.classList.remove('dragging'); canvas.releasePointerCapture(ev.pointerId); if (!dragMoved) { const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-node]'); if (target) selectNode(target.dataset.node); } setTimeout(() => dragMoved = false, 0); }); canvas.addEventListener('pointercancel', () => { dragging = false; canvas.classList.remove('dragging'); });
+        canvas.addEventListener('wheel', ev => { ev.preventDefault(); if (ev.ctrlKey || ev.metaKey) { const r = canvas.getBoundingClientRect(); zoom(Math.exp(-ev.deltaY * .008), ev.clientX - r.left, ev.clientY - r.top); } else { panX -= ev.shiftKey ? ev.deltaY : ev.deltaX; panY -= ev.shiftKey ? ev.deltaX : ev.deltaY; transform(); } }, { passive: false });
+        document.addEventListener('keydown', ev => { if (ev.key === 'Tab') keyboardNavigation = true; if (document.querySelector('dialog[open]')) return; if (ev.key === 'Escape') { closeDetails(); $('searchResults').hidden = true; } if (ev.target.matches('input')) return; if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); zoom(1.2) } if (ev.key === '-') { ev.preventDefault(); zoom(1 / 1.2) } if (ev.key === '0') { ev.preventDefault(); navigateStage(activeStage, true) } if (ev.target === canvas) { const delta = { ArrowLeft: [100, 0], ArrowRight: [-100, 0], ArrowUp: [0, 100], ArrowDown: [0, -100] }[ev.key]; if (delta) { ev.preventDefault(); panX += delta[0]; panY += delta[1]; transform(); } } });
+        $('search').addEventListener('input', () => { const q = $('search').value.trim().toLowerCase(), box = $('searchResults'); box.replaceChildren(); box.hidden = !q; if (!q) return; const hits = nodes.filter(n => (n.title + ' ' + n.detail + ' ' + n.failure + ' ' + n.body.join(' ') + ' ' + ownerText(n) + ' ' + (rolesById.get(n.aiRole)?.name || '')).toLowerCase().includes(q)).slice(0, 12); hits.forEach(n => { const b = html('button', {}, n.title); b.append(html('small', {}, `${n.stage + 1} · ${stages[n.stage].name}`)); b.onclick = () => { box.hidden = true; selectNode(n.id, true) }; box.append(b); }); if (!hits.length) box.append(html('p', {}, 'No matching step. Try PDP, retry, schema, or cancel.')); });
+        $('search').addEventListener('keydown', ev => { if (ev.key === 'ArrowDown') { ev.preventDefault(); $('searchResults').querySelector('button')?.focus(); } if (ev.key === 'Enter') $('searchResults').querySelector('button')?.click(); }); document.addEventListener('click', ev => { if (!ev.target.closest('.search-wrap')) $('searchResults').hidden = true; });
+        $('exportSvg').onclick = () => { const clone = canvas.cloneNode(true); clone.removeAttribute('tabindex'); clone.setAttribute('viewBox', `0 0 ${totalWidth} ${totalHeight}`); clone.setAttribute('width', totalWidth); clone.setAttribute('height', totalHeight); clone.querySelector('#world').removeAttribute('transform'); clone.querySelectorAll('[tabindex]').forEach(el => el.removeAttribute('tabindex')); clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected')); const style = sEl('style', {}, document.querySelector('style').textContent); clone.prepend(style); const bg = sEl('rect', { x: 0, y: 0, width: totalWidth, height: totalHeight, fill: '#202323' }); clone.insertBefore(bg, clone.querySelector('#world')); const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml;charset=utf-8' }), url = URL.createObjectURL(blob), a = html('a', { href: url, download: 'workflow-ai-agents.svg' }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+        render(); window.workflowData = { stages, nodes, edges, schemas, aiRoles }; requestAnimationFrame(() => navigateStage(0)); let lastWidth = 0; new ResizeObserver(() => { const w = canvas.clientWidth; if (lastWidth && Math.abs(lastWidth - w) > 50) navigateStage(activeStage); lastWidth = w; }).observe($('workspace'));
+    </script>
+</body>
+
+</html>

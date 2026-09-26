@@ -1,9 +1,10 @@
 import { BrandMark } from "../ui/BrandMark";
 
 const navigation = [
-  { label: "Scrapers", href: "#scrapers" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Why Dhumi", href: "#contact" },
+  { label: "Scrapers", href: "/#scrapers" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Why Dhumi", href: "/#contact" },
+  { label: "Price analysis", href: "/analysis" },
 ];
 
 interface PublicHeaderProps {

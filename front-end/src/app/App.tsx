@@ -6,6 +6,7 @@ import { LinkedInPostsPage } from "../features/marketplace/LinkedInPostsPage";
 import { MarketplaceDatasetPage } from "../features/marketplace/MarketplaceDatasetPage";
 import { MarketplaceDomainPage } from "../features/marketplace/MarketplaceDomainPage";
 import { MarketplaceLibraryPage } from "../features/marketplace/MarketplaceLibraryPage";
+import { PriceAnalysisPage } from "../features/priceAnalysis/PriceAnalysisPage";
 import { RunsWorkspacePage } from "../features/runs/RunsWorkspacePage";
 import { UsageWorkspacePage } from "../features/usage/UsageWorkspacePage";
 import { AmazonDomainPage } from "../features/workspace/AmazonDomainPage";
@@ -13,19 +14,21 @@ import { WorkspaceLibraryPage } from "../features/workspace/WorkspaceLibraryPage
 import { WorkspaceShell } from "../features/workspace/WorkspaceShell";
 import { useSession } from "../session/useSession";
 
-export function App() {
-  const { isAuthenticated } = useSession();
-  const initialAuthMode =
-    window.location.pathname === "/sign-up"
-      ? "sign-up"
-      : window.location.pathname === "/sign-in"
-        ? "sign-in"
-        : null;
-
-  if (isAuthenticated) {
-    return (
-      <BrowserRouter>
-        <Routes>
+export function AppRoutes({
+  isAuthenticated,
+  initialAuthMode,
+}: {
+  readonly isAuthenticated: boolean;
+  readonly initialAuthMode: "sign-in" | "sign-up" | null;
+}) {
+  return (
+    <Routes>
+      <Route
+        path="/analysis"
+        element={<PriceAnalysisPage isAuthenticated={isAuthenticated} />}
+      />
+      {isAuthenticated ? (
+        <>
           <Route element={<WorkspaceShell />}>
             <Route
               path="/workspace/scrapers"
@@ -74,10 +77,32 @@ export function App() {
             path="*"
             element={<Navigate to="/workspace/scrapers" replace />}
           />
-        </Routes>
-      </BrowserRouter>
-    );
-  }
+        </>
+      ) : (
+        <Route
+          path="*"
+          element={<WelcomePage initialAuthMode={initialAuthMode} />}
+        />
+      )}
+    </Routes>
+  );
+}
 
-  return <WelcomePage initialAuthMode={initialAuthMode} />;
+export function App() {
+  const { isAuthenticated } = useSession();
+  const initialAuthMode =
+    window.location.pathname === "/sign-up"
+      ? "sign-up"
+      : window.location.pathname === "/sign-in"
+        ? "sign-in"
+        : null;
+
+  return (
+    <BrowserRouter>
+      <AppRoutes
+        isAuthenticated={isAuthenticated}
+        initialAuthMode={initialAuthMode}
+      />
+    </BrowserRouter>
+  );
 }
