@@ -60,6 +60,7 @@ describe("listRunsService", () => {
     expect(repository.calls).toEqual([
       {
         tenantId: principal.tenantId,
+        userId: principal.userId,
         statusFilter: null,
         serviceIdFilter: null,
         cursor: undefined,
@@ -98,6 +99,7 @@ describe("listRunsService", () => {
     expect(repository.calls).toEqual([
       {
         tenantId: principal.tenantId,
+        userId: principal.userId,
         statusFilter: "queued",
         serviceIdFilter: null,
         cursor: {

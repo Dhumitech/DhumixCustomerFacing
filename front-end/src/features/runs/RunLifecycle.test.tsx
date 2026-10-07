@@ -141,10 +141,12 @@ function mutationRequest(fetchMock: ReturnType<typeof vi.fn>, suffix: string) {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/o/11111111-1111-4111-8111-111111111111/workspace/runs");
   tokenStore.set(authSession, "customer@example.test");
 });
 
 afterEach(() => {
+  window.history.replaceState(null, "", "/");
   tokenStore.clear();
   sessionStorage.clear();
   vi.useRealTimers();

@@ -6,6 +6,7 @@ import { loadOutboxDispatcherConfig } from "../config/pattern4Environment.js";
 import { createLoggerOptions, safeErrorLogContext } from "../config/logger.js";
 import { createOutboxDispatcherPool } from "../services/database/pools.js";
 import { verifyOutboxDispatcherPool } from "../services/database/roleVerification.js";
+import { requireExecutionContraction } from '../services/database/refactorSchemaGate.js';
 import { createOutboxDispatcherRepository } from "../services/jobs/outboxDispatcherRepository.js";
 import {
   createOutboxDispatcherService,
@@ -77,6 +78,7 @@ export async function startOutboxDispatcher(): Promise<void> {
   process.once("SIGTERM", onSigterm);
 
   try {
+    await requireExecutionContraction(pool,'dhumi_outbox_dispatcher');
     await verifyOutboxDispatcherPool(pool, config.database.credential.user);
     logger.info(
       { batchSize: config.batchSize, intervalMs: config.intervalMs },

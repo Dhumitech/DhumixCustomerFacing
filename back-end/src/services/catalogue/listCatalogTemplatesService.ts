@@ -5,15 +5,10 @@ import {
   type CatalogProductFamily,
   type CatalogTemplateListCursorPosition,
 } from "../../helpers/catalogTemplateListCursor.js";
-import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
-import {
-  toServiceTemplate,
-  type ServiceTemplate,
-} from "./catalogTemplate.js";
+import type { TrustedBrowsePrincipal } from "../tenantAccess/trustedBrowsePrincipal.js";
+import { toServiceTemplate, type ServiceTemplate } from "./catalogTemplate.js";
 import { catalogueValidationFailed } from "./catalogueErrors.js";
-import type {
-  ListCatalogTemplatesRepository,
-} from "./listCatalogTemplatesRepository.js";
+import type { ListCatalogTemplatesRepository } from "./listCatalogTemplatesRepository.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -30,7 +25,7 @@ export interface TemplatePage {
 }
 
 export interface ListCatalogTemplatesRequest {
-  readonly principal: TrustedTenantPrincipal;
+  readonly principal: TrustedBrowsePrincipal;
   readonly family: unknown;
   readonly cursor: unknown;
   readonly limit: unknown;
@@ -51,10 +46,7 @@ function validationError(field: string, message: string): never {
 
 function parseFamily(value: unknown): CatalogProductFamily | undefined {
   if (value === undefined) return undefined;
-  if (
-    typeof value !== "string" ||
-    !CATALOG_PRODUCT_FAMILIES.some((family) => family === value)
-  ) {
+  if (typeof value !== "string" || !CATALOG_PRODUCT_FAMILIES.some((family) => family === value)) {
     return validationError("family", "must be a supported catalogue product family");
   }
   return value as CatalogProductFamily;
@@ -101,7 +93,10 @@ export function createListCatalogTemplatesService(
       }
 
       const records = await dependencies.repository.list({
-        tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
+        ...(request.principal.tenantId === undefined
+          ? {}
+          : { tenantId: request.principal.tenantId }),
         family,
         cursor,
         fetchLimit: limit + 1,

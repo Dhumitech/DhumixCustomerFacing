@@ -20,19 +20,47 @@ function executor(label: string): ControlledRunExecutor {
 }
 
 describe("provider Run executor router", () => {
-  it.each(["amazon", "marketplace"] as const)("routes %s from the pinned adapter identity", async (kind) => {
+  it("routes the retained Amazon executor from the pinned adapter identity", async () => {
     const amazon = executor("amazon");
-    const marketplace = executor("marketplace");
     const router = createProviderRunExecutorRouter({
-      repository: { resolveExecutorKind: vi.fn(async () => kind as "amazon" | "marketplace") },
+      repository: { resolveExecutorKind: vi.fn(async () => "amazon" as const) },
       amazon,
-      marketplace,
     });
-    await expect(router.persistRaw(execution)).resolves.toEqual({ artifactId: `${kind}-raw` });
-    expect(kind === "amazon" ? amazon.persistRaw : marketplace.persistRaw).toHaveBeenCalledOnce();
+    await expect(router.persistRaw(execution)).resolves.toEqual({ artifactId: "amazon-raw" });
+    await expect(router.persistNormalized(execution)).resolves.toEqual({ artifactId: "amazon-normalized", usage: null });
+    await expect(router.recoverRaw?.({ ...execution, sourceAttemptId: execution.attemptId })).resolves.toBe(true);
+    expect(amazon.persistRaw).toHaveBeenCalledOnce();
+    expect(amazon.persistNormalized).toHaveBeenCalledOnce();
+    expect(amazon.recoverRaw).toHaveBeenCalledOnce();
   });
 
-  it("fails closed when the customer-disabled Marketplace executor is not composed", async () => {
+  it("rejects retired Marketplace identities in every execution phase", async () => {
+    const amazon = executor("amazon");
+    const marketplace = executor("marketplace");
+    // An old JavaScript caller cannot reactivate the removed optional binding.
+    const legacyInput = {
+      repository: { resolveExecutorKind: vi.fn(async () => "marketplace" as const) },
+      amazon,
+      marketplace,
+    };
+    const router = createProviderRunExecutorRouter(legacyInput);
+    const rejection = {
+      customerErrorCode: "SERVICE_UNAVAILABLE",
+      retryable: false,
+      outcomeClass: "provider_configuration_unavailable",
+    };
+    await expect(router.persistRaw(execution)).rejects.toMatchObject(rejection);
+    await expect(router.persistNormalized(execution)).rejects.toMatchObject(rejection);
+    await expect(router.recoverRaw?.({ ...execution, sourceAttemptId: execution.attemptId })).rejects.toMatchObject(rejection);
+    expect(amazon.persistRaw).not.toHaveBeenCalled();
+    expect(amazon.persistNormalized).not.toHaveBeenCalled();
+    expect(amazon.recoverRaw).not.toHaveBeenCalled();
+    expect(marketplace.persistRaw).not.toHaveBeenCalled();
+    expect(marketplace.persistNormalized).not.toHaveBeenCalled();
+    expect(marketplace.recoverRaw).not.toHaveBeenCalled();
+  });
+
+  it("fails closed without an old Marketplace binding", async () => {
     const router = createProviderRunExecutorRouter({
       repository: { resolveExecutorKind: vi.fn(async () => "marketplace" as const) },
       amazon: executor("amazon"),

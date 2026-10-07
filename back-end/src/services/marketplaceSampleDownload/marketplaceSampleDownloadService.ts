@@ -4,6 +4,7 @@ import { canonicalSha256 } from "../../helpers/canonicalJson.js";
 import { tenantActorFingerprint } from "../../helpers/tenantActorFingerprint.js";
 import { ApplicationError } from "../../utils/applicationError.js";
 import { csrfValidationFailed } from "../identity/sessionErrors.js";
+import { accessDenied } from "../tenantAccess/tenantAccessErrors.js";
 import type { MarketplacePreviewService } from "../marketplacePreview/marketplacePreviewService.js";
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
 import {
@@ -71,20 +72,38 @@ interface Dependencies {
   readonly now?: () => Date;
 }
 
-function problem(status: number, code: "VALIDATION_ERROR" | "RESOURCE_NOT_FOUND" | "STATE_CONFLICT" |
-  "PLATFORM_CAPACITY_LIMIT" | "SERVICE_UNAVAILABLE", title: string, detail?: string,
-  errors?: readonly { readonly field: string; readonly message: string }[]) {
-  return new ApplicationError({ status, code, title, ...(detail ? { detail } : {}), ...(errors ? { errors } : {}) });
+function problem(
+  status: number,
+  code:
+    | "VALIDATION_ERROR"
+    | "RESOURCE_NOT_FOUND"
+    | "STATE_CONFLICT"
+    | "PLATFORM_CAPACITY_LIMIT"
+    | "SERVICE_UNAVAILABLE",
+  title: string,
+  detail?: string,
+  errors?: readonly { readonly field: string; readonly message: string }[],
+) {
+  return new ApplicationError({
+    status,
+    code,
+    title,
+    ...(detail ? { detail } : {}),
+    ...(errors ? { errors } : {}),
+  });
 }
 
 function csvCell(value: unknown): string {
-  const text = value === null || value === undefined
-    ? ""
-    : typeof value === "string" ? value : JSON.stringify(value);
+  const text =
+    value === null || value === undefined
+      ? ""
+      : typeof value === "string"
+        ? value
+        : JSON.stringify(value);
   // CSV is for spreadsheet viewing; JSON retains the exact sample value.
   // A leading tab inside a quoted cell prevents Excel from evaluating formula-like input.
-  const formulaLike = /^[\s\u0000-\u001f]*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20]/u.test(text) ||
-    /^[\t\r\n]/u.test(text);
+  const formulaLike =
+    /^[\s\u0000-\u001f]*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20]/u.test(text) || /^[\t\r\n]/u.test(text);
   const safeText = formulaLike ? `\t${text}` : text;
   return formulaLike || /[",;\t\r\n]/u.test(safeText)
     ? `"${safeText.replaceAll('"', '""')}"`
@@ -97,32 +116,53 @@ function serialize(
   format: MarketplaceSampleDownloadFormat,
 ): Buffer {
   if (format === "json") return Buffer.from(`${JSON.stringify(rows, null, 2)}\n`, "utf8");
-  const lines = [fields.map(csvCell).join(","), ...rows.map((row) => fields.map((field) => csvCell(row[field])).join(","))];
+  const lines = [
+    fields.map(csvCell).join(","),
+    ...rows.map((row) => fields.map((field) => csvCell(row[field])).join(",")),
+  ];
   return Buffer.from(`${lines.join("\r\n")}\r\n`, "utf8");
 }
 
 function safeUrl(url: string, transport: "https" | "loopback-http"): void {
   const parsed = new URL(url);
-  const local = transport === "loopback-http" && parsed.protocol === "http:" &&
+  const local =
+    transport === "loopback-http" &&
+    parsed.protocol === "http:" &&
     ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
-  if (!((transport === "https" && parsed.protocol === "https:") || local) ||
-      parsed.username !== "" || parsed.password !== "") throw new Error("Unsafe sample-download URL");
+  if (
+    !((transport === "https" && parsed.protocol === "https:") || local) ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  )
+    throw new Error("Unsafe sample-download URL");
 }
 
 export function createMarketplaceSampleDownloadService(
   dependencies: Dependencies,
 ): MarketplaceSampleDownloadService {
-  if (![dependencies.maxRecords, dependencies.maxBytes, dependencies.rateLimitMax,
-    dependencies.rateWindowSeconds, dependencies.downloadTtlSeconds]
-    .every((value) => Number.isSafeInteger(value) && value > 0) || dependencies.maxRecords > 100) {
+  if (
+    ![
+      dependencies.maxRecords,
+      dependencies.maxBytes,
+      dependencies.rateLimitMax,
+      dependencies.rateWindowSeconds,
+      dependencies.downloadTtlSeconds,
+    ].every((value) => Number.isSafeInteger(value) && value > 0) ||
+    dependencies.maxRecords > 100
+  ) {
     throw new TypeError("Marketplace sample-download configuration is invalid");
   }
   const createId = dependencies.createId ?? randomUUID;
   const now = dependencies.now ?? (() => new Date());
   const service: MarketplaceSampleDownloadService = {
     async authorize(input) {
-      if (input.principal.kind === "browser" &&
-          (input.csrfToken === undefined || !dependencies.csrf.verify(input.principal.sessionId, input.csrfToken))) {
+      if (input.principal.kind !== "browser") {
+        throw accessDenied();
+      }
+      if (
+        input.csrfToken === undefined ||
+        !dependencies.csrf.verify(input.principal.sessionId, input.csrfToken)
+      ) {
         throw csrfValidationFailed();
       }
       const issues = [...input.schemaErrors];
@@ -133,16 +173,28 @@ export function createMarketplaceSampleDownloadService(
         issues.push({ field: "idempotency-key", message: "must be 16-128 accepted characters" });
       }
       const recordLimit = input.body.record_limit;
-      if (typeof recordLimit !== "number" || !Number.isSafeInteger(recordLimit) ||
-          recordLimit < 1 || recordLimit > dependencies.maxRecords) {
-        issues.push({ field: "/record_limit", message: `must be an integer between 1 and ${dependencies.maxRecords}` });
+      if (
+        typeof recordLimit !== "number" ||
+        !Number.isSafeInteger(recordLimit) ||
+        recordLimit < 1 ||
+        recordLimit > dependencies.maxRecords
+      ) {
+        issues.push({
+          field: "/record_limit",
+          message: `must be an integer between 1 and ${dependencies.maxRecords}`,
+        });
       }
       if (input.body.format !== "json" && input.body.format !== "csv") {
         issues.push({ field: "/format", message: 'must be equal to "json" or "csv"' });
       }
       if (issues.length > 0) {
-        throw problem(422, "VALIDATION_ERROR", "Validation failed",
-          "The Marketplace sample-download request is invalid.", issues);
+        throw problem(
+          422,
+          "VALIDATION_ERROR",
+          "Validation failed",
+          "The Marketplace sample-download request is invalid.",
+          issues,
+        );
       }
 
       const format = input.body.format as MarketplaceSampleDownloadFormat;
@@ -161,8 +213,12 @@ export function createMarketplaceSampleDownloadService(
       });
       const bytes = serialize(projection.rows, projection.selected_fields, format);
       if (bytes.byteLength > dependencies.maxBytes) {
-        throw problem(413, "PLATFORM_CAPACITY_LIMIT", "Payload too large",
-          "The authorized stored-sample projection exceeds the configured download byte limit.");
+        throw problem(
+          413,
+          "PLATFORM_CAPACITY_LIMIT",
+          "Payload too large",
+          "The authorized stored-sample projection exceeds the configured download byte limit.",
+        );
       }
       const checksum = createHash("sha256").update(bytes).digest();
       const requestHash = canonicalSha256({
@@ -184,7 +240,8 @@ export function createMarketplaceSampleDownloadService(
       });
       const authorizationId = createId();
       const extension = format;
-      const contentType = format === "json" ? "application/json; charset=utf-8" : "text/csv; charset=utf-8";
+      const contentType =
+        format === "json" ? "application/json; charset=utf-8" : "text/csv; charset=utf-8";
       const fileName = `${input.slug}-sample-v${projection.sample_version}.${extension}`;
       const objectKey = `marketplace/sample-downloads/${input.principal.tenantId}/${authorizationId}/${checksum.toString("hex")}.${extension}`;
       let createdRecord: MarketplaceSampleDownloadRecord | undefined;
@@ -192,9 +249,7 @@ export function createMarketplaceSampleDownloadService(
         const reservation = await dependencies.repository.reserve({
           authorizationId,
           tenantId: input.principal.tenantId,
-          actor: input.principal.kind === "browser"
-            ? { kind: "browser", userId: input.principal.userId }
-            : { kind: "api_key", apiKeyId: input.principal.apiKeyId },
+          actor: { kind: "browser", userId: input.principal.userId },
           actorFingerprint: tenantActorFingerprint(input.principal),
           idempotencyKey: input.idempotencyKey as string,
           requestHash,
@@ -214,41 +269,57 @@ export function createMarketplaceSampleDownloadService(
           rateWindowSeconds: dependencies.rateWindowSeconds,
         });
         if (reservation.kind === "conflict") {
-          throw problem(409, "STATE_CONFLICT", "Idempotency conflict",
-            "This Idempotency-Key was already used with a different request.");
+          throw problem(
+            409,
+            "STATE_CONFLICT",
+            "Idempotency conflict",
+            "This Idempotency-Key was already used with a different request.",
+          );
         }
         if (reservation.kind === "replay" && reservation.record.state !== "authorized") {
-          throw problem(503, "SERVICE_UNAVAILABLE", "Service unavailable",
-            "The previous sample-download authorization did not complete.");
+          throw problem(
+            503,
+            "SERVICE_UNAVAILABLE",
+            "Service unavailable",
+            "The previous sample-download authorization did not complete.",
+          );
         }
         const record = reservation.record;
         if (reservation.kind === "created") createdRecord = record;
         const issuedAt = now();
-        const authorizationExpiresAt = reservation.kind === "created"
-          ? new Date(issuedAt.valueOf() + dependencies.downloadTtlSeconds * 1000)
-          : record.downloadExpiresAt;
-        if (authorizationExpiresAt === null ||
-            authorizationExpiresAt.valueOf() <= issuedAt.valueOf()) {
-          throw problem(409, "STATE_CONFLICT", "Authorization expired",
-            "This sample-download authorization expired. Start a new download request.");
+        const authorizationExpiresAt =
+          reservation.kind === "created"
+            ? new Date(issuedAt.valueOf() + dependencies.downloadTtlSeconds * 1000)
+            : record.downloadExpiresAt;
+        if (
+          authorizationExpiresAt === null ||
+          authorizationExpiresAt.valueOf() <= issuedAt.valueOf()
+        ) {
+          throw problem(
+            409,
+            "STATE_CONFLICT",
+            "Authorization expired",
+            "This sample-download authorization expired. Start a new download request.",
+          );
         }
-        const receipt = reservation.kind === "created"
-          ? await dependencies.store.putImmutable({
-              objectKey: record.objectKey,
-              tenantId: input.principal.tenantId,
-              authorizationId: record.authorizationId,
-              bytes,
-              contentType: record.contentType,
-              fileName: record.fileName,
-              maxBytes: dependencies.maxBytes,
-            })
-          : {
-              objectKey: record.objectKey,
-              contentType: record.contentType,
-              fileName: record.fileName,
-              byteCount: record.byteCount,
-              checksumHex: record.checksumHex,
-            };
+        const receipt =
+          reservation.kind === "created"
+            ? await dependencies.store.putImmutable({
+                objectKey: record.objectKey,
+                tenantId: input.principal.tenantId,
+                authorizationId: record.authorizationId,
+                bytes,
+                contentType: record.contentType,
+                fileName: record.fileName,
+                maxBytes: dependencies.maxBytes,
+              })
+            : {
+                objectKey: record.objectKey,
+                contentType: record.contentType,
+                fileName: record.fileName,
+                byteCount: record.byteCount,
+                checksumHex: record.checksumHex,
+              };
         const signed = await dependencies.store.authorize({
           receipt,
           tenantId: input.principal.tenantId,
@@ -256,14 +327,17 @@ export function createMarketplaceSampleDownloadService(
           expiresAt: authorizationExpiresAt,
           maxTtlSeconds: dependencies.downloadTtlSeconds,
         });
-        if (!(signed.expiresAt instanceof Date) ||
-            signed.expiresAt.valueOf() !== authorizationExpiresAt.valueOf()) {
+        if (
+          !(signed.expiresAt instanceof Date) ||
+          signed.expiresAt.valueOf() !== authorizationExpiresAt.valueOf()
+        ) {
           throw new MarketplaceSampleDownloadIntegrityError();
         }
         safeUrl(signed.downloadUrl, signed.transport);
         if (reservation.kind === "created") {
           await dependencies.repository.complete({
             tenantId: input.principal.tenantId,
+            userId: input.principal.userId,
             authorizationId: record.authorizationId,
             downloadExpiresAt: signed.expiresAt,
             requestId: input.requestId,
@@ -288,6 +362,7 @@ export function createMarketplaceSampleDownloadService(
             // true only for failed reservations, never an authorized download.
             const allowed = await dependencies.repository.fail({
               tenantId: input.principal.tenantId,
+              userId: input.principal.userId,
               authorizationId: createdRecord.authorizationId,
             });
             if (allowed) {
@@ -303,25 +378,43 @@ export function createMarketplaceSampleDownloadService(
           }
         }
         if (error instanceof MarketplaceSampleDownloadRateLimitedError) {
-          throw problem(429, "PLATFORM_CAPACITY_LIMIT", "Too many requests",
-            "The Tenant sample-download limit has been reached. Try again later.");
+          throw problem(
+            429,
+            "PLATFORM_CAPACITY_LIMIT",
+            "Too many requests",
+            "The Tenant sample-download limit has been reached. Try again later.",
+          );
         }
         if (error instanceof MarketplaceSampleDownloadNotFoundError) {
           throw problem(404, "RESOURCE_NOT_FOUND", "Resource not found");
         }
         if (error instanceof MarketplaceSampleDownloadStaleError) {
-          throw problem(409, "STATE_CONFLICT", "State conflict",
-            "The stored sample changed. Refresh the dataset before continuing.");
+          throw problem(
+            409,
+            "STATE_CONFLICT",
+            "State conflict",
+            "The stored sample changed. Refresh the dataset before continuing.",
+          );
         }
         if (error instanceof ApplicationError) throw error;
-        if (error instanceof MarketplaceSampleDownloadUnavailableError ||
-            error instanceof MarketplaceSampleDownloadIntegrityError ||
-            error instanceof MarketplaceSampleDownloadPersistenceError) {
-          throw problem(503, "SERVICE_UNAVAILABLE", "Service unavailable",
-            "The stored sample download is temporarily unavailable.");
+        if (
+          error instanceof MarketplaceSampleDownloadUnavailableError ||
+          error instanceof MarketplaceSampleDownloadIntegrityError ||
+          error instanceof MarketplaceSampleDownloadPersistenceError
+        ) {
+          throw problem(
+            503,
+            "SERVICE_UNAVAILABLE",
+            "Service unavailable",
+            "The stored sample download is temporarily unavailable.",
+          );
         }
-        throw problem(503, "SERVICE_UNAVAILABLE", "Service unavailable",
-          "The stored sample download is temporarily unavailable.");
+        throw problem(
+          503,
+          "SERVICE_UNAVAILABLE",
+          "Service unavailable",
+          "The stored sample download is temporarily unavailable.",
+        );
       }
     },
   };

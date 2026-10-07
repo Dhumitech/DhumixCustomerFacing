@@ -1,13 +1,26 @@
+import { marketplacePreviewSource } from './marketplacePreviewQuery.js';
 import type { Pool, QueryResultRow } from "pg";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withTenantTransaction } from "../database/transactions.js";
+import { withBrowseTransaction } from "../database/transactions.js";
 
 export type MarketplaceFieldType =
-  | "text" | "url" | "date" | "number" | "array" | "object" | "boolean";
+  | "text"
+  | "url"
+  | "date"
+  | "number"
+  | "array"
+  | "object"
+  | "boolean";
 export type MarketplaceSampleVisibility = "visible" | "masked" | "suppressed";
 export type MarketplaceFilterOperator =
-  | "=" | "!=" | "in" | "not_in" | "includes" | "not_includes"
-  | "is_null" | "is_not_null";
+  | "="
+  | "!="
+  | "in"
+  | "not_in"
+  | "includes"
+  | "not_includes"
+  | "is_null"
+  | "is_not_null";
 
 export interface MarketplacePreviewField {
   readonly name: string;
@@ -34,7 +47,8 @@ export interface MarketplacePreviewManifest {
 
 export interface MarketplacePreviewRepository {
   resolve(input: {
-    readonly tenantId: string;
+    readonly userId: string;
+    readonly tenantId?: string;
     readonly templateSlug: string;
   }): Promise<MarketplacePreviewManifest | undefined>;
 }
@@ -73,49 +87,57 @@ function parseFields(value: unknown): readonly MarketplacePreviewField[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error("Marketplace preview field dictionary was invalid");
   }
-  return Object.freeze(value.map((entry) => {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-      throw new Error("Marketplace preview field dictionary was invalid");
-    }
-    const row = entry as Record<string, unknown>;
-    if (
-      typeof row.name !== "string" ||
-      !["text", "url", "date", "number", "array", "object", "boolean"]
-        .includes(String(row.type)) ||
-      typeof row.active !== "boolean" ||
-      typeof row.required !== "boolean" ||
-      typeof row.description !== "string" ||
-      !["visible", "masked", "suppressed"].includes(String(row.sample_visibility)) ||
-      !Array.isArray(row.allowed_operators) ||
-      !row.allowed_operators.every((operator) =>
-        ["=", "!=", "in", "not_in", "includes", "not_includes", "is_null", "is_not_null"]
-          .includes(String(operator)))
-    ) {
-      throw new Error("Marketplace preview field dictionary was invalid");
-    }
-    return Object.freeze({
-      name: row.name,
-      type: row.type as MarketplaceFieldType,
-      active: row.active,
-      required: row.required,
-      description: row.description,
-      sampleVisibility: row.sample_visibility as MarketplaceSampleVisibility,
-      allowedOperators: Object.freeze(
-        row.allowed_operators as MarketplaceFilterOperator[],
-      ),
-    });
-  }));
+  return Object.freeze(
+    value.map((entry) => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        throw new Error("Marketplace preview field dictionary was invalid");
+      }
+      const row = entry as Record<string, unknown>;
+      if (
+        typeof row.name !== "string" ||
+        !["text", "url", "date", "number", "array", "object", "boolean"].includes(
+          String(row.type),
+        ) ||
+        typeof row.active !== "boolean" ||
+        typeof row.required !== "boolean" ||
+        typeof row.description !== "string" ||
+        !["visible", "masked", "suppressed"].includes(String(row.sample_visibility)) ||
+        !Array.isArray(row.allowed_operators) ||
+        !row.allowed_operators.every((operator) =>
+          [
+            "=",
+            "!=",
+            "in",
+            "not_in",
+            "includes",
+            "not_includes",
+            "is_null",
+            "is_not_null",
+          ].includes(String(operator)),
+        )
+      ) {
+        throw new Error("Marketplace preview field dictionary was invalid");
+      }
+      return Object.freeze({
+        name: row.name,
+        type: row.type as MarketplaceFieldType,
+        active: row.active,
+        required: row.required,
+        description: row.description,
+        sampleVisibility: row.sample_visibility as MarketplaceSampleVisibility,
+        allowedOperators: Object.freeze(row.allowed_operators as MarketplaceFilterOperator[]),
+      });
+    }),
+  );
 }
 
 export function createMarketplacePreviewRepository(pool: Pool): MarketplacePreviewRepository {
   return Object.freeze({
-    async resolve(
-      input: Parameters<MarketplacePreviewRepository["resolve"]>[0],
-    ) {
+    async resolve(input: Parameters<MarketplacePreviewRepository["resolve"]>[0]) {
       try {
-        return await withTenantTransaction(pool, input.tenantId, async (database) => {
+        return await withBrowseTransaction(pool, input, async (database) => {
           const result = await database.query<ManifestRow>(
-            "SELECT * FROM app.resolve_marketplace_sample_preview($1, statement_timestamp())",
+            `SELECT preview.* FROM ${marketplacePreviewSource} WHERE preview.template_slug=$1`,
             [input.templateSlug],
           );
           const row = result.rows[0];
@@ -123,8 +145,10 @@ export function createMarketplacePreviewRepository(pool: Pool): MarketplacePrevi
           if (
             row.template_slug !== input.templateSlug ||
             !/^[0-9a-f]{64}$/.test(row.sample_checksum_hex) ||
-            !(row.collected_at instanceof Date) || Number.isNaN(row.collected_at.valueOf()) ||
-            !(row.expires_at instanceof Date) || Number.isNaN(row.expires_at.valueOf())
+            !(row.collected_at instanceof Date) ||
+            Number.isNaN(row.collected_at.valueOf()) ||
+            !(row.expires_at instanceof Date) ||
+            Number.isNaN(row.expires_at.valueOf())
           ) {
             throw new Error("Marketplace preview manifest was invalid");
           }

@@ -36,7 +36,6 @@ export function createLogoutService(dependencies: LogoutServiceDependencies): Lo
       const outcome = await repository.revoke({
         userId: request.identity.userId,
         sessionId: request.identity.sessionId,
-        issuedTenantId: request.identity.issuedTenantId,
         requestId: request.requestId,
         ipFingerprint: request.ipFingerprint,
       });

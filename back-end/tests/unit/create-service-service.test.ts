@@ -12,7 +12,6 @@ import { ApplicationError } from "../../src/utils/applicationError.js";
 const TENANT_ID = "11111111-1111-4111-8111-111111111111";
 const USER_ID = "22222222-2222-4222-8222-222222222222";
 const SESSION_ID = "33333333-3333-4333-8333-333333333333";
-const API_KEY_ID = "44444444-4444-4444-8444-444444444444";
 const IDS = [
   "55555555-5555-4555-8555-555555555555",
   "66666666-6666-4666-8666-666666666666",
@@ -55,18 +54,10 @@ function dependencies(outcome: "created" | "replay" | "conflict" = "created") {
   };
 }
 
-function request(principal: "browser" | "api_key" = "browser") {
+function request() {
   return {
-    principal:
-      principal === "browser"
-        ? ({ kind: "browser", tenantId: TENANT_ID, userId: USER_ID, sessionId: SESSION_ID } as const)
-        : ({
-            kind: "api_key",
-            tenantId: TENANT_ID,
-            apiKeyId: API_KEY_ID,
-            scopes: ["services:write"],
-          } as const),
-    csrfToken: principal === "browser" ? "valid-csrf-token-value" : undefined,
+    principal: { kind: "browser" as const, tenantId: TENANT_ID, userId: USER_ID, sessionId: SESSION_ID },
+    csrfToken: "valid-csrf-token-value",
     idempotencyKey: "service-create-key-0001",
     body: {
       template_slug: "marketplace-products",
@@ -88,7 +79,6 @@ describe("create Service service", () => {
     expect(persisted).toMatchObject({
       idempotencyRecordId: IDS[0],
       serviceId: IDS[1],
-      serviceVersionId: IDS[2],
       tenantId: TENANT_ID,
       actor: { kind: "browser", userId: USER_ID },
       templateSlug: "marketplace-products",
@@ -99,14 +89,12 @@ describe("create Service service", () => {
     expect(persisted.actorFingerprint).toHaveLength(32);
   });
 
-  it("accepts an authorized API-key principal without consulting CSRF", async () => {
-    const fixture = dependencies("replay");
-    await expect(fixture.service.create(request("api_key"))).resolves.toEqual(created);
+  it("rejects a non-browser principal before CSRF or persistence", async () => {
+    const fixture = dependencies();
+    const invalid = { ...request(), principal: { kind: "api_key", tenantId: TENANT_ID } as unknown as ReturnType<typeof request>["principal"] };
+    await expect(fixture.service.create(invalid)).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
     expect(fixture.verify).not.toHaveBeenCalled();
-    expect(fixture.persist.mock.calls[0]?.[0].actor).toEqual({
-      kind: "api_key",
-      apiKeyId: API_KEY_ID,
-    });
+    expect(fixture.persist).not.toHaveBeenCalled();
   });
 
   it("rejects browser CSRF and request shape before repository work", async () => {
@@ -119,7 +107,7 @@ describe("create Service service", () => {
     expect(fixture.persist).not.toHaveBeenCalled();
 
     const malformed = {
-      ...request("api_key"),
+      ...request(),
       idempotencyKey: "short",
       body: { template_slug: "Not Canonical", name: "  ", configuration: [] },
     };
@@ -132,7 +120,7 @@ describe("create Service service", () => {
 
   it("maps a changed idempotent request to the public conflict", async () => {
     const fixture = dependencies("conflict");
-    await expect(fixture.service.create(request("api_key"))).rejects.toSatisfy(
+    await expect(fixture.service.create(request())).rejects.toSatisfy(
       (error: unknown) =>
         error instanceof ApplicationError &&
         error.status === 409 &&

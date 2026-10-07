@@ -147,6 +147,7 @@ function createBackendFetch() {
     const request = input as Request;
     const url = new URL(request.url);
 
+    if (url.pathname === "/v1/organizations") return jsonResponse({ organizations: [] });
     if (url.pathname === "/v1/workspace") {
       return jsonResponse({
         id: "workspace-1",
@@ -226,7 +227,7 @@ function LocationProbe() {
 
 function renderWorkspace(
   overrides: Partial<SessionContextValue> = {},
-  initialEntry = "/workspace/scrapers",
+  initialEntry = "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers",
 ) {
   const session = createSignedInSession(overrides);
   const queryClient = new QueryClient({
@@ -240,18 +241,18 @@ function renderWorkspace(
           <Routes>
             <Route element={<WorkspaceShell />}>
               <Route
-                path="/workspace/scrapers"
+                path="/o/11111111-1111-4111-8111-111111111111/workspace/scrapers"
                 element={<WorkspaceLibraryPage />}
               />
               <Route
-                path="/workspace/scrapers/:domainSlug"
+                path="/o/11111111-1111-4111-8111-111111111111/workspace/scrapers/:domainSlug"
                 element={<AmazonDomainPage />}
               />
               <Route
-                path="/workspace/scrapers/:domainSlug/:templateSlug"
+                path="/o/11111111-1111-4111-8111-111111111111/workspace/scrapers/:domainSlug/:templateSlug"
                 element={<AmazonDomainPage />}
               />
-              <Route path="/workspace/runs" element={<RunsWorkspacePage />} />
+              <Route path="/o/11111111-1111-4111-8111-111111111111/workspace/runs" element={<RunsWorkspacePage />} />
             </Route>
           </Routes>
         </MemoryRouter>
@@ -263,11 +264,13 @@ function renderWorkspace(
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers");
   tokenStore.set(authSession, "customer@example.test");
   vi.stubGlobal("fetch", createBackendFetch());
 });
 
 afterEach(() => {
+  window.history.replaceState(null, "", "/");
   tokenStore.clear();
   vi.unstubAllGlobals();
 });
@@ -283,6 +286,17 @@ describe("Workspace scraper journey", () => {
       screen.getByRole("heading", { name: "Scrapers Library" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("customer@example.test")).toHaveLength(2);
+    expect(
+      screen.queryByRole("link", { name: /API Keys/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Runs/i })).toHaveAttribute(
+      "href",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/runs",
+    );
+    expect(screen.getByRole("link", { name: /Usage/i })).toHaveAttribute(
+      "href",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/usage",
+    );
     expect(
       await screen.findByRole("link", { name: /amazon\.com/i }),
     ).toBeInTheDocument();
@@ -321,7 +335,7 @@ describe("Workspace scraper journey", () => {
     await user.click(await screen.findByRole("link", { name: /amazon\.com/i }));
 
     expect(await screen.findByLabelText("Current route")).toHaveTextContent(
-      "/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
     );
     expect(
       await screen.findByRole("heading", {
@@ -352,7 +366,7 @@ describe("Workspace scraper journey", () => {
     const user = userEvent.setup();
     renderWorkspace(
       {},
-      "/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
     );
     const urlInput = await screen.findByLabelText("Product URL 1");
     const zipcodeInput = screen.getByLabelText("ZIP code 1");
@@ -387,7 +401,7 @@ describe("Workspace scraper journey", () => {
     const user = userEvent.setup();
     renderWorkspace(
       {},
-      "/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
     );
     await screen.findByLabelText("Product URL 1");
     const addInput = screen.getByRole("button", { name: /add input/i });
@@ -429,7 +443,7 @@ describe("Workspace scraper journey", () => {
     ).toHaveAttribute("aria-valuenow", "35");
     expect(screen.getByRole("link", { name: "View all runs" })).toHaveAttribute(
       "href",
-      "/workspace/runs?run=run-1",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/runs?run=run-1",
     );
     const runRequest = vi
       .mocked(fetch)
@@ -466,7 +480,7 @@ describe("Workspace scraper journey", () => {
     const user = userEvent.setup();
     renderWorkspace(
       {},
-      "/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
     );
     await screen.findByLabelText("Product URL 1");
     await user.click(
@@ -504,7 +518,7 @@ describe("Workspace scraper journey", () => {
 
   it("keeps run details closed until a row is selected", async () => {
     const user = userEvent.setup();
-    renderWorkspace({}, "/workspace/runs");
+    renderWorkspace({}, "/o/11111111-1111-4111-8111-111111111111/workspace/runs");
 
     expect(screen.getByRole("heading", { name: "Runs" })).toBeInTheDocument();
     expect(
@@ -519,7 +533,7 @@ describe("Workspace scraper journey", () => {
     await user.click(firstRun);
 
     expect(screen.getByLabelText("Current route")).toHaveTextContent(
-      "/workspace/runs",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/runs",
     );
     expect(
       await screen.findByRole("heading", { name: "Safe event history" }),
@@ -535,7 +549,7 @@ describe("Workspace scraper journey", () => {
     const user = userEvent.setup();
     renderWorkspace(
       {},
-      "/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers/amazon-com/amazon-products-collect-by-url",
     );
     expect(await screen.findByLabelText("Product URL 1")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Overview" }));
@@ -547,7 +561,7 @@ describe("Workspace scraper journey", () => {
     expect(screen.getByLabelText("Product URL 1")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Runs" })).toHaveAttribute(
       "href",
-      "/workspace/runs?service=service-1",
+      "/o/11111111-1111-4111-8111-111111111111/workspace/runs?service=service-1",
     );
   });
 

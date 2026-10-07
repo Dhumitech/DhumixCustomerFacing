@@ -1,5 +1,12 @@
 # Marketplace Filter fixture adapter
 
+Status: **SUPERSEDED / ARCHIVED by the 6 October 2026 source cleanup for 0070**.
+The Filter executor, import/qualification/export workflows and their operator commands
+are removed. The decision and verification below describe the original implementation,
+not an execution plan. Stored Marketplace samples and their customer paths remain.
+See [archive boundaries](../archive/README.md). No database migration was applied.
+
+
 Recorded: 2026-09-12. Decision: implement M7 as a customer-disabled fixture
 adapter in the existing Job Manager; do not activate provider transport.
 

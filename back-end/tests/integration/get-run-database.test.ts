@@ -95,7 +95,11 @@ describe.skipIf(!enabled)("get Run against PostgreSQL", () => {
     const repository = createGetRunRepository(must(pools).customerApi);
 
     expect(
-      await repository.findById({ tenantId: current.tenantId, runId: randomUUID() }),
+      await repository.findById({
+        tenantId: current.tenantId,
+        userId: current.userId,
+        runId: randomUUID(),
+      }),
     ).toBeUndefined();
     await expect(
       createGetRunService({ repository }).get({
@@ -163,9 +167,9 @@ describe.skipIf(!enabled)("get Run against PostgreSQL", () => {
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE dhumi_customer_api");
       expect((await client.query("SELECT id FROM app.runs")).rows).toEqual([]);
-      expect(
-        (await client.query("SELECT id, service_id FROM app.service_versions")).rows,
-      ).toEqual([]);
+      expect((await client.query("SELECT id, service_id FROM app.service_versions")).rows).toEqual(
+        [],
+      );
       await client.query("ROLLBACK");
     } finally {
       client.release();

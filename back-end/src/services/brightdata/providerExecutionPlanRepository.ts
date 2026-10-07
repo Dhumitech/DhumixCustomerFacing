@@ -1,18 +1,20 @@
-import type { Pool, QueryResultRow } from "pg";
+import type { Pool } from "pg";
+import { lockLifecycleRun,requireLiveAttempt,runDatabaseError } from "../jobs/runLifecycle.js";
+import { resolveFencedTemplate,type FencedTemplateExecution } from "./fencedTemplateExecution.js";
+export { providerMappingAad,providerDatasetAad,providerSnapshotAad } from "./providerReferenceContexts.js";
 import { withJobManagerTenantTransaction } from "../database/transactions.js";
 
 export interface ProviderExecutionPlan {
-  readonly mappingId: string;
-  readonly providerResourceAadMappingId: string;
+  readonly templateVersionId: string;
   readonly validatedInput: Readonly<Record<string, unknown>>;
   readonly operationCode: string;
-  readonly providerResourceCiphertext: Buffer;
-  readonly providerResourceFingerprint: Buffer;
+  readonly datasetCiphertext: Buffer;
+  readonly datasetFingerprint: Buffer;
   readonly outputPolicy: Readonly<Record<string, unknown>>;
-  readonly mappingConfigVersion: string;
+  readonly definitionConfigVersion: string;
   readonly providerCode: string;
   readonly providerEnvironment: string;
-  readonly vaultSecretReference: string;
+  readonly secretReference: string;
 }
 
 export interface ProviderReconciliationPlan extends ProviderExecutionPlan {
@@ -74,206 +76,65 @@ export interface ProviderExecutionPlanRepository {
   }): Promise<boolean>;
 }
 
-interface PlanRow extends QueryResultRow {
-  readonly mapping_id: string;
-  readonly provider_resource_aad_mapping_id: string;
-  readonly validated_input: unknown;
-  readonly operation_code: string;
-  readonly provider_resource_ciphertext: Buffer;
-  readonly provider_resource_fingerprint: Buffer;
-  readonly output_policy: unknown;
-  readonly mapping_config_version: string;
-  readonly provider_code: string;
-  readonly provider_environment: string;
-  readonly vault_secret_reference: string;
-}
 
-interface ReconciliationPlanRow extends PlanRow {
-  readonly source_attempt_id: string;
-  readonly source_provider_reference_ciphertext: Buffer;
-  readonly source_provider_reference_fingerprint: Buffer;
+function mapTemplate(template:FencedTemplateExecution,providerEnvironment:string):ProviderExecutionPlan {
+  return {templateVersionId:template.templateVersionId,validatedInput:template.input,operationCode:template.definition.operation_code,
+    datasetCiphertext:template.datasetCiphertext,datasetFingerprint:template.datasetFingerprint,outputPolicy:template.definition.output_policy,
+    definitionConfigVersion:template.definition.config_version,providerCode:'bright_data',providerEnvironment,secretReference:'BRIGHTDATA_API_KEY'};
 }
-
-interface NormalizationPlanRow extends QueryResultRow {
-  readonly operation_code: string;
-  readonly output_policy: unknown;
-}
-
-function objectValue(value: unknown, field: string): Readonly<Record<string, unknown>> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`Provider execution plan returned invalid ${field}`);
-  }
-  return value as Readonly<Record<string, unknown>>;
-}
-
-function mapPlan(row: PlanRow | undefined): ProviderExecutionPlan {
-  if (
-    row === undefined ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      row.mapping_id,
-    ) ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      row.provider_resource_aad_mapping_id,
-    ) ||
-    !Buffer.isBuffer(row.provider_resource_ciphertext) ||
-    row.provider_resource_ciphertext.byteLength < 30 ||
-    !Buffer.isBuffer(row.provider_resource_fingerprint) ||
-    row.provider_resource_fingerprint.byteLength !== 32 ||
-    row.provider_code !== "bright_data" ||
-    !/^[a-z][a-z0-9_.-]{2,127}$/.test(row.operation_code) ||
-    !/^[a-zA-Z0-9_.:-]{1,128}$/.test(row.mapping_config_version)
-  ) {
-    throw new Error("Provider execution plan was incomplete or unsupported");
-  }
+export function createProviderExecutionPlanRepository(pool:Pool,providerEnvironment:'local'|'test'|'production'='test'):ProviderExecutionPlanRepository {
+  const transaction=<T>(tenantId:string,work:(db:import('../../types/database.js').DatabaseExecutor)=>Promise<T>)=>withJobManagerTenantTransaction(pool,tenantId,work);
   return {
-    mappingId: row.mapping_id,
-    providerResourceAadMappingId: row.provider_resource_aad_mapping_id,
-    validatedInput: objectValue(row.validated_input, "validated input"),
-    operationCode: row.operation_code,
-    providerResourceCiphertext: row.provider_resource_ciphertext,
-    providerResourceFingerprint: row.provider_resource_fingerprint,
-    outputPolicy: objectValue(row.output_policy, "output policy"),
-    mappingConfigVersion: row.mapping_config_version,
-    providerCode: row.provider_code,
-    providerEnvironment: row.provider_environment,
-    vaultSecretReference: row.vault_secret_reference,
-  };
-}
-
-export function providerMappingAad(mappingId: string): Buffer {
-  return Buffer.from(`dhumi:provider-mapping:v1:${mappingId}`, "utf8");
-}
-
-export function providerSnapshotAad(input: {
-  readonly tenantId: string;
-  readonly runId: string;
-  readonly attemptId: string;
-}): Buffer {
-  return Buffer.from(
-    `dhumi:provider-snapshot:v1:${input.tenantId}:${input.runId}:${input.attemptId}`,
-    "utf8",
-  );
-}
-
-export function createProviderExecutionPlanRepository(
-  pool: Pool,
-): ProviderExecutionPlanRepository {
-  return {
-    async resolveExecutorKind(input) {
-      const result = await withJobManagerTenantTransaction(pool, input.tenantId, async (database) =>
-        database.query<{ adapter_code: string }>(
-          "SELECT * FROM app.resolve_provider_executor_kind($1, $2, $3)",
-          [input.runId, input.attemptId, input.fenceToken],
-        ),
-      );
-      const code = result.rows[0]?.adapter_code;
-      if (code === "bright_data.amazon.scraper_library") return "amazon";
-      if (code === "bright_data.marketplace.filter") return "marketplace";
-      throw new Error("Provider executor kind was unavailable or unsupported");
-    },
-    async checkpointPoll(input) {
-      const result = await withJobManagerTenantTransaction(pool, input.tenantId, async (database) =>
-        database.query<{ remaining_ms: string; wait_ms: string; consecutive_failures: number }>(
-          "SELECT * FROM app.checkpoint_provider_poll_fenced($1,$2,$3,$4,$5,$6,$7,$8)",
-          [input.runId, input.attemptId, input.fenceToken, input.sourceAttemptId,
-            input.maxElapsedMs, input.status ?? null, input.failure ?? null, input.delayMs ?? 0],
-        ),
-      );
-      const row = result.rows[0];
-      if (!row || ![Number(row.remaining_ms), Number(row.wait_ms), row.consecutive_failures].every(Number.isSafeInteger)) {
-        throw new Error("Provider poll checkpoint was incomplete");
-      }
-      return { remainingMs: Number(row.remaining_ms), waitMs: Number(row.wait_ms), consecutiveFailures: row.consecutive_failures };
-    },
-    async resolveSubmission(input): Promise<ProviderExecutionPlan> {
-      const result = await withJobManagerTenantTransaction(pool, input.tenantId, async (database) =>
-        database.query<PlanRow>(
-          "SELECT * FROM app.resolve_provider_execution_plan_v2($1, $2, $3)",
-          [input.runId, input.attemptId, input.fenceToken],
-        ),
-      );
-      return mapPlan(result.rows[0]);
-    },
-
-    async recordProviderReference(input): Promise<void> {
-      const result = await withJobManagerTenantTransaction(pool, input.tenantId, async (database) =>
-        database.query<{ recorded: boolean }>(
-          `
-            SELECT app.record_provider_reference_fenced(
-              $1, $2, $3, $4, $5
-            ) AS recorded
-          `,
-          [
-            input.runId,
-            input.attemptId,
-            input.fenceToken,
-            input.ciphertext,
-            input.fingerprint,
-          ],
-        ),
-      );
-      if (result.rows[0]?.recorded !== true) {
-        throw new Error("Provider reference was not recorded");
-      }
-    },
-
-    async resolveReconciliation(input): Promise<ProviderReconciliationPlan> {
-      const result = await withJobManagerTenantTransaction(pool, input.tenantId, async (database) =>
-        database.query<ReconciliationPlanRow>(
-          "SELECT * FROM app.resolve_provider_reconciliation_plan_v2($1, $2, $3)",
-          [input.runId, input.attemptId, input.fenceToken],
-        ),
-      );
-      const row = result.rows[0];
-      const base = mapPlan(row);
-      if (
-        row === undefined ||
-        !Buffer.isBuffer(row.source_provider_reference_ciphertext) ||
-        row.source_provider_reference_ciphertext.byteLength < 30 ||
-        !Buffer.isBuffer(row.source_provider_reference_fingerprint) ||
-        row.source_provider_reference_fingerprint.byteLength !== 32
-      ) {
-        throw new Error("Provider reconciliation plan was incomplete");
-      }
-      return {
-        ...base,
-        sourceAttemptId: row.source_attempt_id,
-        sourceProviderReferenceCiphertext: row.source_provider_reference_ciphertext,
-        sourceProviderReferenceFingerprint: row.source_provider_reference_fingerprint,
-      };
-    },
-
-    async resolveNormalization(input): Promise<ProviderNormalizationPlan> {
-      const result = await withJobManagerTenantTransaction(pool, input.tenantId, async (database) =>
-        database.query<NormalizationPlanRow>(
-          "SELECT * FROM app.resolve_provider_normalization_plan($1, $2, $3, $4)",
-          [input.runId, input.attemptId, input.fenceToken, input.sourceAttemptId],
-        ),
-      );
-      const row = result.rows[0];
-      if (
-        row === undefined ||
-        !/^[a-z][a-z0-9_.-]{2,127}$/.test(row.operation_code)
-      ) {
-        throw new Error("Provider normalization plan was incomplete or unsupported");
-      }
-      return {
-        operationCode: row.operation_code,
-        outputPolicy: objectValue(row.output_policy, "output policy"),
-      };
-    },
-
-    async isCancellationRequested(input): Promise<boolean> {
-      const result = await withJobManagerTenantTransaction(pool, input.tenantId, async (database) =>
-        database.query<{ cancellation_requested: boolean }>(
-          `
-            SELECT app.is_run_cancellation_requested_fenced($1, $2, $3)
-              AS cancellation_requested
-          `,
-          [input.runId, input.attemptId, input.fenceToken],
-        ),
-      );
-      return result.rows[0]?.cancellation_requested === true;
-    },
+    resolveExecutorKind:input=>transaction(input.tenantId,async db=>{
+      const run=await lockLifecycleRun(db,input.tenantId,input.runId);await requireLiveAttempt(db,input);
+      const r=await db.query<{engine:string}>(`SELECT engine FROM app.service_template_versions WHERE id=$1`,[run.template_version_id]);
+      if(r.rows[0]?.engine!=='amazon.v1')runDatabaseError('P0002','Provider executor kind was unavailable or unsupported');return 'amazon' as const;
+    }),
+    resolveSubmission:input=>transaction(input.tenantId,async db=>mapTemplate(await resolveFencedTemplate(db,input,'submission'),providerEnvironment)),
+    resolveReconciliation:input=>transaction(input.tenantId,async db=>{
+      const t=await resolveFencedTemplate(db,input,'reconciliation');
+      if(!t.sourceReferenceCiphertext||!t.sourceReferenceFingerprint)runDatabaseError('P0002','RUN_PROVIDER_RECONCILIATION_PLAN_NOT_AVAILABLE');
+      return {...mapTemplate(t,providerEnvironment),sourceAttemptId:t.sourceAttemptId,sourceProviderReferenceCiphertext:t.sourceReferenceCiphertext,sourceProviderReferenceFingerprint:t.sourceReferenceFingerprint};
+    }),
+    resolveNormalization:input=>transaction(input.tenantId,async db=>{
+      const t=await resolveFencedTemplate(db,input,'normalization',input.sourceAttemptId);return {operationCode:t.definition.operation_code,outputPolicy:t.definition.output_policy};
+    }),
+    recordProviderReference:input=>transaction(input.tenantId,async db=>{
+      if(!Buffer.isBuffer(input.ciphertext)||input.ciphertext.length<30||input.ciphertext.length>4096||!Buffer.isBuffer(input.fingerprint)||input.fingerprint.length!==32)runDatabaseError('22023','RUN_PROVIDER_REFERENCE_INVALID');
+      await lockLifecycleRun(db,input.tenantId,input.runId);const a=await requireLiveAttempt(db,input);
+      if(a.kind!=='submission')runDatabaseError('P0001','RUN_ATTEMPT_FENCE_REJECTED');
+      const existing=await db.query<{provider_reference_fingerprint:Buffer|null}>(`SELECT provider_reference_fingerprint FROM app.run_attempts WHERE organization_id=$1 AND id=$2`,[input.tenantId,input.attemptId]);
+      const fingerprint=existing.rows[0]?.provider_reference_fingerprint;
+      if(fingerprint){if(fingerprint.equals(input.fingerprint))return;runDatabaseError('23505','RUN_PROVIDER_REFERENCE_CONFLICT');}
+      const r=await db.query(`UPDATE app.run_attempts SET provider_reference_ciphertext=$1,provider_reference_fingerprint=$2
+        WHERE organization_id=$3 AND run_id=$4 AND id=$5 AND fence_token=$6 AND state='claimed' AND worker_lease_expires_at>clock_timestamp() RETURNING id`,
+        [input.ciphertext,input.fingerprint,input.tenantId,input.runId,input.attemptId,input.fenceToken]);
+      if(r.rows.length!==1)runDatabaseError('P0001','RUN_ATTEMPT_FENCE_REJECTED');
+    }),
+    isCancellationRequested:input=>transaction(input.tenantId,async db=>{
+      const result=await db.query<{requested:boolean}>(`SELECT EXISTS(SELECT 1 FROM app.run_attempts a
+        WHERE a.organization_id=$1 AND a.run_id=$2 AND a.id=$3 AND a.fence_token=$4 AND a.state='claimed' AND a.worker_lease_expires_at>clock_timestamp()
+          AND EXISTS(SELECT 1 FROM app.run_events WHERE organization_id=$1 AND run_id=$2 AND event_type='cancellation_requested')) requested`,
+        [input.tenantId,input.runId,input.attemptId,input.fenceToken]);return result.rows[0]?.requested===true;
+    }),
+    checkpointPoll:input=>transaction(input.tenantId,async db=>{
+      const delay=input.delayMs??0;
+      if(!Number.isSafeInteger(input.maxElapsedMs)||input.maxElapsedMs<1||input.maxElapsedMs>86400000||!Number.isSafeInteger(delay)||delay<0||
+        input.status!==undefined&&!['starting','running','scheduled','building','ready','failed','canceled','not_ready','missing','unknown','read_failed','rate_limited'].includes(input.status))runDatabaseError('22023','PROVIDER_POLL_CHECKPOINT_INVALID');
+      await lockLifecycleRun(db,input.tenantId,input.runId);const owner=await requireLiveAttempt(db,input);
+      if(!['submission','reconciliation'].includes(owner.kind))runDatabaseError('40001','RUN_ATTEMPT_FENCE_REJECTED');
+      const source=await db.query<{id:string;state:string;provider_reference_ciphertext:Buffer|null;provider_reference_fingerprint:Buffer|null}>(`SELECT id,state,provider_reference_ciphertext,provider_reference_fingerprint
+        FROM app.run_attempts WHERE organization_id=$1 AND run_id=$2 AND id=$3 AND kind='submission' FOR UPDATE`,[input.tenantId,input.runId,input.sourceAttemptId]);
+      const a=source.rows[0];if(!a||!a.provider_reference_ciphertext||!a.provider_reference_fingerprint||owner.kind==='submission'&&a.id!==owner.id||owner.kind==='reconciliation'&&a.state!=='ambiguous')runDatabaseError('40001','PROVIDER_POLL_SOURCE_REJECTED');
+      const r=await db.query<{remaining_ms:string;wait_ms:string;provider_consecutive_failures:number}>(`UPDATE app.run_attempts SET
+        provider_poll_deadline=coalesce(provider_poll_deadline,started_at+$1::bigint*interval '1 millisecond'),
+        provider_last_status=coalesce($2,provider_last_status),provider_consecutive_failures=CASE WHEN $3::boolean IS TRUE THEN least(provider_consecutive_failures+1,1000000) WHEN $3::boolean IS FALSE THEN 0 ELSE provider_consecutive_failures END,
+        provider_next_poll_at=CASE WHEN $2::text IS NULL THEN provider_next_poll_at ELSE clock_timestamp()+least($4::bigint,86400000)*interval '1 millisecond' END
+        WHERE organization_id=$5 AND run_id=$6 AND id=$7 RETURNING floor(extract(epoch FROM (provider_poll_deadline-clock_timestamp()))*1000)::bigint::text remaining_ms,
+          greatest(0,ceil(extract(epoch FROM (coalesce(provider_next_poll_at,clock_timestamp())-clock_timestamp()))*1000))::bigint::text wait_ms,provider_consecutive_failures`,
+        [input.maxElapsedMs,input.status??null,input.failure??null,delay,input.tenantId,input.runId,input.sourceAttemptId]);
+      const row=r.rows[0];if(!row||![Number(row.remaining_ms),Number(row.wait_ms),row.provider_consecutive_failures].every(Number.isSafeInteger))runDatabaseError('23514','PROVIDER_POLL_CHECKPOINT_INVALID');
+      return {remainingMs:Number(row.remaining_ms),waitMs:Number(row.wait_ms),consecutiveFailures:row.provider_consecutive_failures};
+    }),
   };
 }

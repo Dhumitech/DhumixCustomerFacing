@@ -29,9 +29,7 @@ class RecordingRepository implements GetRunResultRepository {
     return this.outcome;
   }
 
-  public async recordDownloadAuthorization(
-    input: GetRunResultAuditInput,
-  ): Promise<void> {
+  public async recordDownloadAuthorization(input: GetRunResultAuditInput): Promise<void> {
     this.auditCalls.push(input);
   }
 }
@@ -49,10 +47,7 @@ class RecordingSigner implements ResultUrlSigner {
   }
 }
 
-function request(
-  runIdInput: unknown = runId,
-  representation: unknown = undefined,
-) {
+function request(runIdInput: unknown = runId, representation: unknown = undefined) {
   return {
     principal,
     runId: runIdInput,
@@ -86,7 +81,12 @@ describe("getRunResultService", () => {
     );
 
     expect(repository.calls).toEqual([
-      { tenantId: principal.tenantId, runId, representation: "normalized" },
+      {
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        runId,
+        representation: "normalized",
+      },
     ]);
     expect(signer.calls).toEqual([
       {
@@ -117,7 +117,7 @@ describe("getRunResultService", () => {
       download_url: "https://downloads.dhumi.example/capability/opaque",
       download_expires_at: "2026-08-27T12:15:00.000Z",
     });
-    expect(JSON.stringify(result)).not.toMatch(/object-key|tenant_id|attempt|provider/i);
+    expect(JSON.stringify(result)).not.toMatch(/object-key|organization_id|attempt|provider/i);
   });
 
   it("selects and audits the explicit raw representation", async () => {
@@ -129,7 +129,7 @@ describe("getRunResultService", () => {
     }).get(request(runId, "raw"));
 
     expect(repository.calls).toEqual([
-      { tenantId: principal.tenantId, runId, representation: "raw" },
+      { tenantId: principal.tenantId, userId: principal.userId, runId, representation: "raw" },
     ]);
     expect(repository.auditCalls[0]).toMatchObject({ representation: "raw" });
   });
@@ -241,24 +241,18 @@ describe("getRunResultService", () => {
     ).rejects.toThrow("audit failed");
   });
 
-  it("records the trusted Dhumi API-key actor without storing key material", async () => {
+  it("rejects a non-browser actor before result lookup, signing or audit", async () => {
     const repository = new RecordingRepository(ready());
-    const apiPrincipal = {
-      kind: "api_key",
-      apiKeyId: "77777777-7777-4777-8777-777777777777",
-      tenantId: principal.tenantId,
-      scopes: ["results:read"],
-    } as const;
-
-    await createGetRunResultService({
-      repository,
-      urlSigner: new RecordingSigner(),
-    }).get({ ...request(), principal: apiPrincipal });
-
-    expect(repository.auditCalls[0]?.actor).toEqual({
-      kind: "api_key",
-      apiKeyId: apiPrincipal.apiKeyId,
-    });
-    expect(JSON.stringify(repository.auditCalls[0])).not.toMatch(/dhk_|bearer|token/i);
+    const signer = new RecordingSigner();
+    const invalid = {
+      ...request(),
+      principal: { kind: "api_key", tenantId: principal.tenantId } as unknown as typeof principal,
+    };
+    await expect(
+      createGetRunResultService({ repository, urlSigner: signer }).get(invalid),
+    ).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
+    expect(repository.calls).toHaveLength(0);
+    expect(signer.calls).toHaveLength(0);
+    expect(repository.auditCalls).toHaveLength(0);
   });
 });

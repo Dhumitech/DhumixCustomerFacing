@@ -19,7 +19,6 @@ const CUSTOMER_FACING_MODULES = [
   "services/identity",
   "services/tenantAccess",
   "services/workspace",
-  "services/apiKeys",
   "services/catalogue",
   "services/customerServices",
   "services/admission",

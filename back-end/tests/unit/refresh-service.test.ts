@@ -20,7 +20,6 @@ const csrf = createCsrfService("refresh-unit-access-token-secret-at-least-32-cha
 
 const sessionId = randomUUID();
 const userId = randomUUID();
-const tenantId = randomUUID();
 const sessionExpiresAt = new Date(Date.now() + 60_000);
 
 function repository(outcome: RefreshRotationOutcome): RefreshRepository & {
@@ -52,7 +51,6 @@ function rotated(): RefreshRotationOutcome {
     kind: "rotated",
     sessionId,
     userId,
-    tenantId,
     refreshExpiresAt: sessionExpiresAt,
   };
 }
@@ -83,7 +81,6 @@ describe("refresh service", () => {
     await expect(accessTokens.verify(result.accessToken)).resolves.toEqual({
       sessionId,
       userId,
-      tenantId,
     });
     expect(result.csrfToken).toBe(csrf.issue(sessionId));
   });
@@ -160,17 +157,11 @@ describe("refresh service", () => {
     }
   });
 
-  it("returns the declared 403 when Tenant authorization is unavailable", async () => {
-    const store = repository({ kind: "workspace_unavailable" });
+  it("refreshes a user session without an organization claim", async () => {
+    const store = repository(rotated());
     const service = createRefreshService({ repository: store, accessTokens, refreshTokens, csrf });
-
-    await expect(
-      service.refresh({
-        refreshToken: refreshTokens.generate(),
-        csrfToken: csrf.issue(sessionId),
-        requestId: null,
-        ipFingerprint: null,
-      }),
-    ).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
+    const result = await service.refresh({ refreshToken: refreshTokens.generate(),
+      csrfToken: csrf.issue(sessionId), requestId: null, ipFingerprint: null });
+    expect(await accessTokens.verify(result.accessToken)).toEqual({ userId, sessionId });
   });
 });

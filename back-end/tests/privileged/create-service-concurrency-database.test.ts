@@ -35,7 +35,6 @@ const privilegedPool = enabled
 
 const TENANT_A = "71000000-0000-4000-8000-000000000001";
 const USER_A = "71000000-0000-4000-8000-000000000002";
-const API_KEY_A = "71000000-0000-4000-8000-000000000003";
 const TENANT_B = "71000000-0000-4000-8000-000000000004";
 const USER_B = "71000000-0000-4000-8000-000000000005";
 const TEMPLATE_EVIDENCE = "71000000-0000-4000-8000-000000000006";
@@ -107,10 +106,6 @@ async function cleanupFixtures(): Promise<void> {
       [[TEMPLATE_EVIDENCE, MAPPING_EVIDENCE]],
     );
     await database.query(
-      "DELETE FROM app.platform_api_keys WHERE id = $1",
-      [API_KEY_A],
-    );
-    await database.query(
       "DELETE FROM app.tenant_user_access WHERE tenant_id = ANY($1::uuid[])",
       [[TENANT_A, TENANT_B]],
     );
@@ -150,14 +145,6 @@ async function seedFixtures(): Promise<void> {
         VALUES ($1, $2), ($3, $4)
       `,
       [TENANT_A, USER_A, TENANT_B, USER_B],
-    );
-    await database.query(
-      `
-        INSERT INTO app.platform_api_keys (
-          id, tenant_id, creator_user_id, name, key_prefix, key_hash, scopes
-        ) VALUES ($1, $2, $3, 'Concurrency key', 'dh_test_concurrency', $4, $5)
-      `,
-      [API_KEY_A, TENANT_A, USER_A, sha256("create-service-concurrency-key"), ["services:write"]],
     );
     await database.query(
       `
@@ -431,41 +418,14 @@ describe.skipIf(!enabled)("create Service privileged PostgreSQL races", () => {
     });
   });
 
-  it("persists same-Tenant API-key attribution without browser identity", async () => {
-    const operation = service();
-    const key = "concurrency-api-actor-0001";
-    const name = "API key actor";
-    const created = await operation.create({
-      ...browserRequest({ idempotencyKey: key, name }),
-      principal: {
-        kind: "api_key",
-        tenantId: TENANT_A,
-        apiKeyId: API_KEY_A,
-        scopes: ["services:write"],
-      },
-      csrfToken: undefined,
-    });
+  it("persists the browser creator and audit actor", async () => {
+    const created = await service().create(browserRequest({ idempotencyKey: "concurrency-browser-actor-0001", name: "Browser actor" }));
     const attribution = await must(privilegedPool).query(
-      `
-        SELECT
-          version.created_by_user_id,
-          version.created_by_api_key_id,
-          audit.actor_user_id,
-          audit.actor_api_key_id
-        FROM app.service_versions AS version
-        JOIN app.audit_events AS audit
-          ON audit.tenant_id = version.tenant_id
-         AND audit.target_id = version.service_id
-        WHERE version.service_id = $1
-      `,
-      [created.id],
-    );
-    expect(attribution.rows[0]).toEqual({
-      created_by_user_id: null,
-      created_by_api_key_id: API_KEY_A,
-      actor_user_id: null,
-      actor_api_key_id: API_KEY_A,
-    });
+      `SELECT version.created_by_user_id, audit.actor_user_id
+       FROM app.service_versions AS version
+       JOIN app.audit_events AS audit ON audit.tenant_id = version.tenant_id AND audit.target_id = version.service_id
+       WHERE version.service_id = $1`, [created.id]);
+    expect(attribution.rows[0]).toEqual({ created_by_user_id: USER_A, actor_user_id: USER_A });
   });
 
   it("rolls the complete aggregate back when the late audit insert fails", async () => {

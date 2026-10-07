@@ -20,12 +20,6 @@ import type { LogoutService } from "../../src/services/identity/logoutService.js
 import type { TenantAuthorizationService } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import {
-  stubApiKeyAuthenticationService,
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -115,7 +109,6 @@ function testConfig(overrides: NodeJS.ProcessEnv = {}): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
     MARKETPLACE_SAMPLE_DOWNLOAD_MAX_RECORDS: "100",
     MARKETPLACE_SAMPLE_DOWNLOAD_MAX_BYTES: "1048576",
     MARKETPLACE_SAMPLE_DOWNLOAD_RATE_LIMIT_MAX: "10",
@@ -149,10 +142,6 @@ async function build(overrides: NodeJS.ProcessEnv = {}): Promise<FastifyInstance
     logoutService: stubLogoutService,
     tenantAuthorizationService: stubTenantAuthorizationService,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: stubApiKeyAuthenticationService,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -320,19 +309,23 @@ describe("POST /v1/auth/sign-in contract", () => {
     const call = service.calls[0];
     expect(call?.ipFingerprint).toBeInstanceOf(Buffer);
     expect(call?.ipFingerprint).toHaveLength(32);
-    expect(JSON.stringify(call?.deviceMetadata)).not.toContain("secret build 12345");
-    expect(call?.deviceMetadata).toHaveProperty("user_agent_fingerprint");
+    expect(JSON.stringify(call)).not.toContain("secret build 12345");
+    expect(call).not.toHaveProperty("deviceMetadata");
   });
 
-  it("records a UUID request id and drops a non-UUID one", async () => {
+  it("records a fresh server trace for UUID and non-UUID caller IDs while preserving their echo", async () => {
     const instance = await build();
 
-    await post(instance, validBody(), { "x-request-id": "customer-request-001" });
-    expect(service.calls[0]?.requestId).toBeNull();
+    const first = await post(instance, validBody(), { "x-request-id": "customer-request-001" });
+    expect(service.calls[0]?.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(first.headers["x-request-id"]).toBe("customer-request-001");
 
     const uuid = "11111111-1111-4111-8111-111111111111";
-    await post(instance, validBody(), { "x-request-id": uuid });
-    expect(service.calls[1]?.requestId).toBe(uuid);
+    const second = await post(instance, validBody(), { "x-request-id": uuid });
+    expect(service.calls[1]?.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(service.calls[1]?.requestId).not.toBe(uuid);
+    expect(service.calls[1]?.requestId).not.toBe(service.calls[0]?.requestId);
+    expect(second.headers["x-request-id"]).toBe(uuid);
   });
 
   it("limits one identity even when the source address changes", async () => {

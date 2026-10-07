@@ -5,13 +5,9 @@ import type {
   MarketplacePreviewManifest,
   MarketplacePreviewRepository,
 } from "../../src/services/marketplacePreview/marketplacePreviewRepository.js";
-import {
-  createMarketplacePreviewService,
-} from "../../src/services/marketplacePreview/marketplacePreviewService.js";
-import type { MarketplaceSampleStore } from
-  "../../src/services/marketplaceSample/marketplaceSampleStore.js";
-import type { TrustedTenantPrincipal } from
-  "../../src/services/tenantAccess/trustedTenantPrincipal.js";
+import { createMarketplacePreviewService } from "../../src/services/marketplacePreview/marketplacePreviewService.js";
+import type { MarketplaceSampleStore } from "../../src/services/marketplaceSample/marketplaceSampleStore.js";
+import type { TrustedTenantPrincipal } from "../../src/services/tenantAccess/trustedTenantPrincipal.js";
 
 const principal: TrustedTenantPrincipal = {
   kind: "browser",
@@ -20,16 +16,19 @@ const principal: TrustedTenantPrincipal = {
   tenantId: randomUUID(),
 };
 
-const sampleBytes = Buffer.from(JSON.stringify([
-  {
-    url: "https://www.linkedin.com/posts/dhumi-synthetic-post-001",
-    text: "Synthetic LinkedIn Posts sample record one.",
-  },
-  {
-    url: "https://www.linkedin.com/posts/dhumi-synthetic-post-002",
-    text: "Synthetic LinkedIn Posts sample record two.",
-  },
-]), "utf8");
+const sampleBytes = Buffer.from(
+  JSON.stringify([
+    {
+      url: "https://www.linkedin.com/posts/dhumi-synthetic-post-001",
+      text: "Synthetic LinkedIn Posts sample record one.",
+    },
+    {
+      url: "https://www.linkedin.com/posts/dhumi-synthetic-post-002",
+      text: "Synthetic LinkedIn Posts sample record two.",
+    },
+  ]),
+  "utf8",
+);
 
 const manifest: MarketplacePreviewManifest = {
   templateSlug: "linkedin-posts",
@@ -38,8 +37,7 @@ const manifest: MarketplacePreviewManifest = {
   sampleRecordCount: 2,
   sampleByteCount: sampleBytes.byteLength,
   sampleChecksumHex: createHash("sha256").update(sampleBytes).digest("hex"),
-  sampleObjectKey:
-    `marketplace/samples/${randomUUID()}/1/${"a".repeat(64)}.json`,
+  sampleObjectKey: `marketplace/samples/${randomUUID()}/1/${"a".repeat(64)}.json`,
   collectedAt: new Date("2026-09-11T00:00:00.000Z"),
   expiresAt: new Date("2026-10-11T00:00:00.000Z"),
   fields: [
@@ -69,8 +67,12 @@ function dependencies() {
     resolve: vi.fn(async () => manifest),
   };
   const store: MarketplaceSampleStore = {
-    putImmutable: vi.fn(async () => { throw new Error("unexpected write"); }),
-    deleteAndVerify: vi.fn(async () => { throw new Error("unexpected delete"); }),
+    putImmutable: vi.fn(async () => {
+      throw new Error("unexpected write");
+    }),
+    deleteAndVerify: vi.fn(async () => {
+      throw new Error("unexpected delete");
+    }),
     open: vi.fn(async () => ({
       receipt: {
         objectKey: manifest.sampleObjectKey,
@@ -90,6 +92,38 @@ function dependencies() {
 }
 
 describe("M4 stored Marketplace sample query", () => {
+  it("previews and queries stored samples with a user-only principal, preserving session CSRF", async () => {
+    const deps = dependencies();
+    const service = createMarketplacePreviewService({
+      ...deps,
+      cursorSecret: "m4-test-cursor-secret-at-least-32-characters",
+      maxBytes: 1024 * 1024,
+    });
+    const { tenantId: _ignored, ...browser } = principal;
+    const page = await service.get({
+      principal: browser,
+      slug: "linkedin-posts",
+      cursor: undefined,
+      limit: "30",
+      schemaErrors: [],
+    });
+    expect(page.rows).toHaveLength(2);
+    expect(deps.repository.resolve).toHaveBeenCalledWith({
+      userId: browser.userId,
+      templateSlug: "linkedin-posts",
+    });
+    const query = await service.query({
+      principal: browser,
+      slug: "linkedin-posts",
+      csrfToken: "valid-csrf-token",
+      body: { expected_sample_version: 1, selected_fields: ["url"], page: { limit: 30 } },
+      schemaErrors: [],
+    });
+    expect(query.selected_fields).toEqual(["url"]);
+    expect(deps.csrf.verify).toHaveBeenCalledWith(browser.sessionId, "valid-csrf-token");
+    expect(deps.store.putImmutable).not.toHaveBeenCalled();
+    expect(deps.store.deleteAndVerify).not.toHaveBeenCalled();
+  });
   it("returns deterministic rows while masking only the reviewed masked field", async () => {
     const deps = dependencies();
     const service = createMarketplacePreviewService({
@@ -111,13 +145,9 @@ describe("M4 stored Marketplace sample query", () => {
     expect(result.matches_in_sample).toBe(2);
     expect(result.selected_fields).toEqual(["url", "text"]);
     expect(result.rows).toHaveLength(1);
-    expect(result.rows[0]?.url).toBe(
-      "https://www.linkedin.com/posts/dhumi-synthetic-post-001",
-    );
+    expect(result.rows[0]?.url).toBe("https://www.linkedin.com/posts/dhumi-synthetic-post-001");
     expect(result.rows[0]?.text).toContain("***");
-    expect(result.rows[0]?.text).not.toBe(
-      "Synthetic LinkedIn Posts sample record one.",
-    );
+    expect(result.rows[0]?.text).not.toBe("Synthetic LinkedIn Posts sample record one.");
     expect(result.masking_notice).toMatch(/masked/i);
     expect(result.page.has_more).toBe(true);
     expect(result.page.next_cursor).toEqual(expect.any(String));
@@ -159,31 +189,35 @@ describe("M4 stored Marketplace sample query", () => {
       maxBytes: 1024 * 1024,
     });
 
-    await expect(service.query({
-      principal,
-      slug: "linkedin-posts",
-      csrfToken: "valid-csrf-token",
-      body: {
-        expected_sample_version: 1,
-        selected_fields: ["text"],
-        filter: { name: "text", operator: "includes", value: "two" },
-        page: { limit: 30 },
-      },
-      schemaErrors: [],
-    })).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
+    await expect(
+      service.query({
+        principal,
+        slug: "linkedin-posts",
+        csrfToken: "valid-csrf-token",
+        body: {
+          expected_sample_version: 1,
+          selected_fields: ["text"],
+          filter: { name: "text", operator: "includes", value: "two" },
+          page: { limit: 30 },
+        },
+        schemaErrors: [],
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
 
-    await expect(service.query({
-      principal,
-      slug: "linkedin-posts",
-      csrfToken: "valid-csrf-token",
-      body: {
-        expected_sample_version: 1,
-        selected_fields: ["text"],
-        sort: [{ field: "text", direction: "asc" }],
-        page: { limit: 30 },
-      },
-      schemaErrors: [],
-    })).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
+    await expect(
+      service.query({
+        principal,
+        slug: "linkedin-posts",
+        csrfToken: "valid-csrf-token",
+        body: {
+          expected_sample_version: 1,
+          selected_fields: ["text"],
+          sort: [{ field: "text", direction: "asc" }],
+          page: { limit: 30 },
+        },
+        schemaErrors: [],
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
   });
 
   it("rejects stale versions, unknown fields, unsupported operators and tampered cursors", async () => {
@@ -193,50 +227,58 @@ describe("M4 stored Marketplace sample query", () => {
       maxBytes: 1024 * 1024,
     });
 
-    await expect(service.query({
-      principal,
-      slug: "linkedin-posts",
-      csrfToken: "valid-csrf-token",
-      body: {
-        expected_sample_version: 2,
-        selected_fields: ["url"],
-        page: { limit: 30 },
-      },
-      schemaErrors: [],
-    })).rejects.toMatchObject({ status: 409, code: "STATE_CONFLICT" });
+    await expect(
+      service.query({
+        principal,
+        slug: "linkedin-posts",
+        csrfToken: "valid-csrf-token",
+        body: {
+          expected_sample_version: 2,
+          selected_fields: ["url"],
+          page: { limit: 30 },
+        },
+        schemaErrors: [],
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "STATE_CONFLICT" });
 
-    await expect(service.query({
-      principal,
-      slug: "linkedin-posts",
-      csrfToken: "valid-csrf-token",
-      body: {
-        expected_sample_version: 1,
-        selected_fields: ["unreviewed"],
-        page: { limit: 30 },
-      },
-      schemaErrors: [],
-    })).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
+    await expect(
+      service.query({
+        principal,
+        slug: "linkedin-posts",
+        csrfToken: "valid-csrf-token",
+        body: {
+          expected_sample_version: 1,
+          selected_fields: ["unreviewed"],
+          page: { limit: 30 },
+        },
+        schemaErrors: [],
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
 
-    await expect(service.query({
-      principal,
-      slug: "linkedin-posts",
-      csrfToken: "valid-csrf-token",
-      body: {
-        expected_sample_version: 1,
-        selected_fields: ["url"],
-        filter: { name: "url", operator: ">", value: "x" },
-        page: { limit: 30 },
-      },
-      schemaErrors: [],
-    })).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
+    await expect(
+      service.query({
+        principal,
+        slug: "linkedin-posts",
+        csrfToken: "valid-csrf-token",
+        body: {
+          expected_sample_version: 1,
+          selected_fields: ["url"],
+          filter: { name: "url", operator: ">", value: "x" },
+          page: { limit: 30 },
+        },
+        schemaErrors: [],
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
 
-    await expect(service.get({
-      principal,
-      slug: "linkedin-posts",
-      cursor: "tampered.cursor",
-      limit: "30",
-      schemaErrors: [],
-    })).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
+    await expect(
+      service.get({
+        principal,
+        slug: "linkedin-posts",
+        cursor: "tampered.cursor",
+        limit: "30",
+        schemaErrors: [],
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
   });
 
   it("requires a valid CSRF token only for browser POST queries", async () => {
@@ -248,16 +290,18 @@ describe("M4 stored Marketplace sample query", () => {
       maxBytes: 1024 * 1024,
     });
 
-    await expect(service.query({
-      principal,
-      slug: "linkedin-posts",
-      csrfToken: "invalid-csrf-token",
-      body: {
-        expected_sample_version: 1,
-        selected_fields: ["url"],
-        page: { limit: 30 },
-      },
-      schemaErrors: [],
-    })).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
+    await expect(
+      service.query({
+        principal,
+        slug: "linkedin-posts",
+        csrfToken: "invalid-csrf-token",
+        body: {
+          expected_sample_version: 1,
+          selected_fields: ["url"],
+          page: { limit: 30 },
+        },
+        schemaErrors: [],
+      }),
+    ).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
   });
 });

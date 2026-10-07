@@ -1,7 +1,8 @@
+import { RUN_PUBLIC_STATUS_SQL } from "../../helpers/runPublicStatus.js";
 import type { Pool } from "pg";
 import type { DatabaseExecutor } from "../../types/database.js";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withAdmissionTenantTransaction } from "../database/transactions.js";
+import { withAdmissionOrganizationTransaction } from "../database/transactions.js";
 import type { Run } from "../runQuery/listRunsService.js";
 
 export interface CancelRunPersistenceInput {
@@ -9,9 +10,7 @@ export interface CancelRunPersistenceInput {
   readonly runEventId: string;
   readonly outboxEventId: string;
   readonly tenantId: string;
-  readonly actor:
-    | { readonly kind: "browser"; readonly userId: string }
-    | { readonly kind: "api_key"; readonly apiKeyId: string };
+  readonly actor: { readonly kind: "browser"; readonly userId: string };
   readonly actorFingerprint: Buffer;
   readonly requestHash: Buffer;
   readonly idempotencyKey: string;
@@ -67,7 +66,7 @@ interface ExistingClaimRow {
 
 interface LockedRunRow {
   readonly run_id: string;
-  readonly service_version_id: string;
+  readonly service_id: string;
   readonly public_status: string;
   readonly internal_status: string;
   readonly customer_error_code: string | null;
@@ -77,10 +76,6 @@ interface LockedRunRow {
   readonly completed_at: Date | null;
   readonly next_event_sequence: string | number;
   readonly cancellation_requested: boolean;
-}
-
-interface ServiceVersionRow {
-  readonly service_id: string;
 }
 
 interface ResponseBodyRow {
@@ -103,7 +98,7 @@ function isPublicRun(value: unknown): value is Run {
     Object.keys(run).length === 8 &&
     typeof run.id === "string" &&
     typeof run.service_id === "string" &&
-    run.status === "queued" &&
+    (run.status === "queued" || run.status === "running") &&
     run.error_code === null &&
     run.retryable === false &&
     typeof run.created_at === "string" &&
@@ -130,8 +125,7 @@ async function insertClaim(
     `
       INSERT INTO app.idempotency_records (
         id,
-        tenant_id,
-        scope_kind,
+        organization_id,
         actor_fingerprint,
         operation_code,
         idempotency_key,
@@ -139,7 +133,7 @@ async function insertClaim(
         state,
         expires_at
       ) VALUES (
-        $1, $2, 'tenant', $3, 'runs.cancel', $4, $5, 'in_progress',
+        $1, $2, $3, 'runs.cancel', $4, $5, 'in_progress',
         clock_timestamp() + interval '24 hours'
       )
       ON CONFLICT DO NOTHING
@@ -171,7 +165,7 @@ async function replayExistingClaim(
         response_body_reference,
         response_body
       FROM app.idempotency_records
-      WHERE tenant_id = $1
+      WHERE organization_id = $1
         AND operation_code = 'runs.cancel'
         AND idempotency_key = $2
       FOR UPDATE
@@ -209,62 +203,23 @@ async function lockRun(
   database: DatabaseExecutor,
   input: CancelRunPersistenceInput,
 ): Promise<LockedRunRow> {
-  const result = await database.query<LockedRunRow>(
-    `
-      SELECT
-        run_id,
-        service_version_id,
-        public_status,
-        internal_status,
-        customer_error_code,
-        retryable,
-        created_at,
-        updated_at,
-        completed_at,
-        next_event_sequence,
-        cancellation_requested
-      FROM app.lock_run_for_cancellation($1::uuid)
-    `,
-    [input.runId],
-  );
+  const result=await database.query<LockedRunRow>(`
+    SELECT run.id AS run_id,run.service_id,${RUN_PUBLIC_STATUS_SQL} AS public_status,run.internal_status,
+      run.customer_error_code,run.retryable,run.created_at,run.updated_at,run.completed_at
+    FROM app.runs run WHERE run.organization_id=$1 AND run.id=$2 FOR UPDATE OF run`,[input.tenantId,input.runId]);
   const row = result.rows[0];
   if (row === undefined) throw new RunCancellationNotFoundError();
-  if (row.internal_status !== "QUEUED" || row.public_status !== "queued") {
+  if (!['QUEUED','SUBMITTED'].includes(row.internal_status) || !['queued','running'].includes(row.public_status)) {
     throw new RunCancellationStateConflictError();
   }
-  return row;
-}
-
-async function resolveServiceId(
-  database: DatabaseExecutor,
-  input: CancelRunPersistenceInput,
-  run: LockedRunRow,
-): Promise<string> {
-  const result = await database.query<ServiceVersionRow>(
-    `
-      SELECT service_id
-      FROM app.service_versions
-      WHERE tenant_id = $1
-        AND id = $2
-      LIMIT 1
-    `,
-    [input.tenantId, run.service_version_id],
-  );
-  const serviceId = result.rows[0]?.service_id;
-  if (serviceId === undefined) {
-    throw new RunCancellationUnavailableError(
-      new Error("The Run Service-version pin could not be resolved"),
-    );
-  }
-  return serviceId;
+  const events=await database.query<{next_event_sequence:string;cancellation_requested:boolean}>(`SELECT (coalesce(max(sequence),0)+1)::text next_event_sequence,
+    coalesce(bool_or(event_type='cancellation_requested'),false) cancellation_requested FROM app.run_events WHERE organization_id=$1 AND run_id=$2`,[input.tenantId,input.runId]);
+  if(!events.rows[0])throw new RunCancellationUnavailableError();
+  return {...row,...events.rows[0]};
 }
 
 function publicRun(run: LockedRunRow, serviceId: string): Run {
-  if (
-    run.customer_error_code !== null ||
-    run.retryable ||
-    run.completed_at !== null
-  ) {
+  if (run.customer_error_code !== null || run.retryable || run.completed_at !== null) {
     throw new RunCancellationUnavailableError(
       new Error("The queued Run projection is internally inconsistent"),
     );
@@ -272,7 +227,7 @@ function publicRun(run: LockedRunRow, serviceId: string): Run {
   return {
     id: run.run_id,
     service_id: serviceId,
-    status: "queued",
+    status: run.public_status as 'queued'|'running',
     error_code: null,
     retryable: false,
     created_at: run.created_at.toISOString(),
@@ -292,15 +247,14 @@ async function recordFirstRequest(
     `
       INSERT INTO app.run_events (
         id,
-        tenant_id,
+        organization_id,
         run_id,
         sequence,
         event_type,
-        source,
         event_idempotency_key,
         safe_payload
       ) VALUES (
-        $1, $2, $3, $4::bigint, 'cancellation_requested', 'admission',
+        $1, $2, $3, $4::bigint, 'cancellation_requested',
         $5, $6::jsonb
       )
     `,
@@ -310,7 +264,7 @@ async function recordFirstRequest(
       input.runId,
       eventSequence(run.next_event_sequence),
       `cancel.requested.v1:${input.idempotencyRecordId}`,
-      { status: "queued" },
+      { status: run.public_status, initiated_by_user_id: input.actor.userId },
     ],
   );
 
@@ -320,7 +274,7 @@ async function recordFirstRequest(
         id,
         aggregate_type,
         aggregate_id,
-        tenant_id,
+        organization_id,
         topic,
         ordering_key,
         payload,
@@ -336,7 +290,7 @@ async function recordFirstRequest(
         1
       )
     `,
-    [input.outboxEventId, input.runId, input.tenantId, { run_id: input.runId }],
+    [input.outboxEventId, input.runId, input.tenantId, { run_id: input.runId,initiated_by_user_id:input.actor.userId,...(input.requestId?{trace_id:input.requestId}:{}) }],
   );
 
   return true;
@@ -350,29 +304,27 @@ async function recordAudit(
   await database.query(
     `
       INSERT INTO app.audit_events (
-        tenant_id,
+        organization_id,
         actor_user_id,
-        actor_api_key_id,
         action,
         target_type,
         target_id,
         outcome,
-        request_id,
+        trace_id,
         ip_fingerprint,
         safe_diff
       ) VALUES (
-        $1, $2, $3, 'run.cancel', 'run', $4, $5, $6, $7,
+        $1, $2, 'run.cancel', 'run', $3, $4, $5::uuid, $6,
         jsonb_build_object(
           'operation', 'runs.cancel',
           'status', 'queued',
-          'command_created', $8::boolean
+          'command_created', $7::boolean
         )
       )
     `,
     [
       input.tenantId,
-      input.actor.kind === "browser" ? input.actor.userId : null,
-      input.actor.kind === "api_key" ? input.actor.apiKeyId : null,
+      input.actor.userId,
       input.runId,
       commandCreated ? "accepted" : "accepted_existing",
       input.requestId,
@@ -397,8 +349,7 @@ async function completeClaim(
         resource_id = $2,
         response_body_reference = 'inline_json_v1',
         response_body = $3::jsonb,
-        completed_at = clock_timestamp(),
-        updated_at = clock_timestamp()
+        completed_at = clock_timestamp()
       WHERE id = $1
       RETURNING response_body
     `,
@@ -418,7 +369,7 @@ async function acceptNewClaim(
   input: CancelRunPersistenceInput,
 ): Promise<CancelRunPersistenceOutcome> {
   const locked = await lockRun(database, input);
-  const serviceId = await resolveServiceId(database, input, locked);
+  const serviceId = locked.service_id;
   const response = publicRun(locked, serviceId);
   const commandCreated = await recordFirstRequest(database, input, locked);
   await recordAudit(database, input, commandCreated);
@@ -433,9 +384,9 @@ export function createCancelRunRepository(pool: Pool): CancelRunRepository {
   return {
     async persist(input): Promise<CancelRunPersistenceOutcome> {
       try {
-        return await withAdmissionTenantTransaction(
+        return await withAdmissionOrganizationTransaction(
           pool,
-          input.tenantId,
+          { tenantId: input.tenantId, userId: input.actor.userId },
           async (database) => {
             if (!(await insertClaim(database, input))) {
               return replayExistingClaim(database, input);

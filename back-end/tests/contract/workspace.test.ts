@@ -5,10 +5,6 @@ import { buildApp } from "../../src/app.js";
 import { loadRuntimeConfig } from "../../src/config/environment.js";
 import type { RuntimeConfig } from "../../src/config/environment.js";
 import type {
-  ApiKeyAuthenticationService,
-  TrustedApiKeyIdentity,
-} from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
-import type {
   BrowserAuthenticationService,
   TrustedSessionIdentity,
 } from "../../src/services/identity/browserAuthenticationService.js";
@@ -26,38 +22,32 @@ import type { WorkspaceRecord } from "../../src/services/workspace/workspaceRepo
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import type { TrustedTenantPrincipal } from "../../src/services/tenantAccess/trustedTenantPrincipal.js";
 import {
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
-import { stubCreateServiceService, stubGetServiceService, stubListServicesService } from "../support/serviceStub.js";
+import {
+  stubCreateServiceService,
+  stubGetServiceService,
+  stubListServicesService,
+} from "../support/serviceStub.js";
 
 const ACCESS_TOKEN = "header.payload.signature";
 const API_KEY = `dhk_v1_${"A".repeat(16)}.${"A".repeat(43)}`;
+const organizationId = randomUUID();
 const sessionIdentity: TrustedSessionIdentity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: randomUUID(),
 };
 const tenantIdentity: TrustedTenantIdentity = {
   userId: sessionIdentity.userId,
   sessionId: sessionIdentity.sessionId,
-  tenantId: sessionIdentity.issuedTenantId,
-};
-const apiKeyIdentity: TrustedApiKeyIdentity = {
-  kind: "api_key",
-  apiKeyId: randomUUID(),
-  tenantId: tenantIdentity.tenantId,
-  scopes: ["catalog:read"],
+  tenantId: organizationId,
 };
 const workspace: WorkspaceRecord = {
   id: tenantIdentity.tenantId,
   name: "Acme Research",
   state: "active",
+  role: "member",
   createdAt: new Date("2026-08-23T10:20:30.000Z"),
 };
 
@@ -102,15 +92,19 @@ function recordingAuthentication(): RecordingAuthentication {
 
 interface RecordingTenantAuthorization extends TenantAuthorizationService {
   readonly calls: TrustedSessionIdentity[];
+  readonly selectors: Array<string | string[] | undefined>;
   failWith?: Error;
 }
 
 function recordingTenantAuthorization(): RecordingTenantAuthorization {
   const calls: TrustedSessionIdentity[] = [];
+  const selectors: Array<string | string[] | undefined> = [];
   const service: RecordingTenantAuthorization = {
     calls,
-    async authorizeBrowserTenant(identity) {
+    selectors,
+    async authorizeBrowserTenant(identity, selector) {
       calls.push(identity);
+      selectors.push(selector);
       if (service.failWith !== undefined) {
         throw service.failWith;
       }
@@ -135,22 +129,6 @@ function recordingWorkspace(): RecordingWorkspace {
   };
 }
 
-interface RecordingApiKeyAuthentication extends ApiKeyAuthenticationService {
-  readonly calls: Array<string | undefined>;
-}
-
-function recordingApiKeyAuthentication(): RecordingApiKeyAuthentication {
-  const calls: Array<string | undefined> = [];
-  return {
-    calls,
-    async authenticate(authorization) {
-      calls.push(authorization);
-      if (authorization !== `Bearer ${API_KEY}`) throw authenticationRequired();
-      return apiKeyIdentity;
-    },
-  };
-}
-
 function testConfig(): RuntimeConfig {
   return loadRuntimeConfig({
     NODE_ENV: "test",
@@ -171,7 +149,6 @@ function testConfig(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
@@ -179,13 +156,11 @@ let app: FastifyInstance | undefined;
 let authentication: RecordingAuthentication;
 let tenantAuthorization: RecordingTenantAuthorization;
 let workspaceService: RecordingWorkspace;
-let apiKeyAuthentication: RecordingApiKeyAuthentication;
 
 beforeEach(() => {
   authentication = recordingAuthentication();
   tenantAuthorization = recordingTenantAuthorization();
   workspaceService = recordingWorkspace();
-  apiKeyAuthentication = recordingApiKeyAuthentication();
 });
 
 afterEach(async () => {
@@ -202,10 +177,6 @@ async function build(): Promise<FastifyInstance> {
     logoutService: stubLogoutService,
     tenantAuthorizationService: tenantAuthorization,
     workspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: apiKeyAuthentication,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -216,6 +187,32 @@ async function build(): Promise<FastifyInstance> {
 }
 
 describe("GET /v1/workspace contract", () => {
+  it("passes the organization selector separately from trusted session identity", async () => {
+    const selector = randomUUID();
+    const response = await (await build()).inject({
+      method: "GET",
+      url: "/v1/workspace",
+      headers: { authorization: `Bearer ${ACCESS_TOKEN}`, "x-dhumi-organization": selector },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(tenantAuthorization.calls).toEqual([sessionIdentity]);
+    expect(tenantAuthorization.selectors).toEqual([selector]);
+  });
+
+  it("allows the organization selector in a browser CORS preflight", async () => {
+    const response = await (await build()).inject({
+      method: "OPTIONS",
+      url: "/v1/workspace",
+      headers: {
+        origin: "http://localhost:5173",
+        "access-control-request-method": "GET",
+        "access-control-request-headers": "Authorization,X-Dhumi-Organization",
+      },
+    });
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["access-control-allow-headers"]).toContain("X-Dhumi-Organization");
+    expect(tenantAuthorization.calls).toEqual([]);
+  });
   it("returns exactly the declared workspace from trusted browser and Tenant context", async () => {
     const requestId = randomUUID();
     const response = await (await build()).inject({
@@ -233,35 +230,35 @@ describe("GET /v1/workspace contract", () => {
       id: workspace.id,
       name: workspace.name,
       state: workspace.state,
+      role: workspace.role,
       created_at: "2026-08-23T10:20:30.000Z",
     });
     expect(Object.keys(response.json<Record<string, unknown>>()).sort()).toEqual([
       "created_at",
       "id",
       "name",
+      "role",
       "state",
     ]);
     expect(authentication.calls).toEqual([`Bearer ${ACCESS_TOKEN}`]);
     expect(tenantAuthorization.calls).toEqual([sessionIdentity]);
     expect(workspaceService.calls).toEqual([{ kind: "browser", ...tenantIdentity }]);
-    expect(apiKeyAuthentication.calls).toHaveLength(0);
   });
 
-  it("uses the reserved Dhumi credential namespace without browser fallback", async () => {
+  it("rejects retired customer API keys before Tenant authorization", async () => {
     const response = await (await build()).inject({
       method: "GET",
       url: "/v1/workspace",
       headers: { authorization: `Bearer ${API_KEY}` },
     });
-
-    expect(response.statusCode).toBe(200);
-    expect(apiKeyAuthentication.calls).toEqual([`Bearer ${API_KEY}`]);
-    expect(authentication.calls).toHaveLength(0);
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
+    expect(authentication.calls).toEqual([`Bearer ${API_KEY}`]);
     expect(tenantAuthorization.calls).toHaveLength(0);
-    expect(workspaceService.calls).toEqual([apiKeyIdentity]);
+    expect(workspaceService.calls).toHaveLength(0);
   });
 
-  it("does not fall back to browser authentication for a malformed reserved credential", async () => {
+  it("rejects a malformed retired credential through browser authentication", async () => {
     const authorization = "Bearer dhk_v1_malformed";
     const response = await (await build()).inject({
       method: "GET",
@@ -274,8 +271,7 @@ describe("GET /v1/workspace contract", () => {
       status: 401,
       code: "AUTHENTICATION_REQUIRED",
     });
-    expect(apiKeyAuthentication.calls).toEqual([authorization]);
-    expect(authentication.calls).toHaveLength(0);
+    expect(authentication.calls).toEqual([authorization]);
     expect(workspaceService.calls).toHaveLength(0);
   });
 

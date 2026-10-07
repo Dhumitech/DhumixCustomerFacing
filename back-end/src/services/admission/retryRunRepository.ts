@@ -1,11 +1,11 @@
+import { RUN_PUBLIC_STATUS_SQL } from "../../helpers/runPublicStatus.js";
 import type { Pool } from "pg";
 import { validateSharedScraperAdmission } from "./sharedScraperAdmission.js";
 import { selectRunCapacity } from "./runCapacity.js";
 import { ScraperContractError } from "../scrapers/scraperProcessing.js";
-import { SHARED_SCRAPER_ADAPTER_CODE, SHARED_SCRAPER_ADAPTER_VERSION } from "../scrapers/sharedScraperVersion.js";
 import type { DatabaseExecutor } from "../../types/database.js";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withAdmissionTenantTransaction } from "../database/transactions.js";
+import { withAdmissionOrganizationTransaction } from "../database/transactions.js";
 import type { ProviderEnvironment } from "../customerServices/createServiceRepository.js";
 import type {
   RunAccepted,
@@ -22,12 +22,9 @@ export interface RetryRunPersistenceInput {
   readonly idempotencyRecordId: string;
   readonly runId: string;
   readonly runEventId: string;
-  readonly providerCostHoldId: string;
   readonly outboxEventId: string;
   readonly tenantId: string;
-  readonly actor:
-    | { readonly kind: "browser"; readonly userId: string }
-    | { readonly kind: "api_key"; readonly apiKeyId: string };
+  readonly actor: { readonly kind: "browser"; readonly userId: string };
   readonly actorFingerprint: Buffer;
   readonly requestHash: Buffer;
   readonly idempotencyKey: string;
@@ -112,7 +109,7 @@ interface LockedSourceRow {
 }
 
 interface AcceptedAtRow {
-  readonly accepted_at: Date;
+  readonly created_at: Date;
 }
 
 interface ResponseBodyRow {
@@ -157,8 +154,7 @@ async function insertClaim(
     `
       INSERT INTO app.idempotency_records (
         id,
-        tenant_id,
-        scope_kind,
+        organization_id,
         actor_fingerprint,
         operation_code,
         idempotency_key,
@@ -166,7 +162,7 @@ async function insertClaim(
         state,
         expires_at
       ) VALUES (
-        $1, $2, 'tenant', $3, 'runs.retry', $4, $5, 'in_progress',
+        $1, $2, $3, 'runs.retry', $4, $5, 'in_progress',
         clock_timestamp() + interval '24 hours'
       )
       ON CONFLICT DO NOTHING
@@ -199,7 +195,7 @@ async function replayExistingClaim(
         response_body_reference,
         response_body
       FROM app.idempotency_records
-      WHERE tenant_id = $1
+      WHERE organization_id = $1
         AND operation_code = 'runs.retry'
         AND idempotency_key = $2
       FOR UPDATE
@@ -227,9 +223,7 @@ async function replayExistingClaim(
     !isRunAccepted(existing.response_body) ||
     existing.response_body.run_id !== existing.resource_id
   ) {
-    throw new RunRetryUnavailableError(
-      new Error("The retry idempotency claim is not replayable"),
-    );
+    throw new RunRetryUnavailableError(new Error("The retry idempotency claim is not replayable"));
   }
   return { kind: "replay", run: existing.response_body };
 }
@@ -238,21 +232,11 @@ async function lockSource(
   database: DatabaseExecutor,
   input: RetryRunPersistenceInput,
 ): Promise<LockedSourceRow> {
-  const result = await database.query<LockedSourceRow>(
-    `
-      SELECT
-        run_id,
-        service_id,
-        validated_input,
-        public_status,
-        internal_status,
-        retryable,
-        completed_at,
-        has_ambiguous_attempt
-      FROM app.lock_run_for_retry($1::uuid)
-    `,
-    [input.sourceRunId],
-  );
+  const result=await database.query<LockedSourceRow>(`
+    SELECT run.id AS run_id,run.service_id,run.validated_input,${RUN_PUBLIC_STATUS_SQL} AS public_status,
+      run.internal_status,run.retryable,run.completed_at,false AS has_ambiguous_attempt
+    FROM app.runs run WHERE run.organization_id=$1 AND run.id=$2 FOR UPDATE OF run`,[input.tenantId,input.sourceRunId]);
+  const attempts=await database.query<{state:string}>(`SELECT state FROM app.run_attempts WHERE organization_id=$1 AND run_id=$2 ORDER BY id FOR UPDATE`,[input.tenantId,input.sourceRunId]);
   const source = result.rows[0];
   if (source === undefined) throw new RunRetryNotFoundError();
   if (
@@ -262,25 +246,19 @@ async function lockSource(
     ) ||
     source.retryable !== true ||
     source.completed_at === null ||
-    source.has_ambiguous_attempt
+    attempts.rows.some(attempt=>attempt.state==='ambiguous')
   ) {
     throw new RunRetryStateConflictError();
   }
   if (!isInputObject(source.validated_input)) {
-    throw new RunRetryUnavailableError(
-      new Error("The source Run input is not an object"),
-    );
+    throw new RunRetryUnavailableError(new Error("The source Run input is not an object"));
   }
   return source;
 }
 
-function requireCurrentRelease(
-  row: RunAdmissionEligibility | undefined,
-): RunAdmissionEligibility {
+function requireCurrentRelease(row: RunAdmissionEligibility | undefined): RunAdmissionEligibility {
   if (row === undefined) {
-    throw new RunRetryUnavailableError(
-      new Error("The source Run Service could not be resolved"),
-    );
+    throw new RunRetryUnavailableError(new Error("The source Run Service could not be resolved"));
   }
   if (row.service_state !== "active") throw new RunRetryStateConflictError();
   if (!isRunAdmissionReleaseAvailable(row)) throw new RunRetryUnavailableError();
@@ -301,140 +279,37 @@ async function createAndComplete(
     ),
   );
   const sourceInput = source.validated_input as Readonly<Record<string, unknown>>;
-  const isSharedScraper = eligible.adapter_code === SHARED_SCRAPER_ADAPTER_CODE;
-  if (isSharedScraper &&
-    eligible.adapter_semantic_version !== SHARED_SCRAPER_ADAPTER_VERSION) {
-    throw new RunRetryUnavailableError(new Error("The shared scraper adapter version is not supported"));
+  if (eligible.engine !== 'scraper.v1') {
+    const validation=input.validateInput({templateVersionId:eligible.template_version_id,schema:eligible.input_schema,input:sourceInput});
+    if(!validation.valid)throw new RunRetryInputRejectedError(validation.issues);
   }
-  if (!isSharedScraper) {
-    const validation = input.validateInput({
-      templateVersionId: eligible.service_template_version_id as string,
-      schema: eligible.input_schema,
-      input: sourceInput,
-    });
-    if (!validation.valid) throw new RunRetryInputRejectedError(validation.issues);
-  }
-
   try {
-    const sharedValidation = await validateSharedScraperAdmission(database, {
-      adapterCode: eligible.adapter_code,
-      adapterVersion: eligible.adapter_semantic_version,
-      templateVersionId: eligible.service_template_version_id as string,
-      mappingId: eligible.provider_mapping_id as string,
-      value: sourceInput,
-    });
-    if (!sharedValidation.valid) throw new RunRetryInputRejectedError(sharedValidation.issues);
-  } catch (error) {
-    if (error instanceof ScraperContractError) throw new RunRetryUnavailableError(error);
-    throw error;
-  }
+    const validation=validateSharedScraperAdmission({engine:eligible.engine,definition:eligible.execution_definition,value:sourceInput});
+    if(!validation.valid)throw new RunRetryInputRejectedError(validation.issues);
+  } catch(error) { if(error instanceof ScraperContractError)throw new RunRetryUnavailableError(error);throw error; }
+  const capacity=await selectRunCapacity(database,{engine:eligible.engine,definition:eligible.execution_definition,
+    providerEnvironment:input.providerEnvironment,tenantId:input.tenantId,templateVersionId:eligible.template_version_id,validatedInput:sourceInput});
 
-  let capacity;
-  try {
-    capacity = await selectRunCapacity(database, {
-      adapterCode: eligible.adapter_code,
-      adapterVersion: eligible.adapter_semantic_version,
-      providerEnvironment: input.providerEnvironment,
-      templateVersionId: eligible.service_template_version_id as string,
-      mappingId: eligible.provider_mapping_id as string,
-      validatedInput: sourceInput,
-    });
-  } catch (error) {
-    if (error instanceof ScraperContractError) throw new RunRetryUnavailableError(error);
-    throw error;
-  }
-  if (capacity === undefined) {
-    throw new RunRetryUnavailableError(
-      new Error("The Run capacity profile returned no hold metadata"),
-    );
-  }
-
-  const runInsert = await database.query<AcceptedAtRow>(
-    `
-      INSERT INTO app.runs (
-        id,
-        tenant_id,
-        service_version_id,
-        service_template_version_id,
-        adapter_version_id,
-        provider_mapping_id,
-        commercial_config_version,
-        validated_input,
-        template_launch_evidence_id,
-        mapping_launch_evidence_id,
-        feature_flag_id,
-        feature_launch_evidence_id,
-        public_status,
-        internal_status,
-        state_version,
-        retryable,
-        retry_of_run_id
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12,
-        'queued', 'QUEUED', 1, false, $13
-      )
-      RETURNING accepted_at
-    `,
-    [
-      input.runId,
-      input.tenantId,
-      eligible.service_version_id,
-      eligible.service_template_version_id,
-      eligible.adapter_version_id,
-      eligible.provider_mapping_id,
-      eligible.commercial_config_version,
-      sourceInput,
-      eligible.template_launch_evidence_id,
-      eligible.mapping_launch_evidence_id,
-      eligible.feature_flag_id,
-      eligible.feature_launch_evidence_id,
-      input.sourceRunId,
-    ],
-  );
-  const acceptedAt = runInsert.rows[0]?.accepted_at;
-  if (acceptedAt === undefined) throw new Error("The retry Run insert returned no timestamp");
-
-  await database.query(
-    `
-      INSERT INTO app.provider_cost_holds (
-        id,
-        tenant_id,
-        run_id,
-        provider_code,
-        product_family,
-        commercial_config_version,
-        evidence_reference,
-        estimated_amount_micros,
-        currency_code,
-        unit,
-        state
-      ) VALUES ($1, $2, $3, 'bright_data', $4, $5, $6, $7, $8, $9, 'held')
-    `,
-    [
-      input.providerCostHoldId,
-      input.tenantId,
-      input.runId,
-      eligible.product_family,
-      eligible.commercial_config_version,
-      capacity.evidence_reference,
-      capacity.estimated_amount_micros,
-      capacity.currency_code,
-      capacity.unit,
-    ],
-  );
+  const runInsert=await database.query<AcceptedAtRow>(`
+    INSERT INTO app.runs (id,organization_id,service_id,template_version_id,created_by_user_id,trace_id,
+      commercial_config_version,validated_input,estimated_cost_micros,retry_of_run_id)
+    VALUES ($1,$2,$3,$4,$5,$6::uuid,$7,$8::jsonb,$9,$10) RETURNING created_at`,
+    [input.runId,input.tenantId,source.service_id,eligible.template_version_id,input.actor.userId,input.requestId,
+      eligible.execution_definition.commercial_config_version,sourceInput,capacity.estimated_amount_micros,input.sourceRunId]);
+  const acceptedAt=runInsert.rows[0]?.created_at;
+  if(!acceptedAt)throw new Error('Run admission returned no timestamp');
 
   await database.query(
     `
       INSERT INTO app.run_events (
         id,
-        tenant_id,
+        organization_id,
         run_id,
         sequence,
         event_type,
-        source,
         event_idempotency_key,
         safe_payload
-      ) VALUES ($1, $2, $3, 1, 'accepted', 'admission', 'admission.accepted.v1', $4::jsonb)
+      ) VALUES ($1, $2, $3, 1, 'accepted', 'admission.accepted.v1', $4::jsonb)
     `,
     [input.runEventId, input.tenantId, input.runId, { status: "queued" }],
   );
@@ -442,30 +317,28 @@ async function createAndComplete(
   await database.query(
     `
       INSERT INTO app.audit_events (
-        tenant_id,
+        organization_id,
         actor_user_id,
-        actor_api_key_id,
         action,
         target_type,
         target_id,
         outcome,
-        request_id,
+        trace_id,
         ip_fingerprint,
         safe_diff
       ) VALUES (
-        $1, $2, $3, 'run.retry', 'run', $4, 'accepted', $5, $6,
+        $1, $2, 'run.retry', 'run', $3, 'accepted', $4::uuid, $5,
         jsonb_build_object(
           'operation', 'runs.retry',
-          'retry_of_run_id', $7::uuid,
+          'retry_of_run_id', $6::uuid,
           'status', 'queued',
-          'product_family', $8::text
+          'product_family', $7::text
         )
       )
     `,
     [
       input.tenantId,
-      input.actor.kind === "browser" ? input.actor.userId : null,
-      input.actor.kind === "api_key" ? input.actor.apiKeyId : null,
+      input.actor.userId,
       input.runId,
       input.requestId,
       input.ipFingerprint,
@@ -480,7 +353,7 @@ async function createAndComplete(
         id,
         aggregate_type,
         aggregate_id,
-        tenant_id,
+        organization_id,
         topic,
         ordering_key,
         payload,
@@ -496,7 +369,7 @@ async function createAndComplete(
         1
       )
     `,
-    [input.outboxEventId, input.runId, input.tenantId, { run_id: input.runId }],
+    [input.outboxEventId, input.runId, input.tenantId, { run_id: input.runId,trace_id:input.requestId }],
   );
 
   const response: RunAccepted = {
@@ -515,8 +388,7 @@ async function createAndComplete(
         related_resource_id = $3,
         response_body_reference = 'inline_json_v1',
         response_body = $4::jsonb,
-        completed_at = clock_timestamp(),
-        updated_at = clock_timestamp()
+        completed_at = clock_timestamp()
       WHERE id = $1
       RETURNING response_body
     `,
@@ -533,13 +405,18 @@ export function createRetryRunRepository(pool: Pool): RetryRunRepository {
   return {
     async persist(input): Promise<RetryRunPersistenceOutcome> {
       try {
-        return await withAdmissionTenantTransaction(pool, input.tenantId, async (database) => {
-          if (!(await insertClaim(database, input))) {
-            return replayExistingClaim(database, input);
-          }
-          const run = await createAndComplete(database, input);
-          return { kind: "created", run };
-        });
+        return await withAdmissionOrganizationTransaction(
+          pool,
+          { tenantId: input.tenantId, userId: input.actor.userId },
+          async (database) => {
+            if(!input.requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId))throw new RunRetryUnavailableError();
+            if (!(await insertClaim(database, input))) {
+              return replayExistingClaim(database, input);
+            }
+            const run = await createAndComplete(database, input);
+            return { kind: "created", run };
+          },
+        );
       } catch (error) {
         if (
           error instanceof ApplicationError ||

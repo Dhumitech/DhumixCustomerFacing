@@ -1,5 +1,25 @@
 # Dhumi local PostgreSQL bootstrap
 
+## Local refactor boundary — 7 October 2026
+
+The owner-selected `dhumi_test` table refactor reaches migration `0075_naming`:
+25 application tables and 279 stored columns. Read
+[the public checkout status](../../../docs/runbooks/refactor-status.md)
+for application status and verification. Runtime code lives in the existing root
+backend/frontend; context folders contain records only.
+
+Existing test LOGIN/capability roles and passwords remain required under the
+owner's tables-first instruction. Do not run bootstrap `0001`–`0009` against
+the applied test database, revoke its runtime grants, or retire cluster roles.
+The owner requested at most three password-bearing identities after the table
+refactor; that separate implementation has not happened. The Target's
+`dhumi_app`/`dhumi_worker` grant consolidation and full clean-clone replay remain
+pending with it. An empty restored 0074 schema was upgraded with exact 0075,
+but this is not a replay of all historical migrations.
+
+The manual steps below describe the original bootstrap. They do not authorize
+creating/upgrading `dhumi_dev`, `dhumi_shared` or deployment environments.
+
 These files prepare the PostgreSQL 18 local-development foundation without
 mixing cluster administration with application table migrations.
 

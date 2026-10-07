@@ -11,5 +11,7 @@ export async function requireBrowserTenantAccess(request: FastifyRequest): Promi
   }
 
   request.trustedTenantIdentity =
-    await request.server.tenantAuthorizationService.authorizeBrowserTenant(identity);
+    await request.server.tenantAuthorizationService.authorizeBrowserTenant(
+      identity, request.headers["x-dhumi-organization"],
+    );
 }

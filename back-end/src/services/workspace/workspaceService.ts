@@ -15,17 +15,14 @@ export function createWorkspaceService(
 ): WorkspaceService {
   return {
     async getWorkspace(identity): Promise<WorkspaceRecord> {
-      const workspace =
-        identity.kind === "api_key"
-          ? await dependencies.repository.findApiKeyWorkspace(identity.tenantId)
-          : await dependencies.repository.findBrowserWorkspace({
-              userId: identity.userId,
-              tenantId: identity.tenantId,
-            });
+      if (identity.kind !== "browser") throw accessDenied();
+      const workspace = await dependencies.repository.findBrowserWorkspace({
+        userId: identity.userId,
+        tenantId: identity.tenantId,
+      });
       if (workspace === undefined) {
         // RLS deliberately returns zero rows for an unavailable/cross-Tenant
         // resource. Treat that as authorization failure, not an empty success.
-        if (identity.kind === "api_key") throw accessDenied();
         throw workspaceUnavailable();
       }
       return workspace;

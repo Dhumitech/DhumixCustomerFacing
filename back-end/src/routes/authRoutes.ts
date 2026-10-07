@@ -18,11 +18,11 @@ import { ApplicationError } from "../utils/applicationError.js";
 const signUpBodySchema = {
   type: "object",
   additionalProperties: false,
-  required: ["email", "password", "workspace_name", "legal_acceptances"],
+  required: ["email", "password", "legal_acceptances"],
   properties: {
     email: { type: "string", format: "email", maxLength: 320 },
     password: { type: "string", minLength: 12, maxLength: 256 },
-    workspace_name: { type: "string", minLength: 2, maxLength: 120 },
+    workspace_name: { type: "string", maxLength: 120 },
     legal_acceptances: {
       type: "array",
       minItems: 1,

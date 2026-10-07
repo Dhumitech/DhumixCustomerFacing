@@ -8,7 +8,7 @@ export interface RefreshRotationInput {
   readonly expectedSessionId: string;
   readonly presentedTokenHash: Buffer;
   readonly replacementTokenHash: Buffer;
-  /** Must already be a UUID or null; audit_events.request_id is uuid. */
+  /** Must already be a UUID or null; audit_events.trace_id is uuid. */
   readonly requestId: string | null;
   readonly ipFingerprint: Buffer | null;
 }
@@ -18,12 +18,10 @@ export type RefreshRotationOutcome =
       readonly kind: "rotated";
       readonly sessionId: string;
       readonly userId: string;
-      readonly tenantId: string;
       readonly refreshExpiresAt: Date;
     }
   | { readonly kind: "reuse_detected" }
-  | { readonly kind: "session_unavailable" }
-  | { readonly kind: "workspace_unavailable" };
+  | { readonly kind: "session_unavailable" };
 
 export interface RefreshRepository {
   findSessionIdByTokenHash(tokenHash: Buffer): Promise<string | undefined>;
@@ -51,12 +49,6 @@ interface IdentityRow {
   readonly state: string;
 }
 
-interface AccessRow {
-  readonly tenant_id: string;
-  readonly access_state: string;
-  readonly tenant_state: string;
-}
-
 function internalFailure(cause: unknown): ApplicationError {
   return new ApplicationError({
     status: 500,
@@ -76,15 +68,15 @@ async function auditRefresh(
   await database.query(
     `
       INSERT INTO app.audit_events (
-        tenant_id,
+        organization_id,
         actor_user_id,
         action,
         target_type,
         target_id,
         outcome,
-        request_id,
+        trace_id,
         ip_fingerprint
-      ) VALUES ($1, $2, 'identity.refresh', 'auth_session', $3, $4, $5, $6)
+      ) VALUES ($1, $2, 'identity.refresh', 'auth_session', $3, $4, $5::uuid, $6)
     `,
     [tenantId, session.user_id, session.session_id, outcome, input.requestId, input.ipFingerprint],
   );
@@ -109,6 +101,16 @@ export function createRefreshRepository(pool: Pool): RefreshRepository {
     async rotate(input: RefreshRotationInput): Promise<RefreshRotationOutcome> {
       try {
         return await withIdentityTransaction(pool, async (database) => {
+          // Reset and refresh use user -> session -> token. Discovery alone
+          // grants nothing; the locked session is rechecked afterwards.
+          const discovered = await database.query<{ user_id: string }>(
+            "SELECT user_id FROM app.auth_sessions WHERE id = $1", [input.expectedSessionId],
+          );
+          const ownerId = discovered.rows[0]?.user_id;
+          if (!ownerId) return { kind: "session_unavailable" };
+          const identityResult = await database.query<IdentityRow>(
+            "SELECT state FROM app.users WHERE id = $1 FOR NO KEY UPDATE", [ownerId],
+          );
           // Every session-family writer locks the session before any refresh
           // generation. This explicit order prevents logout and refresh from
           // each holding one row while waiting for the other.
@@ -127,7 +129,7 @@ export function createRefreshRepository(pool: Pool): RefreshRepository {
             [input.expectedSessionId],
           );
           const lockedSession = sessionResult.rows[0];
-          if (lockedSession === undefined) {
+          if (lockedSession === undefined || lockedSession.user_id !== ownerId) {
             return { kind: "session_unavailable" };
           }
 
@@ -170,7 +172,7 @@ export function createRefreshRepository(pool: Pool): RefreshRepository {
             await database.query(
               `
                 UPDATE app.auth_refresh_tokens
-                SET state = 'reused', reused_at = clock_timestamp()
+                SET state = 'reused', ended_at = clock_timestamp()
                 WHERE id = $1 AND state = 'rotated'
               `,
               [session.token_id],
@@ -205,13 +207,7 @@ export function createRefreshRepository(pool: Pool): RefreshRepository {
             return { kind: "session_unavailable" };
           }
 
-          // User, Tenant access and Tenant state are rechecked under locks in
-          // the exact transaction that rotates the credential. A previously
-          // valid cookie therefore cannot race a suspension or revocation.
-          const identityResult = await database.query<IdentityRow>(
-            `SELECT state FROM app.users WHERE id = $1 FOR UPDATE`,
-            [session.user_id],
-          );
+          // A valid cookie must still belong to an active, locked-read user.
           const identity = identityResult.rows[0];
           if (identity?.state !== "active") {
             await revokeSessionFamily(database, session.session_id, "identity_unavailable");
@@ -219,41 +215,10 @@ export function createRefreshRepository(pool: Pool): RefreshRepository {
             return { kind: "session_unavailable" };
           }
 
-          const accessResult = await database.query<AccessRow>(
-            `
-              SELECT
-                access.tenant_id,
-                access.state AS access_state,
-                tenant.state AS tenant_state
-              FROM app.tenant_user_access access
-              JOIN app.tenants tenant ON tenant.id = access.tenant_id
-              WHERE access.user_id = $1
-              FOR UPDATE OF access, tenant
-            `,
-            [session.user_id],
-          );
-          const activeAccesses = accessResult.rows.filter((row) => row.access_state === "active");
-          const access = activeAccesses[0];
-          if (
-            activeAccesses.length !== 1 ||
-            access === undefined ||
-            access.tenant_state !== "active"
-          ) {
-            await revokeSessionFamily(database, session.session_id, "workspace_unavailable");
-            await auditRefresh(
-              database,
-              input,
-              session,
-              activeAccesses.length === 1 && access !== undefined ? access.tenant_id : null,
-              "denied_workspace",
-            );
-            return { kind: "workspace_unavailable" };
-          }
-
           await database.query(
             `
               UPDATE app.auth_refresh_tokens
-              SET state = 'rotated', rotated_at = clock_timestamp()
+              SET state = 'rotated', ended_at = clock_timestamp()
               WHERE id = $1 AND state = 'active'
             `,
             [session.token_id],
@@ -263,28 +228,25 @@ export function createRefreshRepository(pool: Pool): RefreshRepository {
               INSERT INTO app.auth_refresh_tokens (
                 session_id,
                 token_hash,
-                generation,
-                state
-              ) VALUES ($1, $2, $3, 'active')
+                generation
+              ) VALUES ($1, $2, $3)
             `,
             [session.session_id, input.replacementTokenHash, session.generation + 1],
           );
           await database.query(
             `
               UPDATE app.auth_sessions
-              SET token_family_hash = $2,
-                  last_used_at = clock_timestamp()
+              SET token_family_hash = $2
               WHERE id = $1 AND state = 'active'
             `,
             [session.session_id, input.replacementTokenHash],
           );
-          await auditRefresh(database, input, session, access.tenant_id, "accepted");
+          await auditRefresh(database, input, session, null, "accepted");
 
           return {
             kind: "rotated",
             sessionId: session.session_id,
             userId: session.user_id,
-            tenantId: access.tenant_id,
             refreshExpiresAt: session.expires_at,
           };
         });

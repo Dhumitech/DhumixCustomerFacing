@@ -6,9 +6,11 @@ info:
     Accepted mock-first implementation contract for the Dhumi Marketplace Dataset
     and Scraper Library demo. Customers call only Dhumi. Bright Data credentials,
     dataset IDs, snapshot IDs and raw errors are never public fields.
+    Customer operations use browser sessions. The 0070 refactor removes the
+    three /v1/keys operations and secret-response recovery.
 
     This contract has no activation, customer plan, subscription, billing,
-    credit, quota, invite, membership or team-management endpoints.
+    credit or quota endpoints. Organization, verification and member workflows follow 0071.
     Live Bright Data traffic remains controlled by external evidence gates.
   contact:
     name: Dhumi Engineering
@@ -23,8 +25,6 @@ tags:
     description: Dhumi signup and browser-session lifecycle.
   - name: Workspace
     description: The Tenant workspace resolved from authenticated identity.
-  - name: API Keys
-    description: Dhumi-issued customer API keys, never Bright Data keys.
   - name: Catalogue
     description: Published provider-neutral Dhumi service templates.
   - name: Services
@@ -41,10 +41,12 @@ paths:
     post:
       tags: [Authentication]
       operationId: signUp
+      x-dhumi-access: public
       summary: Submit a local Dhumi signup
       description: |
-        Creates local User, Tenant, owner Tenant Access, legal evidence, audit
-        and notification outbox atomically. Makes no Bright Data request.
+        Creates only the local User, legal evidence and audit atomically.
+        Creates no organization, membership, OTP or notification outbox.
+        workspace_name is optional, deprecated and ignored. Makes no Bright Data request.
         Response is deliberately generic. An existing email follows the same
         accepted flow; 409 is reserved for the same Idempotency-Key used with a
         different canonical request body.
@@ -83,7 +85,9 @@ paths:
     post:
       tags: [Authentication]
       operationId: signIn
+      x-dhumi-access: public
       summary: Sign in to Dhumi
+      description: Creates a user/session token family without requiring organization membership.
       security: []
       parameters:
         - $ref: '#/components/parameters/RequestId'
@@ -114,8 +118,9 @@ paths:
     post:
       tags: [Authentication]
       operationId: refreshSession
+      x-dhumi-access: refresh_cookie_csrf
       summary: Rotate the browser session token family
-      description: Refresh token is supplied through the approved secure cookie.
+      description: Refresh token is supplied through the approved secure cookie. Organization membership is not required.
       security: []
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -135,6 +140,7 @@ paths:
     post:
       tags: [Authentication]
       operationId: logout
+      x-dhumi-access: browser_session
       summary: Revoke the current browser session family
       security:
         - BrowserBearer: []
@@ -151,13 +157,16 @@ paths:
     get:
       tags: [Workspace]
       operationId: getWorkspace
+      x-dhumi-access: organization_member
       summary: Get the authenticated Tenant workspace
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '200':
           description: Workspace
           content:
@@ -167,96 +176,15 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
-  /v1/keys:
-    get:
-      tags: [API Keys]
-      operationId: listApiKeys
-      summary: List Dhumi API-key metadata
-      security:
-        - BrowserBearer: []
-      parameters:
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/RequestId'
-      responses:
-        '200':
-          description: Paginated API keys
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiKeyPage'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-    post:
-      tags: [API Keys]
-      operationId: createApiKey
-      summary: Create a Dhumi API key
-      description: |
-        Plaintext secret is never stored. A KMS-envelope-encrypted successful
-        response is retained for a 10-minute idempotent recovery window. An exact
-        replay during that window returns the original 201 response. After the
-        envelope is destroyed, replay returns IDEMPOTENCY_REPLAY_EXPIRED and
-        creates no second key.
-      security:
-        - BrowserBearer: []
-      parameters:
-        - $ref: '#/components/parameters/CsrfToken'
-        - $ref: '#/components/parameters/IdempotencyKey'
-        - $ref: '#/components/parameters/RequestId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ApiKeyCreateInput'
-      responses:
-        '201':
-          description: API key created; secret appears only in creation or its exact unexpired idempotent replay
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiKeyCreated'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409':
-          description: "IDEMPOTENCY_CONFLICT or IDEMPOTENCY_REPLAY_EXPIRED; no new key is created"
-          content:
-            application/problem+json:
-              schema: { $ref: '#/components/schemas/Problem' }
-        '413': { $ref: '#/components/responses/PayloadTooLarge' }
-        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
-        '503': { $ref: '#/components/responses/ServiceUnavailable' }
-
-  /v1/keys/{key_id}:
-    delete:
-      tags: [API Keys]
-      operationId: revokeApiKey
-      summary: Revoke a Dhumi API key
-      security:
-        - BrowserBearer: []
-      parameters:
-        - $ref: '#/components/parameters/KeyId'
-        - $ref: '#/components/parameters/CsrfToken'
-        - $ref: '#/components/parameters/RequestId'
-      responses:
-        '204':
-          description: Key revoked
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
   /v1/catalog/templates:
     get:
       tags: [Catalogue]
       operationId: listTemplates
+      x-dhumi-access: browser_user
       summary: List published Dhumi service templates
+      description: Signed-in active users may browse all-access templates without organization membership. An optional authorized organization selector also exposes templates assigned to that organization.
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - name: family
           in: query
@@ -266,7 +194,10 @@ paths:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '200':
           description: Paginated templates
           content:
@@ -281,14 +212,17 @@ paths:
     get:
       tags: [Catalogue]
       operationId: getTemplate
+      x-dhumi-access: browser_user
       summary: Get one published Dhumi template
+      description: Signed-in active users may read all-access templates without organization membership. Selected templates require an authorized organization with the access assignment.
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/TemplateSlug'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
         '200':
           description: Template
           content:
@@ -303,17 +237,19 @@ paths:
     get:
       tags: [Catalogue]
       operationId: getMarketplaceSample
+      x-dhumi-access: browser_user
       summary: Read one page from a governed stored Marketplace sample
-      description: Counts are relative to the immutable stored sample. This operation makes no provider request.
+      description: Counts are relative to the immutable stored sample. Signed-in active users need no organization for all-access templates. Selected templates require authorized organization access. This operation makes no provider request.
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/TemplateSlug'
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
         '200':
           description: Stored sample page
           content:
@@ -330,15 +266,16 @@ paths:
     post:
       tags: [Catalogue]
       operationId: queryMarketplaceSample
+      x-dhumi-access: browser_user
       summary: Filter and project a governed stored Marketplace sample
-      description: Filtering is local to Dhumi's immutable stored sample and makes no provider request.
+      description: Filtering is local to Dhumi's immutable stored sample and makes no provider request. Signed-in active users need no organization for all-access templates; selected templates require authorized organization access. Session CSRF remains required.
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/TemplateSlug'
-        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       requestBody:
         required: true
         content:
@@ -364,6 +301,7 @@ paths:
     post:
       tags: [Catalogue]
       operationId: authorizeMarketplaceSampleDownload
+      x-dhumi-access: organization_member
       summary: Authorize a bounded download of a governed stored Marketplace sample
       description: >-
         Serializes the exact masked, filtered and selected projection of Dhumi's
@@ -375,12 +313,12 @@ paths:
         request and does not create a Service, Run or outbox event.
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/TemplateSlug'
-        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       requestBody:
         required: true
         content:
@@ -407,6 +345,7 @@ paths:
     post:
       tags: [Catalogue]
       operationId: createMarketplaceExpertEnquiry
+      x-dhumi-access: organization_member
       summary: Ask a Dhumi data expert about a Marketplace dataset
       description: >-
         Records one authenticated, Tenant-scoped enquiry against the exact
@@ -414,12 +353,12 @@ paths:
         payment, entitlement, Service, Run, outbox event or provider request.
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/TemplateSlug'
-        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       requestBody:
         required: true
         content:
@@ -445,15 +384,17 @@ paths:
     get:
       tags: [Services]
       operationId: listServices
+      x-dhumi-access: organization_member
       summary: List tenant-owned services
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '404': { $ref: '#/components/responses/NotFound' }
         '200':
           description: Paginated services
           content:
@@ -466,14 +407,15 @@ paths:
     post:
       tags: [Services]
       operationId: createService
+      x-dhumi-access: organization_member
       summary: Create a tenant-owned service configuration
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
-        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       requestBody:
         required: true
         content:
@@ -501,14 +443,16 @@ paths:
     get:
       tags: [Services]
       operationId: getService
+      x-dhumi-access: organization_member
       summary: Get one tenant-owned service
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
         '200':
           description: Service
           content:
@@ -524,16 +468,17 @@ paths:
     post:
       tags: [Runs]
       operationId: createRun
+      x-dhumi-access: organization_member
       summary: Admit and queue a service run
       description: Returns after durable local admission; provider work is asynchronous.
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/ServiceId'
-        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       requestBody:
         required: true
         content:
@@ -563,10 +508,10 @@ paths:
     get:
       tags: [Runs]
       operationId: listRuns
+      x-dhumi-access: organization_member
       summary: List tenant runs
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - name: status
           in: query
@@ -577,7 +522,10 @@ paths:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '200':
           description: Paginated runs
           content:
@@ -593,14 +541,16 @@ paths:
     get:
       tags: [Runs]
       operationId: getRun
+      x-dhumi-access: organization_member
       summary: Get one tenant run
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/RunId'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
         '200':
           description: Run
           content:
@@ -616,15 +566,16 @@ paths:
     post:
       tags: [Runs]
       operationId: cancelRun
+      x-dhumi-access: organization_member
       summary: Request best-effort cancellation
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/RunId'
-        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
         '202':
           description: Cancellation request accepted
@@ -647,16 +598,17 @@ paths:
     post:
       tags: [Runs]
       operationId: retryRun
+      x-dhumi-access: organization_member
       summary: Create a new run from an eligible terminal run
       description: Never blindly repeats an unresolved provider attempt.
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/RunId'
-        - $ref: '#/components/parameters/ConditionalCsrfToken'
+        - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
         '202':
           description: New run accepted
@@ -680,16 +632,18 @@ paths:
     get:
       tags: [Runs]
       operationId: listRunEvents
+      x-dhumi-access: organization_member
       summary: List customer-safe run events
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/RunId'
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
         '200':
           description: Paginated events
           content:
@@ -706,10 +660,10 @@ paths:
     get:
       tags: [Runs]
       operationId: getRunResult
+      x-dhumi-access: organization_member
       summary: Get an authorized Dhumi result
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/RunId'
         - name: representation
@@ -721,7 +675,9 @@ paths:
             enum: [normalized, raw]
             default: normalized
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
         '200':
           description: Result metadata and short-lived download URL
           content:
@@ -740,15 +696,18 @@ paths:
     get:
       tags: [Usage]
       operationId: getUsageSummary
+      x-dhumi-access: organization_member
       summary: Get informational tenant usage summary
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/FromTime'
         - $ref: '#/components/parameters/ToTime'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '200':
           description: Informational usage summary; no quota or billing fields
           content:
@@ -764,17 +723,20 @@ paths:
     get:
       tags: [Usage]
       operationId: listUsageEvents
+      x-dhumi-access: organization_member
       summary: List informational tenant usage events
       security:
         - BrowserBearer: []
-        - DhumiApiKey: []
       parameters:
         - $ref: '#/components/parameters/FromTime'
         - $ref: '#/components/parameters/ToTime'
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '200':
           description: Paginated usage events
           content:
@@ -790,6 +752,7 @@ paths:
     get:
       tags: [Status]
       operationId: getPlatformStatus
+      x-dhumi-access: public
       summary: Get customer-safe Dhumi platform/product status
       security: []
       parameters:
@@ -805,6 +768,724 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /v1/organizations:
+    get:
+      tags:
+        - Organizations
+      operationId: listOrganizations
+      x-dhumi-access: browser_session
+      summary: list Organizations
+      description: Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Organizations
+      operationId: createOrganization
+      x-dhumi-access: browser_session
+      summary: create Organization
+      description: Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreateInput'
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/invites/accept:
+    post:
+      tags:
+        - Organizations
+      operationId: acceptInvite
+      x-dhumi-access: browser_session
+      summary: accept Invite
+      description: >-
+        Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates
+        the token. List responses never reveal token hashes or secrets.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteAcceptInput'
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/auth/password-reset:
+    post:
+      tags:
+        - Organizations
+      operationId: requestPasswordReset
+      x-dhumi-access: public
+      summary: request Password Reset
+      description: Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetInput'
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/verifications/{verification_id}/confirm:
+    post:
+      tags:
+        - Organizations
+      operationId: confirmVerification
+      x-dhumi-access: purpose_bound_verification
+      summary: confirm Verification
+      description: >-
+        Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token.
+        Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second
+        cooldown and five issues per hour across purposes. GET never consumes a proof.
+      security:
+        - {}
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - name: verification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: X-CSRF-Token
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Required for signed-in create/join proofs; reset is public OTP-only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationConfirmInput'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationConfirmed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/verifications/{verification_id}/resend:
+    post:
+      tags:
+        - Organizations
+      operationId: resendVerification
+      x-dhumi-access: purpose_bound_verification
+      summary: resend Verification
+      description: >-
+        Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token.
+        Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second
+        cooldown and five issues per hour across purposes. GET never consumes a proof.
+      security:
+        - {}
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - name: verification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: X-CSRF-Token
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Required for signed-in create/join proofs; reset is public OTP-only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptyWorkflowInput'
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/organization/members:
+    get:
+      tags:
+        - Organizations
+      operationId: listMembers
+      x-dhumi-access: organization_member
+      summary: list Organization Members
+      description: Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMemberPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/organization/members/{user_id}:
+    patch:
+      tags:
+        - Organizations
+      operationId: updateMember
+      x-dhumi-access: organization_admin
+      summary: change Organization Member
+      description: Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OrganizationSelector'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationMemberChange'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationActionCompleted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Organizations
+      operationId: removeMember
+      x-dhumi-access: organization_admin
+      summary: remove Organization Member
+      description: Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OrganizationSelector'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Completed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/organization/invites:
+    get:
+      tags:
+        - Organizations
+      operationId: listInvites
+      x-dhumi-access: organization_admin
+      summary: list Organization Invites
+      description: >-
+        Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates
+        the token. List responses never reveal token hashes or secrets.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationInvitePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Organizations
+      operationId: createInvite
+      x-dhumi-access: organization_admin
+      summary: create Organization Invite
+      description: >-
+        Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates
+        the token. List responses never reveal token hashes or secrets.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/OrganizationSelector'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInviteInput'
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationInviteMinted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/organization/invites/{invite_id}:
+    delete:
+      tags:
+        - Organizations
+      operationId: revokeInvite
+      x-dhumi-access: organization_admin
+      summary: revoke Organization Invite
+      description: >-
+        Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates
+        the token. List responses never reveal token hashes or secrets.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - name: invite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OrganizationSelector'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Completed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/organization/invites/{invite_id}/resend:
+    post:
+      tags:
+        - Organizations
+      operationId: resendInvite
+      x-dhumi-access: organization_admin
+      summary: resend Organization Invite
+      description: >-
+        Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates
+        the token and ensures at least the configured backend resend lifetime remains (seven days by default), without
+        shortening a later expiry. Revoked, expired or exhausted invitations remain unavailable. List responses never
+        reveal token hashes or secrets. Delivery is attempted after commit; a delivery failure still returns 202.
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - name: invite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OrganizationSelector'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptyWorkflowInput'
+      responses:
+        '202':
+          description: Invitation rotated; delivery attempted after commit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationInviteMinted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/organization/activity:
+    get:
+      operationId: getActivity
+      x-dhumi-access: organization_member
+      summary: Read safe organization activity
+      tags:
+        - Organizations
+      security:
+        - BrowserBearer: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationSelector'
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: member
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - services.create
+              - run.create
+              - run.retry
+              - run.cancel
+              - artifacts.download_authorize
+              - organization.created
+              - organization.joined
+              - organization.member_role_changed
+              - organization.member_removed
+              - organization.createInvite
+              - organization.revokeInvite
+              - organization.resendInvite
+              - marketplace.sample_download_authorize
+              - marketplace.expert_enquiry.create
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      description: >-
+        Every active member may read safe actions, Run starters, observed attempt timestamps and separately aggregated calls and usage.
+        Supplier cost, provider identifiers and security data are excluded. Internal-organization traffic is excluded. Defaults to the last 30
+        days; ranges are at most 31 days. Results are bounded, with explicit truncation indicators; use time/member/action filters to narrow
+        them.
+      responses:
+        '200':
+          description: Safe activity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationActivity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   securitySchemes:
     BrowserBearer:
@@ -812,12 +1493,6 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Short-lived Dhumi browser access token.
-    DhumiApiKey:
-      type: http
-      scheme: bearer
-      bearerFormat: DhumiApiKey
-      description: Dhumi-issued customer API key. Never a Bright Data key.
-
   headers:
     RequestId:
       description: Dhumi request correlation ID
@@ -833,6 +1508,12 @@ components:
         minimum: 1
 
   parameters:
+    OrganizationSelector:
+      name: X-Dhumi-Organization
+      in: header
+      required: false
+      description: Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+      schema: { type: string, format: uuid }
     RequestId:
       name: X-Request-ID
       in: header
@@ -862,15 +1543,6 @@ components:
         type: string
         minLength: 16
         maxLength: 512
-    ConditionalCsrfToken:
-      name: X-CSRF-Token
-      in: header
-      required: false
-      description: Required when BrowserBearer is used; not used with a Dhumi API key.
-      schema:
-        type: string
-        minLength: 16
-        maxLength: 512
     Cursor:
       name: cursor
       in: query
@@ -889,11 +1561,6 @@ components:
         minimum: 1
         maximum: 100
         default: 20
-    KeyId:
-      name: key_id
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
     TemplateSlug:
       name: slug
       in: path
@@ -936,7 +1603,7 @@ components:
     SignUpInput:
       type: object
       additionalProperties: false
-      required: [email, password, workspace_name, legal_acceptances]
+      required: [email, password, legal_acceptances]
       properties:
         email:
           type: string
@@ -949,8 +1616,9 @@ components:
           maxLength: 256
         workspace_name:
           type: string
-          minLength: 2
           maxLength: 120
+          deprecated: true
+          description: Ignored compatibility field. Signup creates no organization.
         legal_acceptances:
           type: array
           minItems: 1
@@ -1004,7 +1672,7 @@ components:
     Workspace:
       type: object
       additionalProperties: false
-      required: [id, name, state, created_at]
+      required: [id, name, state, created_at, role]
       properties:
         id: { type: string, format: uuid, readOnly: true }
         name: { type: string, readOnly: true }
@@ -1013,79 +1681,7 @@ components:
           enum: [active, suspended, closing, closed]
           readOnly: true
         created_at: { type: string, format: date-time, readOnly: true }
-    ApiScope:
-      type: string
-      enum:
-        - catalog:read
-        - services:read
-        - services:write
-        - runs:read
-        - runs:write
-        - results:read
-        - usage:read
-    ApiKeyCreateInput:
-      type: object
-      additionalProperties: false
-      required: [name, scopes]
-      properties:
-        name: { type: string, minLength: 1, maxLength: 100 }
-        scopes:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items: { $ref: '#/components/schemas/ApiScope' }
-        expires_at:
-          type: [string, 'null']
-          format: date-time
-    ApiKeyMetadata:
-      type: object
-      additionalProperties: false
-      required: [id, name, prefix, scopes, state, created_at]
-      properties:
-        id: { type: string, format: uuid, readOnly: true }
-        name: { type: string, minLength: 1, maxLength: 100, readOnly: true }
-        prefix: { type: string, minLength: 1, readOnly: true }
-        scopes:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          readOnly: true
-          items: { $ref: '#/components/schemas/ApiScope' }
-        state:
-          type: string
-          enum: [active, revoked, expired]
-          readOnly: true
-        created_at: { type: string, format: date-time, readOnly: true }
-        last_used_at: { type: [string, 'null'], format: date-time, readOnly: true }
-        expires_at: { type: [string, 'null'], format: date-time, readOnly: true }
-        revoked_at: { type: [string, 'null'], format: date-time, readOnly: true }
-    ApiKeyCreated:
-      type: object
-      additionalProperties: false
-      required: [id, name, prefix, scopes, state, created_at, secret]
-      properties:
-        id: { type: string, format: uuid, readOnly: true }
-        name: { type: string, minLength: 1, maxLength: 100, readOnly: true }
-        prefix: { type: string, minLength: 1, readOnly: true }
-        scopes:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          readOnly: true
-          items: { $ref: '#/components/schemas/ApiScope' }
-        state:
-          type: string
-          enum: [active, revoked, expired]
-          readOnly: true
-        created_at: { type: string, format: date-time, readOnly: true }
-        last_used_at: { type: [string, 'null'], format: date-time, readOnly: true }
-        expires_at: { type: [string, 'null'], format: date-time, readOnly: true }
-        revoked_at: { type: [string, 'null'], format: date-time, readOnly: true }
-        secret:
-          type: string
-          minLength: 1
-          readOnly: true
-          description: Plaintext Dhumi API key returned only by creation or its exact unexpired idempotent replay.
+        role: { type: string, enum: [member, admin], readOnly: true }
     ProductFamily:
       type: string
       enum: [marketplace_dataset, scraper_library]
@@ -1422,6 +2018,14 @@ components:
       additionalProperties: false
       required: [id, service_id, status, created_at, updated_at]
       properties:
+        created_by_user_id:
+          type: [string, 'null']
+          format: uuid
+          readOnly: true
+        retry_of_run_id:
+          type: [string, 'null']
+          format: uuid
+          readOnly: true
         id: { type: string, format: uuid, readOnly: true }
         service_id: { type: string, format: uuid, readOnly: true }
         status: { $ref: '#/components/schemas/RunStatus' }
@@ -1542,13 +2146,6 @@ components:
       properties:
         next_cursor: { type: [string, 'null'], readOnly: true }
         has_more: { type: boolean, readOnly: true }
-    ApiKeyPage:
-      type: object
-      additionalProperties: false
-      required: [data, page]
-      properties:
-        data: { type: array, items: { $ref: '#/components/schemas/ApiKeyMetadata' } }
-        page: { $ref: '#/components/schemas/Page' }
     TemplatePage:
       type: object
       additionalProperties: false
@@ -1597,9 +2194,10 @@ components:
         - BAD_REQUEST
         - AUTHENTICATION_REQUIRED
         - ACCESS_DENIED
+        - ORGANIZATION_REQUIRED
+        - ORGANIZATION_MEMBERSHIP_REQUIRED
         - RESOURCE_NOT_FOUND
         - IDEMPOTENCY_CONFLICT
-        - IDEMPOTENCY_REPLAY_EXPIRED
         - STATE_CONFLICT
         - PAYLOAD_TOO_LARGE
         - UNSUPPORTED_MEDIA_TYPE
@@ -1623,6 +2221,652 @@ components:
         errors:
           type: array
           items: { $ref: '#/components/schemas/ProblemField' }
+
+    VerificationAccepted:
+      type: object
+      additionalProperties: false
+      required:
+        - accepted
+        - verification_id
+      properties:
+        accepted:
+          type: boolean
+          const: true
+        verification_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+    VerificationConfirmed:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmed
+      properties:
+        confirmed:
+          type: boolean
+          const: true
+        organization_id:
+          type: string
+          format: uuid
+        sign_in_required:
+          type: boolean
+    OrganizationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - state
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        state:
+          type: string
+          enum:
+            - active
+        role:
+          type: string
+          enum:
+            - member
+            - admin
+    OrganizationPage:
+      type: object
+      additionalProperties: false
+      required:
+        - organizations
+      properties:
+        organizations:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationSummary'
+    OrganizationCreateInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+    InviteAcceptInput:
+      type: object
+      additionalProperties: false
+      required: []
+      properties:
+        join_code:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+        invite_token:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+      oneOf:
+        - required:
+            - join_code
+        - required:
+            - invite_token
+    PasswordResetInput:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+    VerificationConfirmInput:
+      type: object
+      additionalProperties: false
+      required: []
+      properties:
+        code:
+          type: string
+          pattern: ^[0-9]{6}$
+        email_link_token:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+        new_password:
+          type: string
+          minLength: 12
+          maxLength: 256
+      oneOf:
+        - required:
+            - code
+        - required:
+            - email_link_token
+    OrganizationMember:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - email
+        - role
+        - state
+        - created_at
+        - is_creator
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        role:
+          type: string
+          enum:
+            - member
+            - admin
+        state:
+          type: string
+          enum:
+            - active
+            - removed
+        created_at:
+          type: string
+          format: date-time
+        is_creator:
+          type: boolean
+    OrganizationMemberPage:
+      type: object
+      additionalProperties: false
+      required:
+        - members
+      properties:
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationMember'
+    OrganizationMemberChange:
+      type: object
+      additionalProperties: false
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum:
+            - member
+            - admin
+    OrganizationInvite:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email
+        - role
+        - max_uses
+        - use_count
+        - expires_at
+        - revoked_at
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type:
+            - string
+            - 'null'
+          format: email
+        role:
+          type: string
+          enum:
+            - member
+            - admin
+        max_uses:
+          type:
+            - integer
+            - 'null'
+        use_count:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    OrganizationInvitePage:
+      type: object
+      additionalProperties: false
+      required:
+        - invites
+      properties:
+        invites:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationInvite'
+    OrganizationInviteInput:
+      type: object
+      additionalProperties: false
+      required:
+        - expires_at
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        role:
+          type: string
+          enum:
+            - member
+            - admin
+        max_uses:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+        expires_at:
+          type: string
+          format: date-time
+    OrganizationInviteMinted:
+      type: object
+      additionalProperties: false
+      required:
+        - invite
+      properties:
+        invite:
+          $ref: '#/components/schemas/OrganizationInvite'
+        invite_token:
+          type: string
+        invite_url:
+          type: string
+        join_code:
+          type: string
+        message:
+          type: string
+    OrganizationActionCompleted:
+      type: object
+      additionalProperties: false
+      required:
+        - completed
+      properties:
+        completed:
+          type: boolean
+          const: true
+    EmptyWorkflowInput:
+      type: object
+      additionalProperties: false
+      required: []
+      properties: {}
+
+    OrganizationActivity:
+      {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "started_by_user_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "completed_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "first_attempt_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "last_attempt_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "calls": {
+                  "type": "object",
+                  "properties": {
+                    "intents": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "confirmed_calls": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "accepted_submissions": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "http_errors": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "not_sent": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "uncertain": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    }
+                  },
+                  "required": [
+                    "intents",
+                    "confirmed_calls",
+                    "accepted_submissions",
+                    "http_errors",
+                    "not_sent",
+                    "uncertain"
+                  ],
+                  "additionalProperties": false
+                },
+                "usage": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "meter": {
+                        "type": "string"
+                      },
+                      "quantity": {
+                        "type": "string",
+                        "pattern": "^\\d+(?:\\.\\d+)?$"
+                      },
+                      "unit": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "meter",
+                      "quantity",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "timeline": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sequence": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "event_type": {
+                        "type": "string"
+                      },
+                      "occurred_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      }
+                    },
+                    "required": [
+                      "sequence",
+                      "event_type",
+                      "occurred_at"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "timeline_truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "started_by_user_id",
+                "status",
+                "created_at",
+                "updated_at",
+                "completed_at",
+                "first_attempt_at",
+                "last_attempt_at",
+                "calls",
+                "usage",
+                "timeline",
+                "timeline_truncated"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "user_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "action": {
+                  "type": "string"
+                },
+                "target_type": {
+                  "type": "string"
+                },
+                "target_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "outcome": {
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "id",
+                "user_id",
+                "action",
+                "target_type",
+                "target_id",
+                "outcome",
+                "occurred_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "user_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "calls": {
+                  "type": "object",
+                  "properties": {
+                    "intents": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "confirmed_calls": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "accepted_submissions": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "http_errors": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "not_sent": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    },
+                    "uncertain": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    }
+                  },
+                  "required": [
+                    "intents",
+                    "confirmed_calls",
+                    "accepted_submissions",
+                    "http_errors",
+                    "not_sent",
+                    "uncertain"
+                  ],
+                  "additionalProperties": false
+                },
+                "usage": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "meter": {
+                        "type": "string"
+                      },
+                      "quantity": {
+                        "type": "string",
+                        "pattern": "^\\d+(?:\\.\\d+)?$"
+                      },
+                      "unit": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "meter",
+                      "quantity",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "user_id",
+                "calls",
+                "usage"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "runs_truncated": {
+            "type": "boolean"
+          },
+          "actions_truncated": {
+            "type": "boolean"
+          },
+          "members_truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "runs",
+          "actions",
+          "members",
+          "runs_truncated",
+          "actions_truncated",
+          "members_truncated"
+        ],
+        "additionalProperties": false
+      }
 
   responses:
     BadRequest:

@@ -9,11 +9,13 @@ export const jobCommandEnvelopeSchema = z
     schema_version: z.literal(1),
     aggregate_type: z.literal("run"),
     aggregate_id: canonicalUuid,
+    // Version 1 queue envelopes are persistent messages, not database columns.
     tenant_id: canonicalUuid,
     ordering_key: canonicalUuid,
-    payload: z.strictObject({ run_id: canonicalUuid }),
+    payload: z.strictObject({ run_id: canonicalUuid,initiated_by_user_id:canonicalUuid.optional(),trace_id:canonicalUuid.optional() }),
   })
   .superRefine((value, context) => {
+    if(value.topic==='jobs.execute'&&value.payload.initiated_by_user_id!==undefined)context.addIssue({code:'custom',path:['payload'],message:'Execution command cannot carry a cancellation actor'});
     if (
       value.aggregate_id !== value.ordering_key ||
       value.aggregate_id !== value.payload.run_id

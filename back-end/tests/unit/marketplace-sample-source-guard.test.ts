@@ -17,7 +17,9 @@ describe("M3 private ingestion and M4 customer-safe preview boundary", () => {
     expect(worker).toContain("ingest-fixture");
     expect(worker).toContain("inspect-fixture");
     expect(worker).toContain("expire-fixtures");
-    expect(worker).toContain("return await providerSample.promote");
+    expect(worker).not.toContain("providerSample.promote");
+    expect(worker).not.toContain("promote-qualified-sample");
+    expect(worker).toContain("loadMarketplaceSampleConfig");
     expect(worker).not.toContain("BRIGHTDATA_API_KEY");
     expect(worker).not.toContain("marketplaceDatasetCatalogueClient");
     expect(worker).not.toMatch(/\bfetch\s*\(/);

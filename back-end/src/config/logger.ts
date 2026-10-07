@@ -142,6 +142,10 @@ export function createLoggerOptions(
     serializers: { req: serializeRequest },
     redact: {
       paths: [
+        "verification.code", "body.code", "req.body.code", "email_link_token", "*.email_link_token", "req.body.email_link_token",
+        "invite_token", "*.invite_token", "req.body.invite_token", "join_code", "*.join_code", "req.body.join_code",
+        "new_password", "*.new_password", "req.body.new_password", "OTP_SECRET", "*.OTP_SECRET", "ACS_EMAIL_ACCESS_KEY", "*.ACS_EMAIL_ACCESS_KEY",
+        "otpSecret", "*.otpSecret", "acsAccessKey", "*.acsAccessKey",
         "req.headers.authorization",
         "req.headers.cookie",
         "req.headers['x-csrf-token']",

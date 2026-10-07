@@ -5,7 +5,8 @@ import {
   serviceActorFingerprint,
   serviceRequestHash,
 } from "../../src/helpers/serviceCanonicalization.js";
-import { canonicalRequestHash } from "../../src/helpers/signupCanonicalization.js";
+import { legacySignupRequestHash } from "../../src/helpers/signupCanonicalization.js";
+import { tenantActorFingerprint } from "../../src/helpers/tenantActorFingerprint.js";
 
 describe("Service canonicalization", () => {
   it("sorts object keys recursively while preserving array order", () => {
@@ -14,9 +15,9 @@ describe("Service canonicalization", () => {
     );
   });
 
-  it("preserves the established signup hash after extracting canonical JSON", () => {
+  it("preserves the established v1 signup hash for historical replay", () => {
     expect(
-      canonicalRequestHash({
+      legacySignupRequestHash({
         emailNormalized: "user@example.com",
         workspaceName: "Dhumi Workspace",
         legalAcceptances: [
@@ -47,20 +48,18 @@ describe("Service canonicalization", () => {
     })).toMatchObject({ valid: false });
   });
 
-  it("separates browser and API-key actor fingerprints", () => {
+  it("preserves issued browser replay fingerprints across session rotation", () => {
     const tenantId = "11111111-1111-4111-8111-111111111111";
-    const browser = serviceActorFingerprint({
-      kind: "browser",
+    const principal = {
+      kind: "browser" as const,
       tenantId,
       userId: "22222222-2222-4222-8222-222222222222",
       sessionId: "33333333-3333-4333-8333-333333333333",
-    });
-    const apiKey = serviceActorFingerprint({
-      kind: "api_key",
-      tenantId,
-      apiKeyId: "22222222-2222-4222-8222-222222222222",
-      scopes: ["services:write"],
-    });
-    expect(browser.equals(apiKey)).toBe(false);
+    };
+    const browser = serviceActorFingerprint(principal);
+    expect(browser.toString("hex")).toBe("ab37f7f8bc4a378cd44886e829ebcd17acae9f344bec72ea238ae5ca465935cb");
+    expect(tenantActorFingerprint(principal).toString("hex")).toBe("cd060a78ffd3962450e523d85ec518307e9ed8c60cf5210f55184e099ef93ec2");
+    expect(serviceActorFingerprint({ ...principal, sessionId: "44444444-4444-4444-8444-444444444444" }).equals(browser)).toBe(true);
+    expect(serviceActorFingerprint({ ...principal, userId: "55555555-5555-4555-8555-555555555555" }).equals(browser)).toBe(false);
   });
 });

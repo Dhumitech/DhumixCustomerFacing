@@ -1,24 +1,19 @@
 import { createHash } from "node:crypto";
-import type {
-  FastifyReply,
-  FastifyRequest,
-  FastifySchemaValidationError,
-} from "fastify";
+import type { FastifyReply, FastifyRequest, FastifySchemaValidationError } from "fastify";
+import { requireEstablishedBrowsePrincipal } from "../middleware/browsePrincipal.js";
 import { requireEstablishedTenantPrincipal } from "../middleware/tenantPrincipal.js";
 
 function validationErrors(request: FastifyRequest): readonly {
   readonly field: string;
   readonly message: string;
 }[] {
-  return (request.validationError?.validation ?? []).map(
-    (issue: FastifySchemaValidationError) => ({
-      field:
-        issue.instancePath === ""
-          ? (request.validationError?.validationContext ?? "querystring")
-          : issue.instancePath,
-      message: issue.message ?? "is invalid",
-    }),
-  );
+  return (request.validationError?.validation ?? []).map((issue: FastifySchemaValidationError) => ({
+    field:
+      issue.instancePath === ""
+        ? (request.validationError?.validationContext ?? "querystring")
+        : issue.instancePath,
+    message: issue.message ?? "is invalid",
+  }));
 }
 
 function requestQuery(value: unknown): Readonly<Record<string, unknown>> {
@@ -39,7 +34,7 @@ export async function listCatalogTemplates(
 ): Promise<void> {
   const query = requestQuery(request.query);
   const result = await request.server.listCatalogTemplatesService.list({
-    principal: requireEstablishedTenantPrincipal(request),
+    principal: requireEstablishedBrowsePrincipal(request),
     family: query.family,
     cursor: query.cursor,
     limit: query.limit,
@@ -49,13 +44,10 @@ export async function listCatalogTemplates(
   await reply.status(200).send(result);
 }
 
-export async function getTemplate(
-  request: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function getTemplate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const params = requestParams(request.params);
   const result = await request.server.getCatalogTemplateService.get({
-    principal: requireEstablishedTenantPrincipal(request),
+    principal: requireEstablishedBrowsePrincipal(request),
     slug: params.slug,
     schemaErrors: validationErrors(request),
   });
@@ -70,7 +62,7 @@ export async function getMarketplaceSample(
   const params = requestParams(request.params);
   const query = requestQuery(request.query);
   const result = await request.server.marketplacePreviewService.get({
-    principal: requireEstablishedTenantPrincipal(request),
+    principal: requireEstablishedBrowsePrincipal(request),
     slug: params.slug,
     cursor: query.cursor,
     limit: query.limit,
@@ -91,7 +83,7 @@ export async function queryMarketplaceSample(
       ? request.body
       : {};
   const result = await request.server.marketplacePreviewService.query({
-    principal: requireEstablishedTenantPrincipal(request),
+    principal: requireEstablishedBrowsePrincipal(request),
     slug: params.slug,
     csrfToken: typeof csrfHeader === "string" ? csrfHeader : undefined,
     body,
@@ -99,13 +91,6 @@ export async function queryMarketplaceSample(
   });
 
   await reply.status(200).send(result);
-}
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function databaseRequestId(requestId: string): string | null {
-  return UUID_PATTERN.test(requestId) ? requestId : null;
 }
 
 function ipFingerprint(ip: string | undefined): Buffer | null {
@@ -119,9 +104,10 @@ export async function authorizeMarketplaceSampleDownload(
   const params = requestParams(request.params);
   const csrfHeader = request.headers["x-csrf-token"];
   const idempotencyHeader = request.headers["idempotency-key"];
-  const body = typeof request.body === "object" && request.body !== null && !Array.isArray(request.body)
-    ? request.body
-    : {};
+  const body =
+    typeof request.body === "object" && request.body !== null && !Array.isArray(request.body)
+      ? request.body
+      : {};
   const result = await request.server.marketplaceSampleDownloadService.authorize({
     principal: requireEstablishedTenantPrincipal(request),
     slug: params.slug,
@@ -129,7 +115,7 @@ export async function authorizeMarketplaceSampleDownload(
     idempotencyKey: typeof idempotencyHeader === "string" ? idempotencyHeader : undefined,
     body,
     schemaErrors: validationErrors(request),
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
   });
   await reply.status(201).send(result);
@@ -142,10 +128,10 @@ export async function createMarketplaceExpertEnquiry(
   const params = requestParams(request.params);
   const csrfHeader = request.headers["x-csrf-token"];
   const idempotencyHeader = request.headers["idempotency-key"];
-  const body = typeof request.body === "object" && request.body !== null &&
-      !Array.isArray(request.body)
-    ? request.body
-    : {};
+  const body =
+    typeof request.body === "object" && request.body !== null && !Array.isArray(request.body)
+      ? request.body
+      : {};
   const result = await request.server.marketplaceExpertEnquiryService.submit({
     principal: requireEstablishedTenantPrincipal(request),
     slug: params.slug,
@@ -153,7 +139,7 @@ export async function createMarketplaceExpertEnquiry(
     idempotencyKey: typeof idempotencyHeader === "string" ? idempotencyHeader : undefined,
     body,
     schemaErrors: validationErrors(request),
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
   });
   await reply.status(201).send(result);

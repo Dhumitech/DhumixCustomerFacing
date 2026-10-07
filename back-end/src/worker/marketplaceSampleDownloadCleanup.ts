@@ -57,10 +57,10 @@ export async function runSampleDownloadCleanupCommand(values = process.argv.slic
     const identity = await withOperatorTransaction(pool, (database) =>
       database.query<{ database_name: string; migrated: boolean }>(
         `SELECT current_database() AS database_name,
-          to_regprocedure('app.claim_marketplace_sample_download_cleanup(uuid,uuid,text)') IS NOT NULL AS migrated`,
+          to_regclass('app.marketplace_sample_downloads') IS NOT NULL AND to_regclass('app.organizations') IS NOT NULL AND EXISTS(SELECT 1 FROM app.schema_migrations WHERE version='0075_naming') AS migrated`,
       ));
     if (identity.rows[0]?.database_name !== options.expectedDatabase || identity.rows[0].migrated !== true) {
-      throw new Error("Cleanup database identity or migration 0064 is not verified");
+      throw new Error("Cleanup database identity or migration 0075 is not verified");
     }
     const store = await createConfiguredMarketplaceSampleDownloadStore(config.storage);
     const summary = await cleanupMarketplaceSampleDownloads({

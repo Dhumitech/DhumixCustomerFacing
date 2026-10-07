@@ -36,9 +36,7 @@ class RecordingRepository implements GetServiceRepository {
 
   public constructor(public result: GetServiceRecord | undefined) {}
 
-  public async findById(
-    input: GetServiceRepositoryInput,
-  ): Promise<GetServiceRecord | undefined> {
+  public async findById(input: GetServiceRepositoryInput): Promise<GetServiceRecord | undefined> {
     this.calls.push(input);
     if (this.failure !== undefined) throw this.failure;
     return this.result;
@@ -60,7 +58,9 @@ describe("getServiceService", () => {
 
     const result = await createGetServiceService({ repository }).get(request());
 
-    expect(repository.calls).toEqual([{ tenantId: principal.tenantId, serviceId }]);
+    expect(repository.calls).toEqual([
+      { tenantId: principal.tenantId, userId: principal.userId, serviceId },
+    ]);
     expect(result).toEqual({
       id: serviceId,
       name: "Saved marketplace Service",

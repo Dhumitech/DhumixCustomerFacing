@@ -1,10 +1,11 @@
+import { marketplacePreviewSource } from '../marketplacePreview/marketplacePreviewQuery.js';
 import type { Pool } from "pg";
 import type {
   CatalogProductFamily,
   CatalogTemplateListCursorPosition,
 } from "../../helpers/catalogTemplateListCursor.js";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withTenantTransaction } from "../database/transactions.js";
+import { withBrowseTransaction } from "../database/transactions.js";
 import type {
   CatalogTemplateAvailability,
   PublicCatalogTemplateRecord,
@@ -16,16 +17,15 @@ import type {
 export type ListCatalogTemplatesRecord = PublicCatalogTemplateRecord;
 
 export interface ListCatalogTemplatesRepositoryInput {
-  readonly tenantId: string;
+  readonly userId: string;
+  readonly tenantId?: string;
   readonly family: CatalogProductFamily | undefined;
   readonly cursor: CatalogTemplateListCursorPosition | undefined;
   readonly fetchLimit: number;
 }
 
 export interface ListCatalogTemplatesRepository {
-  list(
-    input: ListCatalogTemplatesRepositoryInput,
-  ): Promise<readonly ListCatalogTemplatesRecord[]>;
+  list(input: ListCatalogTemplatesRepositoryInput): Promise<readonly ListCatalogTemplatesRecord[]>;
 }
 
 interface ListCatalogTemplatesRow {
@@ -52,21 +52,15 @@ function internalFailure(cause: unknown): ApplicationError {
   });
 }
 
-export function createListCatalogTemplatesRepository(
-  pool: Pool,
-): ListCatalogTemplatesRepository {
+export function createListCatalogTemplatesRepository(pool: Pool): ListCatalogTemplatesRepository {
   return {
     async list(input): Promise<readonly ListCatalogTemplatesRecord[]> {
-      if (
-        !Number.isInteger(input.fetchLimit) ||
-        input.fetchLimit < 2 ||
-        input.fetchLimit > 101
-      ) {
+      if (!Number.isInteger(input.fetchLimit) || input.fetchLimit < 2 || input.fetchLimit > 101) {
         throw new TypeError("fetchLimit must be an integer between 2 and 101");
       }
 
       try {
-        return await withTenantTransaction(pool, input.tenantId, async (database) => {
+        return await withBrowseTransaction(pool, input, async (database) => {
           const result = await database.query<ListCatalogTemplatesRow>(
             `
               WITH visible_templates AS (
@@ -87,20 +81,14 @@ export function createListCatalogTemplatesRepository(
                 INNER JOIN app.service_template_versions AS version
                   ON version.service_template_id = template.id
                  AND version.id = template.current_public_version_id
-                INNER JOIN app.launch_evidence AS evidence
-                  ON evidence.id = version.launch_evidence_id
                 WHERE template.state IN ('published', 'disabled')
                   AND version.published_at IS NOT NULL
                   AND version.published_at <= statement_timestamp()
-                  AND version.effective_at IS NOT NULL
-                  AND version.effective_at <= statement_timestamp()
                   AND jsonb_typeof(version.input_schema) = 'object'
                   AND jsonb_typeof(version.configuration_schema) = 'object'
                   AND jsonb_typeof(version.presentation_metadata) = 'object'
-                  AND evidence.state = 'approved'
-                  AND evidence.effective_at IS NOT NULL
-                  AND evidence.effective_at <= statement_timestamp()
-                  AND (evidence.expires_at IS NULL OR evidence.expires_at > statement_timestamp())
+                  AND version.published_by IS NOT NULL
+                  AND version.evidence_ref IS NOT NULL
 
                 UNION ALL
 
@@ -143,13 +131,10 @@ export function createListCatalogTemplatesRepository(
                         'preview_state', contact.preview_state,
                         'fulfillment_state', contact.fulfillment_state
                       ) ORDER BY contact.display_order)
-                      FROM app.resolve_marketplace_contact_modes(
-                        preview.template_id,
-                        preview.template_version
-                      ) AS contact
+                      FROM jsonb_to_recordset(COALESCE(preview.presentation_metadata->'contact_modes','[]'::jsonb)) AS contact(code text,display_order integer,customer_meaning text,preview_state text,fulfillment_state text)
                     ), '[]'::jsonb)
                   )
-                FROM app.resolve_marketplace_sample_preview(NULL, statement_timestamp()) AS preview
+                FROM ${marketplacePreviewSource}
               )
               SELECT *
               FROM visible_templates

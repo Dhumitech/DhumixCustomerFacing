@@ -4,10 +4,7 @@ import {
   type RunEventListCursorPosition,
 } from "../../helpers/runEventListCursor.js";
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
-import type {
-  ListRunEventsRecord,
-  ListRunEventsRepository,
-} from "./listRunEventsRepository.js";
+import type { ListRunEventsRecord, ListRunEventsRepository } from "./listRunEventsRepository.js";
 import {
   runEventListValidationFailed,
   runEventProjectionUnavailable,
@@ -17,8 +14,7 @@ import {
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const LIMIT_PATTERN = /^(?:[1-9]|[1-9][0-9]|100)$/;
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const RUN_EVENT_TYPES = [
   "accepted",
@@ -48,14 +44,8 @@ const EVENT_PROJECTIONS = new Map<string, EventProjection>([
   ["provider.accepted", { type: "started", message: "Run started." }],
   ["progress", { type: "progress", message: "Run is in progress." }],
   ["processing", { type: "progress", message: "Run is in progress." }],
-  [
-    "reconciliation_scheduled",
-    { type: "progress", message: "Run recovery is in progress." },
-  ],
-  [
-    "result_received",
-    { type: "result_received", message: "Run result received." },
-  ],
+  ["reconciliation_scheduled", { type: "progress", message: "Run recovery is in progress." }],
+  ["result_received", { type: "result_received", message: "Run result received." }],
   ["completed", { type: "completed", message: "Run completed." }],
   ["failed", { type: "failed", message: "Run failed." }],
   ["provider.failed", { type: "failed", message: "Run failed." }],
@@ -105,14 +95,9 @@ function validationError(field: string, message: string): never {
   throw runEventListValidationFailed([{ field, message }]);
 }
 
-function hasPathSchemaError(
-  errors: ListRunEventsRequest["schemaErrors"],
-): boolean {
+function hasPathSchemaError(errors: ListRunEventsRequest["schemaErrors"]): boolean {
   return errors.some(
-    (error) =>
-      error.field === "params" ||
-      error.field === "run_id" ||
-      error.field === "/run_id",
+    (error) => error.field === "params" || error.field === "run_id" || error.field === "/run_id",
   );
 }
 
@@ -135,10 +120,7 @@ function parseLimit(value: unknown): number {
   return parsed;
 }
 
-function parseCursor(
-  value: unknown,
-  runId: string,
-): RunEventListCursorPosition | undefined {
+function parseCursor(value: unknown, runId: string): RunEventListCursorPosition | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "string") {
     return validationError("cursor", "must be a valid Run event page cursor");
@@ -147,10 +129,7 @@ function parseCursor(
   try {
     const cursor = decodeRunEventListCursor(value);
     if (cursor.runId !== runId) {
-      return validationError(
-        "cursor",
-        "must belong to the addressed Run event page",
-      );
+      return validationError("cursor", "must belong to the addressed Run event page");
     }
     return cursor;
   } catch {
@@ -187,6 +166,7 @@ export function createListRunEventsService(
       const cursor = parseCursor(request.cursor, runId);
       const records = await dependencies.repository.findPage({
         tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
         runId,
         afterSequence: cursor?.sequence,
         fetchLimit: limit + 1,

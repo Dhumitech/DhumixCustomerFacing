@@ -57,6 +57,18 @@ function service(repository: CreateRunRepository) {
 }
 
 describe("create Run service", () => {
+  it.each([undefined, csrf.issue(sessionId)])("rejects API-key actors regardless of CSRF (%s)", async (csrfToken) => {
+    const persist = vi.fn<CreateRunRepository["persist"]>();
+    await expect(
+      service({ persist }).create({
+        ...request(),
+        principal: { kind: "api_key", tenantId, apiKeyId: randomUUID() } as unknown as ReturnType<typeof request>["principal"],
+        csrfToken,
+      }),
+    ).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
+    expect(persist).not.toHaveBeenCalled();
+  });
+
   it("canonicalizes path plus input and passes only trusted actor context", async () => {
     const persist = vi.fn<CreateRunRepository["persist"]>(async () => ({
       kind: "created",

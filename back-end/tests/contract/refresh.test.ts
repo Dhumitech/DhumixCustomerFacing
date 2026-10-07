@@ -16,12 +16,6 @@ import type { LogoutService } from "../../src/services/identity/logoutService.js
 import type { TenantAuthorizationService } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import {
-  stubApiKeyAuthenticationService,
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -113,7 +107,6 @@ function testConfig(overrides: NodeJS.ProcessEnv = {}): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
     ...overrides,
   });
 }
@@ -139,10 +132,6 @@ async function build(overrides: NodeJS.ProcessEnv = {}): Promise<FastifyInstance
     logoutService: stubLogoutService,
     tenantAuthorizationService: stubTenantAuthorizationService,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: stubApiKeyAuthenticationService,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -194,8 +183,10 @@ describe("POST /v1/auth/refresh contract", () => {
     expect(service.calls[0]).toMatchObject({
       refreshToken: CURRENT_REFRESH_TOKEN,
       csrfToken: CSRF_TOKEN,
-      requestId,
+      requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
+    expect(service.calls[0]?.requestId).not.toBe(requestId);
+    expect(response.headers["x-request-id"]).toBe(requestId);
     expect(service.calls[0]?.ipFingerprint).toBeInstanceOf(Buffer);
     expect(service.calls[0]?.ipFingerprint).toHaveLength(32);
   });

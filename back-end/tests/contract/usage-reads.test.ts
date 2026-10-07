@@ -7,10 +7,6 @@ import {
   type RuntimeConfig,
 } from "../../src/config/environment.js";
 import type {
-  ApiKeyAuthenticationService,
-  TrustedApiKeyIdentity,
-} from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
-import type {
   BrowserAuthenticationService,
   TrustedSessionIdentity,
 } from "../../src/services/identity/browserAuthenticationService.js";
@@ -33,11 +29,6 @@ import type {
 } from "../../src/services/usage/listUsageEventsService.js";
 import { usageReadValidationFailed } from "../../src/services/usage/usageReadErrors.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
-import {
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
 import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
@@ -63,7 +54,6 @@ const tenantId = randomUUID();
 const sessionIdentity: TrustedSessionIdentity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: tenantId,
 };
 const tenantIdentity: TrustedTenantIdentity = {
   userId: sessionIdentity.userId,
@@ -164,7 +154,6 @@ function config(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
@@ -185,28 +174,13 @@ const tenantAuthorizationService: TenantAuthorizationService = {
   },
 };
 
-class SwitchableApiKeyAuthentication implements ApiKeyAuthenticationService {
-  public scopes: TrustedApiKeyIdentity["scopes"] = ["usage:read"];
-  public async authenticate(authorization: string | undefined) {
-    if (authorization !== `Bearer ${API_KEY}`) throw authenticationRequired();
-    return {
-      kind: "api_key",
-      apiKeyId: randomUUID(),
-      tenantId,
-      scopes: this.scopes,
-    } as const;
-  }
-}
-
 let app: FastifyInstance | undefined;
 let summaries: RecordingSummary;
 let events: RecordingEvents;
-let apiKeys: SwitchableApiKeyAuthentication;
 
 beforeEach(() => {
   summaries = new RecordingSummary();
   events = new RecordingEvents();
-  apiKeys = new SwitchableApiKeyAuthentication();
 });
 
 afterEach(async () => {
@@ -223,10 +197,6 @@ async function build(): Promise<FastifyInstance> {
     logoutService: stubLogoutService,
     tenantAuthorizationService,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: apiKeys,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -262,24 +232,24 @@ describe("usage read API contracts", () => {
     });
   });
 
-  it("returns the exact event page to a usage-scoped Dhumi API key", async () => {
+  it("returns the exact event page to the browser-session user", async () => {
     const response = await (await build()).inject({
       method: "GET",
       url: `/v1/usage/events?from=${encodeURIComponent(FROM)}&to=${encodeURIComponent(TO)}&limit=1`,
-      headers: { authorization: `Bearer ${API_KEY}` },
+      headers: { authorization: `Bearer ${ACCESS_TOKEN}` },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual(eventsPage);
     expect(events.calls[0]).toMatchObject({
-      principal: { kind: "api_key", tenantId, scopes: ["usage:read"] },
+      principal: { kind: "browser", tenantId, userId: sessionIdentity.userId },
       from: FROM,
       to: TO,
       limit: "1",
     });
   });
 
-  it("requires authentication and the usage:read API-key scope", async () => {
+  it("requires browser authentication and rejects retired customer API keys", async () => {
     const instance = await build();
     const url = `/v1/usage/summary?from=${encodeURIComponent(FROM)}&to=${encodeURIComponent(TO)}`;
     const unauthenticated = await instance.inject({ method: "GET", url });
@@ -288,14 +258,13 @@ describe("usage read API contracts", () => {
       code: "AUTHENTICATION_REQUIRED",
     });
 
-    apiKeys.scopes = ["runs:read"];
     const forbidden = await instance.inject({
       method: "GET",
       url,
       headers: { authorization: `Bearer ${API_KEY}` },
     });
-    expect(forbidden.statusCode).toBe(403);
-    expect(forbidden.json()).toMatchObject({ code: "ACCESS_DENIED" });
+    expect(forbidden.statusCode).toBe(401);
+    expect(forbidden.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
     expect(summaries.calls).toHaveLength(0);
   });
 

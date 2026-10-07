@@ -5,12 +5,16 @@
 `PLATFORM-DECISION`
 
 The current accepted Demo Production HTTP contract is
-[openapi.yaml](openapi.yaml), with 27 operations. It includes four accepted
-Marketplace sample/enquiry additions to the original 23-operation surface.
+[openapi.yaml](openapi.yaml), with 37 operations. It retains four accepted
+Marketplace sample/enquiry additions and removes the three customer API-key
+operations as the declared 0070 exception. Browser-session customer access is
+implemented. The 0070 migration is applied in dhumi_test. The 0071 user-only
+authentication, organization/proof/reset/member/invite and transaction authorization/browse
+plus matching frontend source are implemented and checked offline. Grant/RLS,
+PostgreSQL qualification/application, real email proof and runtime activation remain pending. This source requires a coordinated 0071 cutover before activation.
 The older Project Specs YAML is a retained snapshot, not client-generation
 authority. The current contract is intentionally smaller than the older platform
-API: there are no activation, plan, subscription, billing, quota, invite,
-membership or customer-webhook routes. Acceptance does not enable live Bright
+API: there are no activation, plan, subscription, billing, quota or customer-webhook routes. Acceptance does not enable live Bright
 Data traffic; launch gates still control provider egress.
 
 The OpenAPI document is the machine contract. This file explains behavior and does not silently add routes or fields.
@@ -20,9 +24,17 @@ The OpenAPI document is the machine contract. This file explains behavior and do
 - Base path: `/v1`.
 - JSON property names: `snake_case`.
 - Browser clients use a short-lived Dhumi access token/session plus CSRF protection on state-changing browser requests.
-- Programmatic clients use a Dhumi-issued Bearer API key.
+- Customer API-key authentication and secret-response recovery are retired.
+  Retired keys fail browser authentication with the generic `401` response.
 - A customer never supplies `tenant_id` in a normal customer request.
-- All collection endpoints use opaque cursor pagination with bounded `limit`.
+- `X-Dhumi-Organization` selects an organization per protected request. The
+  server checks active user, organization and membership; the header confers no
+  authority. One active membership permits omission, several require selection,
+  and no membership returns the organization-membership error on organization
+  operations. Signed-in catalogue/sample browsing needs no organization for
+  all-access templates; selected templates need an authorized selector and access
+  assignment. Session tokens carry only user/session claims. Public status ignores this selector.
+- Existing Service/Run/catalogue/usage collections use bounded cursor pagination. Organization/member/invite lists use their declared collection shapes.
 - All accepted asynchronous runs return `202` and a Dhumi `run_id`.
 - Mutating create/action requests declare `Idempotency-Key` where the contract requires it.
 - Errors use `application/problem+json` with a stable Dhumi code and `request_id`.
@@ -34,23 +46,30 @@ The OpenAPI document is the machine contract. This file explains behavior and do
 
 | Method | Path | Purpose | Provider call |
 |---|---|---|---|
-| `POST` | `/v1/auth/signup` | Create local User, Tenant and owner Tenant Access; generic accepted response | Never |
+| `POST` | `/v1/auth/signup` | Create only the local User, legal evidence and audit; generic accepted response | Never |
 | `POST` | `/v1/auth/sign-in` | Authenticate a User and create session/token family | Never |
 | `POST` | `/v1/auth/refresh` | Rotate/refresh Dhumi session | Never |
 | `POST` | `/v1/auth/logout` | Revoke current Dhumi session family | Never |
 
-`PENDING-VERIFICATION`: production public email-ownership verification, MFA enrollment/recovery and account-recovery policy must be approved before unrestricted public signup. The demo may run with allowlisted users until those routes are versioned.
+`PENDING-VERIFICATION`: real ACS/inbox proof and production signup/recovery approval remain deployment gates. Organization proof and OTP-only reset are implemented in source; remaining MFA policy is not implemented.
 
 Signup returns `409` only for `IDEMPOTENCY_CONFLICT` (the same
 `Idempotency-Key` with a different canonical request). An existing email follows
 the generic `202` flow and must not be exposed as a duplicate-email conflict.
+`workspace_name` is optional, deprecated and ignored. Signup creates no
+organization, membership, OTP or notification outbox. Legal evidence records a
+server-generated UUID trace; the caller's correlation ID remains the response
+`X-Request-ID`. A completed historical signup claim can replay with its exact
+v1 request hash; new claims use v2 without the workspace. Sign-in and refresh
+require no organization membership.
 
 Refresh reads the HttpOnly cookie and required `X-CSRF-Token`, preserves the
 session's absolute expiry, and returns the same four-field `AuthSession` shape
 as sign-in while rotating the cookie. A rotated token presented again revokes
 the complete session family and records audit/security-outbox evidence. Missing,
 invalid, expired, revoked and reused tokens share the generic `401` response;
-CSRF or active-workspace authorization failures use the declared `403`.
+CSRF failures use the declared `403`. Organization suspension or membership
+changes do not destroy a user session; organization access is checked separately.
 
 ### Workspace
 
@@ -58,33 +77,10 @@ CSRF or active-workspace authorization failures use the declared `403`.
 |---|---|---|
 | `GET` | `/v1/workspace` | Return the Tenant resolved from authenticated identity |
 
-The path does not accept another Tenant ID.
-
-### Dhumi customer API keys
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/v1/keys` | List key metadata for the authenticated Tenant |
-| `POST` | `/v1/keys` | Create a Dhumi key; plaintext only in creation/exact recovery response |
-| `DELETE` | `/v1/keys/{key_id}` | Revoke a Dhumi key |
-
-Key scopes in Demo Production:
-
-- `catalog:read`
-- `services:read`
-- `services:write`
-- `runs:read`
-- `runs:write`
-- `results:read`
-- `usage:read`
-
-These are Dhumi scopes, not Bright Data permission names.
-
-For `POST /v1/keys`, an exact idempotent replay can recover the original secret
-only during the 10-minute encrypted response-recovery window. After that window,
-the same idempotency key returns `409 IDEMPOTENCY_REPLAY_EXPIRED` and does not
-create another key. Key-list responses contain metadata only, never the
-plaintext or encrypted response envelope.
+The path uses the authorized organization selected by the optional header.
+Signup users cannot access a workspace until they join or create an organization.
+Workspace adds the member/admin role. Create/join and verification are implemented
+in source; 0071 cutover remains pending.
 
 ### Catalogue
 
@@ -99,6 +95,23 @@ immutable public Template version exposes safe Dhumi-owned `presentation`,
 approved frontend `icon_key`, never a provider-hosted URL. Private provider
 mappings are never serialized.
 
+Catalogue list/detail and stored-sample preview/query require an active signed-in
+user, without requiring organization membership. With no organization selector,
+only all-access templates are visible, even if the user has several memberships.
+A supplied selector is authorized against current membership; selected templates
+also require that organization's template-access assignment. Existing publication,
+evidence, sample expiry, masking and bounded query rules remain. POST sample
+queries retain session CSRF; no provider request is made by stored-sample queries.
+Sample downloads and expert enquiries still require an organization.
+
+Protected resource repositories bind both the authenticated user and organization
+and recheck active access within each resource transaction. Ordinary writes lock
+the active organization FOR SHARE, then its active membership FOR SHARE, through
+commit/rollback. Protected reads use plain checks. These short transactions end
+before storage/provider network calls. Membership administration/suspension's
+exclusive lock protocol and PostgreSQL concurrency proof remain in the next
+organization/qualification work; source-level checks do not prove database races.
+
 ### Marketplace pre-purchase operations
 
 | Method | Path | Purpose |
@@ -108,7 +121,7 @@ mappings are never serialized.
 | POST | /v1/catalog/templates/{slug}/sample/downloads | Authorize a bounded masked JSON/CSV sample copy |
 | POST | /v1/catalog/templates/{slug}/expert-enquiries | Create a Tenant-owned enquiry, not payment or execution |
 
-Use the exact scopes, browser CSRF rules, bounds and required idempotency
+Use the browser-session authentication, CSRF rules, bounds and required idempotency
 headers declared by OpenAPI. Match counts are sample-relative, not proof of
 full provider coverage. Masked fields cannot be queried/sorted to infer values.
 Structured contact modes are safe catalogue projections; unavailable modes
@@ -217,10 +230,12 @@ Example:
 | HTTP | Stable Dhumi code | Meaning |
 |---:|---|---|
 | 400 | `BAD_REQUEST` | Malformed request/header |
+| 400 | `ORGANIZATION_REQUIRED` | Several active memberships require an organization selector |
 | 401 | `AUTHENTICATION_REQUIRED` | Missing/invalid/expired Dhumi credential |
-| 403 | `ACCESS_DENIED` | Authenticated but not authorized, tenant suspended or scope absent |
+| 403 | `ACCESS_DENIED` | Authenticated but not authorized, tenant suspended or CSRF invalid |
+| 403 | `ORGANIZATION_MEMBERSHIP_REQUIRED` | No active organization membership for an organization operation |
 | 404 | `RESOURCE_NOT_FOUND` | Resource absent or not visible to this Tenant |
-| 409 | `IDEMPOTENCY_CONFLICT`, `IDEMPOTENCY_REPLAY_EXPIRED`, `STATE_CONFLICT` | Same key/different body, expired one-time replay or illegal current state |
+| 409 | `IDEMPOTENCY_CONFLICT`, `STATE_CONFLICT` | Same key/different body or illegal current state |
 | 413 | `PAYLOAD_TOO_LARGE` | Request body exceeds the accepted one-mebibyte limit |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Request body does not use a supported media type |
 | 422 | `VALIDATION_ERROR`, `SERVICE_INPUT_INVALID` | Semantically invalid input |
@@ -233,7 +248,44 @@ Provider errors are mapped to these stable codes. Do not expose `402 insufficien
 ## Versioning
 
 - Breaking public changes require `/v2`.
+- The planned in-place refactor declares customer API-key removal and the later
+  signup organization change as exceptions before the compatibility baseline.
+  Customer API-key removal and user-only signup are implemented in source;
+  Organization/proof/reset/member/invite and frontend source are implemented;
+  0071 grant/RLS, PostgreSQL qualification/application and runtime activation remain pending.
 - Additive optional response fields are allowed in `/v1`; clients must ignore unknown fields.
 - Removal/rename/type/status/auth changes require a new major API version.
 - Deprecation must publish `Deprecation`, `Sunset` and successor links with an approved notice period.
 - Provider endpoint changes do not require a Dhumi API version when the public contract remains stable; they require a new adapter/provider-mapping version and tests.
+
+## Organization workflows for 0071
+
+| Method | Path | Result |
+| --- | --- | --- |
+| GET | /v1/organizations | Active organizations and caller role |
+| POST | /v1/organizations | 202 pending proof; no organization until confirmation |
+| POST | /v1/invites/accept | 202 fresh proof; exactly one join_code or invite_token |
+| POST | /v1/auth/password-reset | Generic 202 with verification_id for every address |
+| POST | /v1/verifications/{verification_id}/confirm | Create/join same browser user plus CSRF; reset code plus new_password |
+| POST | /v1/verifications/{verification_id}/resend | New challenge; old code/link invalidated |
+| GET | /v1/organization/members | Safe profiles for active members |
+| PATCH | /v1/organization/members/{user_id} | Admin role change; creator/last-admin protection |
+| DELETE | /v1/organization/members/{user_id} | 204, row retained as removed |
+| GET | /v1/organization/invites | Admin metadata; no token/hash |
+| POST | /v1/organization/invites | 201 single-use email invite or reusable code; future expiry |
+| DELETE | /v1/organization/invites/{invite_id} | 204 revocation |
+| POST | /v1/organization/invites/{invite_id}/resend | Rotate token; old pending join fingerprint fails |
+
+Mutations require Idempotency-Key; signed-in mutations require session CSRF.
+Proof lasts ten minutes with five failed attempts. Failed counters commit before
+the error; resend requires 60 seconds and permits five issues/hour across purposes.
+Previously verified users still need fresh proof for a second organization/rejoin.
+An active join keeps its role without extra uses. Reset revokes every active session
+family and outstanding challenge and requires sign-in again.
+
+Email sends directly after commit. No secret enters an outbox or response envelope.
+Invitation secrets appear only at first minting; replay returns metadata and explicit
+Resend rotates a fresh token. Browser proof/replay state is memory-only. Link secrets
+use cleared URL fragments; GET/scanners never confirm. The URL selects an organization
+per tab. Selection resumes the same screen without automatically starting a Run.
+Activity is a Phase 3 operation; 0071 database cutover remains pending.

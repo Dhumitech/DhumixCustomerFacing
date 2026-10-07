@@ -222,6 +222,7 @@ async function handleReconciliation(
               fenceToken: ownership.fenceToken,
               sourceAttemptId: evidence.sourceAttemptId,
               signal,
+              ...(command.payload.initiated_by_user_id?{cancellationRequesterUserId:command.payload.initiated_by_user_id}:{}),
             });
             if (recovered) evidence = { ...evidence, hasRawArtifact: true };
           } catch (error) {
@@ -473,6 +474,25 @@ export function createJobManagerService(input: JobManagerDependencies): JobManag
           return;
         }
 
+        if (!claim.executionEnabled) {
+          await input.repository.transition({
+            tenantId: command.tenant_id, runId: command.payload.run_id,
+            expectedStateVersion: claim.runStateVersion, toInternalStatus: "UPSTREAM_REJECTED",
+            eventType: "failed", eventIdempotencyKey: `job.service-disabled.v1:${ownership.attemptId}`,
+            attemptId: ownership.attemptId, fenceToken: ownership.fenceToken,
+            customerErrorCode: "SERVICE_UNAVAILABLE", retryable: false,
+            safePayload: { status: "failed", code: "SERVICE_UNAVAILABLE" },
+          });
+          if (!(await input.repository.finish({ tenantId: command.tenant_id,
+            attemptId: ownership.attemptId, fenceToken: ownership.fenceToken,
+            state: "rejected", outcomeClass: "service_disabled_before_execution" }))) {
+            throw new Error("RUN_ATTEMPT_FINISH_REJECTED");
+          }
+          await delivery.complete();
+          settled = true;
+          return;
+        }
+
         lease = await input.leaseStore.acquire(command.payload.run_id, input.capacityLeaseMs);
         if (lease === null) {
           await delivery.abandon();
@@ -518,6 +538,7 @@ export function createJobManagerService(input: JobManagerDependencies): JobManag
               attemptId: ownership.attemptId,
               fenceToken: ownership.fenceToken,
               signal,
+              ...(command.payload.initiated_by_user_id?{cancellationRequesterUserId:command.payload.initiated_by_user_id}:{}),
             } as const;
             try {
               await input.executor.persistRaw(executionInput);

@@ -1,5 +1,12 @@
 import pino from "pino";
+import path from "node:path";
+import { loadOrganizationEmailConfig, loadOrganizationInviteResendLifetimeDays } from "./config/organizationEnvironment.js";
+import { createAcsEmailSender, createFileEmailSender } from "./services/organizations/verificationEmail.js";
+import { createOrganizationWorkflowRepository } from "./services/organizations/organizationWorkflowRepository.js";
+import { createOrganizationWorkflowService } from "./services/organizations/organizationWorkflowService.js";
 import { buildApp } from "./app.js";
+import { requireExecutionContraction, requireMarketplaceContraction } from './services/database/refactorSchemaGate.js';
+import { createOrganizationActivityService } from './services/organizations/organizationActivity.js';
 import { loadRuntimeConfig } from "./config/environment.js";
 import { createLoggerOptions, safeErrorLogContext } from "./config/logger.js";
 import { createAccessTokenService } from "./helpers/accessToken.js";
@@ -21,15 +28,6 @@ import { createTenantAuthorizationRepository } from "./services/tenantAccess/ten
 import { createTenantAuthorizationService } from "./services/tenantAccess/tenantAuthorizationService.js";
 import { createWorkspaceRepository } from "./services/workspace/workspaceRepository.js";
 import { createWorkspaceService } from "./services/workspace/workspaceService.js";
-import { createLocalResponseEnvelope } from "./helpers/responseEnvelope.js";
-import { createApiKeyRepository } from "./services/apiKeys/createApiKeyRepository.js";
-import { createApiKeyService } from "./services/apiKeys/createApiKeyService.js";
-import { createListApiKeysRepository } from "./services/apiKeys/listApiKeysRepository.js";
-import { createListApiKeysService } from "./services/apiKeys/listApiKeysService.js";
-import { createRevokeApiKeyRepository } from "./services/apiKeys/revokeApiKeyRepository.js";
-import { createRevokeApiKeyService } from "./services/apiKeys/revokeApiKeyService.js";
-import { createApiKeyAuthenticationRepository } from "./services/apiKeys/apiKeyAuthenticationRepository.js";
-import { createApiKeyAuthenticationService } from "./services/apiKeys/apiKeyAuthenticationService.js";
 import { verifyDatabasePools } from "./services/database/roleVerification.js";
 import { createListCatalogTemplatesRepository } from "./services/catalogue/listCatalogTemplatesRepository.js";
 import { createListCatalogTemplatesService } from "./services/catalogue/listCatalogTemplatesService.js";
@@ -87,6 +85,8 @@ import { createMarketplaceExpertEnquiryService } from
 
 async function start(): Promise<void> {
   const config = loadRuntimeConfig();
+  const organizationConfig = loadOrganizationEmailConfig();
+  const inviteResendLifetimeDays = loadOrganizationInviteResendLifetimeDays();
   const bootstrapLogger = pino(createLoggerOptions(config));
   const pools = createDatabasePools(config.database, (poolName, error) => {
     bootstrapLogger.error(
@@ -96,6 +96,7 @@ async function start(): Promise<void> {
   });
   // Composition root: pools become a repository, the repository plus the
   // password hasher become a service, and only the service reaches the app.
+  try {await requireExecutionContraction(pools.identity);await requireMarketplaceContraction(pools.identity);}catch(error){await pools.close();throw error;}
   const signupService = createSignupService({
     repository: createSignupRepository(pools.identity),
     passwordHasher: createPasswordHasher(config.passwordHash),
@@ -105,6 +106,15 @@ async function start(): Promise<void> {
   const accessTokens = createAccessTokenService(config.session.accessToken);
   const refreshTokens = createRefreshTokenService();
   const csrf = createCsrfService(config.session.accessToken.secret);
+  const workflowEmail = organizationConfig.driver === "acs" ? createAcsEmailSender(organizationConfig)
+    : await createFileEmailSender(organizationConfig, path.resolve(".runtime/mail"));
+  const organizationWorkflowService = createOrganizationWorkflowService({
+    repository: createOrganizationWorkflowRepository({ identityPool: pools.identity, customerPool: pools.customerApi,
+      otpSecret: organizationConfig.otpSecret, publicUrl: organizationConfig.publicUrl, inviteResendLifetimeDays }),
+    passwordHasher, csrf, email: workflowEmail,
+    recordDelivery: (traceId, outcome, receipt, purpose) => bootstrapLogger.info({ traceId, outcome, purpose,
+      operationId: receipt?.operationId, operationLocation: receipt?.operationLocation, retryAfterSeconds: receipt?.retryAfterSeconds }, "Organization email handoff"),
+  });
   const signInService = createSignInService({
     repository: createSignInRepository(pools.identity),
     passwordHasher,
@@ -133,24 +143,6 @@ async function start(): Promise<void> {
   });
   const workspaceService = createWorkspaceService({
     repository: createWorkspaceRepository(pools.customerApi),
-  });
-  const createApiKeyServiceInstance = createApiKeyService({
-    repository: createApiKeyRepository(pools.customerApi),
-    csrf,
-    responseEnvelope: createLocalResponseEnvelope(
-      config.nodeEnv,
-      config.responseEnvelope.localKeyBase64Url,
-    ),
-  });
-  const listApiKeysService = createListApiKeysService({
-    repository: createListApiKeysRepository(pools.customerApi),
-  });
-  const revokeApiKeyService = createRevokeApiKeyService({
-    repository: createRevokeApiKeyRepository(pools.customerApi),
-    csrf,
-  });
-  const apiKeyAuthenticationService = createApiKeyAuthenticationService({
-    repository: createApiKeyAuthenticationRepository(pools.identity),
   });
   const listCatalogTemplatesService = createListCatalogTemplatesService({
     repository: createListCatalogTemplatesRepository(pools.customerApi),
@@ -259,6 +251,8 @@ async function start(): Promise<void> {
     csrf,
   });
   const app = await buildApp(config, {
+    organizationActivityService:createOrganizationActivityService(pools.customerApi),
+    organizationWorkflowService,
     signupService,
     signInService,
     refreshService,
@@ -266,10 +260,6 @@ async function start(): Promise<void> {
     logoutService,
     tenantAuthorizationService,
     workspaceService,
-    createApiKeyService: createApiKeyServiceInstance,
-    listApiKeysService,
-    revokeApiKeyService,
-    apiKeyAuthenticationService,
     listCatalogTemplatesService,
     getCatalogTemplateService,
     listServicesService,
@@ -290,6 +280,7 @@ async function start(): Promise<void> {
     marketplaceExpertEnquiryService,
   });
   let shuttingDown = false;
+  app.addHook("onClose", async () => { workflowEmail.close(); });
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) return;

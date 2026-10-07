@@ -58,6 +58,7 @@ describe("listServicesService", () => {
     expect(repository.calls).toEqual([
       {
         tenantId: principal.tenantId,
+        userId: principal.userId,
         cursor: undefined,
         fetchLimit: 21,
       },
@@ -100,6 +101,7 @@ describe("listServicesService", () => {
     expect(repository.calls).toEqual([
       {
         tenantId: principal.tenantId,
+        userId: principal.userId,
         cursor: {
           createdAt: record(0).createdAt.toISOString(),
           id: record(0).id,

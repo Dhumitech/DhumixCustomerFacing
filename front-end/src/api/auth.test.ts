@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe("central Dhumi authentication client", () => {
-  it("maps the company field to workspace_name and supplies signup policy headers", async () => {
+  it("ignores the historical company field and supplies signup policy headers", async () => {
     const fetchMock = vi.fn<typeof fetch>(async () =>
       jsonResponse(
         {
@@ -50,7 +50,6 @@ describe("central Dhumi authentication client", () => {
       /^frontend\.auth\.signup\.[0-9a-f-]{36}$/,
     );
     expect(await request.json()).toEqual({
-      workspace_name: "Acme Research",
       email: "customer@example.test",
       password: "a-sufficiently-long-password",
       legal_acceptances: [

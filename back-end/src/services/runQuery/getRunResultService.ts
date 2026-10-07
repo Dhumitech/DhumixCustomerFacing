@@ -4,10 +4,8 @@ import {
 } from "../../helpers/resultUrlSigner.js";
 import { ApplicationError } from "../../utils/applicationError.js";
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
-import type {
-  GetRunResultRepository,
-  RunResultRepresentation,
-} from "./getRunResultRepository.js";
+import { accessDenied } from "../tenantAccess/tenantAccessErrors.js";
+import type { GetRunResultRepository, RunResultRepresentation } from "./getRunResultRepository.js";
 import {
   runResultInconsistent,
   runResultNotReady,
@@ -16,8 +14,7 @@ import {
   runQueryNotFound,
 } from "./runQueryErrors.js";
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface RunResult {
   readonly run_id: string;
@@ -51,10 +48,7 @@ export interface GetRunResultServiceDependencies {
 
 function hasPathSchemaError(errors: GetRunResultRequest["schemaErrors"]): boolean {
   return errors.some(
-    (error) =>
-      error.field === "params" ||
-      error.field === "run_id" ||
-      error.field === "/run_id",
+    (error) => error.field === "params" || error.field === "run_id" || error.field === "/run_id",
   );
 }
 
@@ -87,10 +81,7 @@ function isLoopbackHost(hostname: string): boolean {
   return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
 }
 
-function validateSignedUrl(
-  value: string,
-  transport: "https" | "loopback-http",
-): void {
+function validateSignedUrl(value: string, transport: "https" | "loopback-http"): void {
   try {
     const parsed = new URL(value);
     const https = transport === "https" && parsed.protocol === "https:";
@@ -111,6 +102,7 @@ export function createGetRunResultService(
 ): GetRunResultService {
   return {
     async get(request): Promise<RunResult> {
+      if (request.principal.kind !== "browser") throw accessDenied();
       if (hasPathSchemaError(request.schemaErrors)) throw runQueryNotFound();
       if (request.schemaErrors.length > 0) {
         throw runResultValidationFailed(request.schemaErrors);
@@ -120,6 +112,7 @@ export function createGetRunResultService(
       const representation = parseRepresentation(request.representation);
       const outcome = await dependencies.repository.findResult({
         tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
         runId,
         representation,
       });
@@ -155,10 +148,7 @@ export function createGetRunResultService(
         runId,
         artifactId: outcome.artifact.artifactId,
         representation,
-        actor:
-          request.principal.kind === "browser"
-            ? { kind: "browser", userId: request.principal.userId }
-            : { kind: "api_key", apiKeyId: request.principal.apiKeyId },
+        actor: { kind: "browser", userId: request.principal.userId },
         requestId: request.requestId,
         ipFingerprint: request.ipFingerprint,
       });

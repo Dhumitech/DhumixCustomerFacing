@@ -5,10 +5,6 @@ import { buildApp } from "../../src/app.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "../../src/config/environment.js";
 import { createCsrfService } from "../../src/helpers/csrf.js";
 import type {
-  ApiKeyAuthenticationService,
-  TrustedApiKeyIdentity,
-} from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
-import type {
   CreateServiceRepository,
   CreatedService,
 } from "../../src/services/customerServices/createServiceRepository.js";
@@ -28,11 +24,6 @@ import type {
 } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import {
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -45,18 +36,11 @@ const tenantId = randomUUID();
 const sessionIdentity: TrustedSessionIdentity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: tenantId,
 };
 const tenantIdentity: TrustedTenantIdentity = {
   userId: sessionIdentity.userId,
   sessionId: sessionIdentity.sessionId,
   tenantId,
-};
-const apiKeyIdentity: TrustedApiKeyIdentity = {
-  kind: "api_key",
-  apiKeyId: randomUUID(),
-  tenantId,
-  scopes: ["services:write"],
 };
 const publicCreated: CreatedService = {
   id: randomUUID(),
@@ -92,7 +76,6 @@ function config(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: TOKEN_SECRET,
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
@@ -114,15 +97,6 @@ function tenantAuthorization(): TenantAuthorizationService {
   };
 }
 
-function apiKeyAuthentication(identity = apiKeyIdentity): ApiKeyAuthenticationService {
-  return {
-    async authenticate(authorization) {
-      if (authorization !== `Bearer ${API_KEY}`) throw authenticationRequired();
-      return identity;
-    },
-  };
-}
-
 let app: FastifyInstance | undefined;
 
 afterEach(async () => {
@@ -132,7 +106,6 @@ afterEach(async () => {
 
 async function build(
   repository: CreateServiceRepository,
-  apiKeyAuth: ApiKeyAuthenticationService = apiKeyAuthentication(),
 ): Promise<FastifyInstance> {
   app = await buildApp(config(), {
     signupService: stubSignupService,
@@ -142,10 +115,6 @@ async function build(
     logoutService: stubLogoutService,
     tenantAuthorizationService: tenantAuthorization(),
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: apiKeyAuth,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -173,7 +142,7 @@ function requestBody(): Record<string, unknown> {
 }
 
 describe("POST /v1/services contract", () => {
-  it("creates through a browser principal with valid conditional CSRF", async () => {
+  it("creates through a browser principal with valid CSRF", async () => {
     const persist = vi.fn<CreateServiceRepository["persist"]>(async () => ({
       kind: "created",
       service: {
@@ -207,40 +176,12 @@ describe("POST /v1/services contract", () => {
     });
   });
 
-  it("accepts a scoped Dhumi API key without CSRF and rejects a missing scope", async () => {
-    const persist = vi.fn<CreateServiceRepository["persist"]>(async () => ({
-      kind: "replay",
-      service: publicCreated,
-    }));
-    const success = await (await build({ persist })).inject({
-      method: "POST",
-      url: "/v1/services",
-      headers: {
-        authorization: `Bearer ${API_KEY}`,
-        "idempotency-key": "create-service-key-0002",
-      },
-      payload: requestBody(),
-    });
-    expect(success.statusCode).toBe(201);
-    expect(persist.mock.calls[0]?.[0].actor).toEqual({
-      kind: "api_key",
-      apiKeyId: apiKeyIdentity.apiKeyId,
-    });
-    await app?.close();
-    app = undefined;
-
-    const deniedIdentity = { ...apiKeyIdentity, scopes: ["services:read"] as const };
-    const denied = await (await build({ persist }, apiKeyAuthentication(deniedIdentity))).inject({
-      method: "POST",
-      url: "/v1/services",
-      headers: {
-        authorization: `Bearer ${API_KEY}`,
-        "idempotency-key": "create-service-key-0003",
-      },
-      payload: requestBody(),
-    });
-    expect(denied.statusCode).toBe(403);
-    expect(denied.json()).toMatchObject({ code: "ACCESS_DENIED" });
+  it("rejects retired customer API keys before persistence", async () => {
+    const persist = vi.fn<CreateServiceRepository["persist"]>();
+    const denied = await (await build({ persist })).inject({ method: "POST", url: "/v1/services", headers: { authorization: `Bearer ${API_KEY}`, "idempotency-key": "create-service-key-0002", "x-csrf-token": createCsrfService(TOKEN_SECRET).issue(sessionIdentity.sessionId) }, payload: requestBody() });
+    expect(denied.statusCode).toBe(401);
+    expect(denied.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
+    expect(persist).not.toHaveBeenCalled();
   });
 
   it("fails browser CSRF and malformed input without persistence", async () => {
@@ -263,8 +204,9 @@ describe("POST /v1/services contract", () => {
       method: "POST",
       url: "/v1/services",
       headers: {
-        authorization: `Bearer ${API_KEY}`,
+        authorization: `Bearer ${ACCESS_TOKEN}`,
         "idempotency-key": "create-service-key-0005",
+        "x-csrf-token": createCsrfService(TOKEN_SECRET).issue(sessionIdentity.sessionId),
       },
       payload: { ...requestBody(), unexpected: "rejected" },
     });

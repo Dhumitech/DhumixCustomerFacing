@@ -8,30 +8,18 @@ import type {
   ListUsageEventsRecord,
   ListUsageEventsRepository,
 } from "./listUsageEventsRepository.js";
-import {
-  usageProjectionUnavailable,
-  usageReadValidationFailed,
-} from "./usageReadErrors.js";
+import { usageProjectionUnavailable, usageReadValidationFailed } from "./usageReadErrors.js";
 import { parseUsageTimeRange } from "./usageTimeRange.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const LIMIT_PATTERN = /^(?:[1-9]|[1-9][0-9]|100)$/;
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export const USAGE_PRODUCT_FAMILIES = [
-  "marketplace_dataset",
-  "scraper_library",
-] as const;
+export const USAGE_PRODUCT_FAMILIES = ["marketplace_dataset", "scraper_library"] as const;
 export type UsageProductFamily = (typeof USAGE_PRODUCT_FAMILIES)[number];
 
-export const USAGE_OUTCOMES = [
-  "accepted",
-  "succeeded",
-  "failed",
-  "cancelled",
-] as const;
+export const USAGE_OUTCOMES = ["accepted", "succeeded", "failed", "cancelled"] as const;
 export type UsageOutcome = (typeof USAGE_OUTCOMES)[number];
 
 export interface UsageEvent {
@@ -98,10 +86,7 @@ function parseCursor(
   try {
     const cursor = decodeUsageEventListCursor(value);
     if (cursor.from !== from || cursor.to !== to) {
-      return validationError(
-        "cursor",
-        "must belong to the requested usage time window",
-      );
+      return validationError("cursor", "must belong to the requested usage time window");
     }
     return cursor;
   } catch {
@@ -157,6 +142,7 @@ export function createListUsageEventsService(dependencies: {
       const cursor = parseCursor(request.cursor, range.from, range.to);
       const records = await dependencies.repository.findPage({
         tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
         from: range.from,
         to: range.to,
         beforeObservedAt: cursor?.observedAt,

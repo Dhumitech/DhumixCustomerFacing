@@ -73,7 +73,7 @@ describe("Run event list cursor", () => {
       encoded({ ...valid, sequence: "1.5" }),
       encoded({ ...valid, sequence: "1e3" }),
       encoded({ ...valid, sequence: "9223372036854775808" }),
-      encoded({ ...valid, tenant_id: "forbidden" }),
+      encoded({ ...valid, organization_id: "forbidden" }),
       encoded({
         kind: "run_events",
         version: 1,

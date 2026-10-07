@@ -1,0 +1,38 @@
+{
+  "preparedAtUtc": "2026-10-07T12:02:35.370Z",
+  "status": "APPLIED_VERIFIED_MAIN_DHUMI_TEST",
+  "target": "127.0.0.1:5432/dhumi_test",
+  "sqlPath": "back-end/scripts/migrations/0072_catalogue_execution_expand.sql",
+  "sqlSha256": "7b2e41928d37dd94c53023917d890138b8fd4dae17bddbfe69accfa2171c118b",
+  "draftPath": "back-end/scripts/refactor-review/0072_catalogue_execution_expand.draft.sql",
+  "datasetOperatorPath": "back-end/scripts/refactor-review/0072-dataset-operator.mjs",
+  "datasetOperatorSha256": "318194251094b35b5c18d55e863bc1d2ef57fe388fb71ac7fd939cce30b85794",
+  "postgresQualification": {
+    "path": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0072-0073-Backend/0072-Expansion-Qualification/Verification.json",
+    "sha256": "a12dd67a98aab09da32320e5852e2a1ea13af0f8a5413ff48edeeb7c321ac27b"
+  },
+  "fieldManifestPath": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0072-0073-Backend/0072-Expansion-Qualification/Field-Manifest.md",
+  "mainApplied": true,
+  "baseline": {
+    "tables": 35,
+    "applicationColumns": 421,
+    "ledger": 71,
+    "catalogFingerprint": "c34cd5a2109c27ceec4b8552d90d9081"
+  },
+  "expectedAfterApply": {
+    "tables": 36,
+    "applicationColumns": 450,
+    "ledger": 72
+  },
+  "ownerApprovalRequired": false,
+  "sequence": "apply approved 0072 only; verify/write protected bindings; complete and qualify 0073 backend/contraction and old-write catch-up",
+  "existingIdentitiesPasswordsUnchanged": true,
+  "pendingBeforeApplication": [],
+  "appliedAtUtc": "2026-10-07T12:18:28.380Z",
+  "latestApplicationRecord": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0072-0073-Backend/0072-Application/README.md",
+  "nextMigrationStatus": "0073_BACKEND_AND_CONTRACTION_NOT_READY",
+  "applicationVerification": {
+    "path": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0072-0073-Backend/0072-Application/Verification.json",
+    "sha256": "550a7191a22bcee0b0c41dddb0d05f9d4439ae0cc3500f1e48ddbc111c066545"
+  }
+}

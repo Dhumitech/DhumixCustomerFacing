@@ -8,12 +8,11 @@ const BEARER_PATTERN = /^Bearer ([^\s]+)$/i;
 
 /**
  * Identity trusted only for operations on the current browser session.
- * `issuedTenantId` is a signed issuance claim, not active Tenant authorization.
+ * Organization authority is resolved separately for each request.
  */
 export interface TrustedSessionIdentity {
   readonly userId: string;
   readonly sessionId: string;
-  readonly issuedTenantId: string;
 }
 
 export interface BrowserAuthenticationService {
@@ -28,8 +27,7 @@ export interface BrowserAuthenticationServiceDependencies {
 function allClaimsAreUuids(identity: TrustedSessionIdentity): boolean {
   return (
     UUID_PATTERN.test(identity.userId) &&
-    UUID_PATTERN.test(identity.sessionId) &&
-    UUID_PATTERN.test(identity.issuedTenantId)
+    UUID_PATTERN.test(identity.sessionId)
   );
 }
 
@@ -53,7 +51,6 @@ export function createBrowserAuthenticationService(
       const identity: TrustedSessionIdentity = {
         userId: claims.userId,
         sessionId: claims.sessionId,
-        issuedTenantId: claims.tenantId,
       };
       if (!allClaimsAreUuids(identity)) {
         throw authenticationRequired();

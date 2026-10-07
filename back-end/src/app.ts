@@ -1,8 +1,11 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import type { OrganizationWorkflowService } from "./services/organizations/organizationWorkflowService.js";
+import type { OrganizationActivityService } from './services/organizations/organizationActivity.js';
+import { installAccessSurface } from "./routes/accessSurface.js";
 import type { RuntimeConfig } from "./config/environment.js";
 import { createLoggerOptions } from "./config/logger.js";
 import { installErrorHandling } from "./middleware/errorHandler.js";
-import { createRequestId, installRequestContext } from "./middleware/requestContext.js";
+import { createRequestId, installRequestContext, requestTraceId } from "./middleware/requestContext.js";
 import { installRequestSecurity } from "./middleware/requestSecurity.js";
 import { installJsonContentTypeGuard } from "./middleware/jsonContentType.js";
 import { registerRoutes } from "./routes/index.js";
@@ -13,10 +16,6 @@ import type { RefreshService } from "./services/identity/refreshService.js";
 import type { SignupService } from "./services/identity/signupService.js";
 import type { TenantAuthorizationService } from "./services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "./services/workspace/workspaceService.js";
-import type { CreateApiKeyService } from "./services/apiKeys/createApiKeyService.js";
-import type { ListApiKeysService } from "./services/apiKeys/listApiKeysService.js";
-import type { RevokeApiKeyService } from "./services/apiKeys/revokeApiKeyService.js";
-import type { ApiKeyAuthenticationService } from "./services/apiKeys/apiKeyAuthenticationService.js";
 import type { ListCatalogTemplatesService } from "./services/catalogue/listCatalogTemplatesService.js";
 import type { GetCatalogTemplateService } from "./services/catalogue/getCatalogTemplateService.js";
 import type { ListServicesService } from "./services/customerServices/listServicesService.js";
@@ -32,14 +31,14 @@ import type { GetRunResultService } from "./services/runQuery/getRunResultServic
 import type { GetUsageSummaryService } from "./services/usage/getUsageSummaryService.js";
 import type { ListUsageEventsService } from "./services/usage/listUsageEventsService.js";
 import type { GetPlatformStatusService } from "./services/status/getPlatformStatusService.js";
-import type { MarketplacePreviewService } from
-  "./services/marketplacePreview/marketplacePreviewService.js";
-import type { MarketplaceSampleDownloadService } from
-  "./services/marketplaceSampleDownload/marketplaceSampleDownloadService.js";
-import type { MarketplaceExpertEnquiryService } from
-  "./services/marketplaceExpertEnquiry/marketplaceExpertEnquiryService.js";
+import type { MarketplacePreviewService } from "./services/marketplacePreview/marketplacePreviewService.js";
+import type { MarketplaceSampleDownloadService } from "./services/marketplaceSampleDownload/marketplaceSampleDownloadService.js";
+import type { MarketplaceExpertEnquiryService } from "./services/marketplaceExpertEnquiry/marketplaceExpertEnquiryService.js";
 
 export interface AppDependencies {
+  readonly organizationActivityService?: OrganizationActivityService;
+  /** Optional only for legacy test compositions. Required at runtime. */
+  readonly organizationWorkflowService?: OrganizationWorkflowService;
   readonly signupService: SignupService;
   readonly signInService: SignInService;
   readonly refreshService: RefreshService;
@@ -47,10 +46,6 @@ export interface AppDependencies {
   readonly logoutService: LogoutService;
   readonly tenantAuthorizationService: TenantAuthorizationService;
   readonly workspaceService: WorkspaceService;
-  readonly createApiKeyService: CreateApiKeyService;
-  readonly listApiKeysService: ListApiKeysService;
-  readonly revokeApiKeyService: RevokeApiKeyService;
-  readonly apiKeyAuthenticationService: ApiKeyAuthenticationService;
   readonly listCatalogTemplatesService: ListCatalogTemplatesService;
   readonly getCatalogTemplateService: GetCatalogTemplateService;
   readonly listServicesService: ListServicesService;
@@ -88,6 +83,9 @@ export async function buildApp(
   config: RuntimeConfig,
   dependencies: AppDependencies,
 ): Promise<FastifyInstance> {
+  if(config.nodeEnv!=='test'&&!dependencies.organizationActivityService)throw new Error('organizationActivityService must be composed outside the test environment');
+  if (config.nodeEnv !== "test" && !dependencies.organizationWorkflowService)
+    throw new Error("organizationWorkflowService must be composed outside the test environment");
   if (config.nodeEnv !== "test" && dependencies.createRunService === undefined) {
     throw new Error("createRunService must be composed outside the test environment");
   }
@@ -97,27 +95,21 @@ export async function buildApp(
   if (config.nodeEnv !== "test" && dependencies.getRunService === undefined) {
     throw new Error("getRunService must be composed outside the test environment");
   }
-  if (
-    config.nodeEnv !== "test" &&
-    dependencies.listRunEventsService === undefined
-  ) {
-    throw new Error(
-      "listRunEventsService must be composed outside the test environment",
-    );
+  if (config.nodeEnv !== "test" && dependencies.listRunEventsService === undefined) {
+    throw new Error("listRunEventsService must be composed outside the test environment");
   }
-  if (
-    config.nodeEnv !== "test" &&
-    dependencies.marketplacePreviewService === undefined
-  ) {
-    throw new Error(
-      "marketplacePreviewService must be composed outside the test environment",
-    );
+  if (config.nodeEnv !== "test" && dependencies.marketplacePreviewService === undefined) {
+    throw new Error("marketplacePreviewService must be composed outside the test environment");
   }
   if (config.nodeEnv !== "test" && dependencies.marketplaceSampleDownloadService === undefined) {
-    throw new Error("marketplaceSampleDownloadService must be composed outside the test environment");
+    throw new Error(
+      "marketplaceSampleDownloadService must be composed outside the test environment",
+    );
   }
   if (config.nodeEnv !== "test" && dependencies.marketplaceExpertEnquiryService === undefined) {
-    throw new Error("marketplaceExpertEnquiryService must be composed outside the test environment");
+    throw new Error(
+      "marketplaceExpertEnquiryService must be composed outside the test environment",
+    );
   }
   if (config.nodeEnv !== "test" && dependencies.cancelRunService === undefined) {
     throw new Error("cancelRunService must be composed outside the test environment");
@@ -128,29 +120,14 @@ export async function buildApp(
   if (config.nodeEnv !== "test" && dependencies.retryRunService === undefined) {
     throw new Error("retryRunService must be composed outside the test environment");
   }
-  if (
-    config.nodeEnv !== "test" &&
-    dependencies.getUsageSummaryService === undefined
-  ) {
-    throw new Error(
-      "getUsageSummaryService must be composed outside the test environment",
-    );
+  if (config.nodeEnv !== "test" && dependencies.getUsageSummaryService === undefined) {
+    throw new Error("getUsageSummaryService must be composed outside the test environment");
   }
-  if (
-    config.nodeEnv !== "test" &&
-    dependencies.listUsageEventsService === undefined
-  ) {
-    throw new Error(
-      "listUsageEventsService must be composed outside the test environment",
-    );
+  if (config.nodeEnv !== "test" && dependencies.listUsageEventsService === undefined) {
+    throw new Error("listUsageEventsService must be composed outside the test environment");
   }
-  if (
-    config.nodeEnv !== "test" &&
-    dependencies.getPlatformStatusService === undefined
-  ) {
-    throw new Error(
-      "getPlatformStatusService must be composed outside the test environment",
-    );
+  if (config.nodeEnv !== "test" && dependencies.getPlatformStatusService === undefined) {
+    throw new Error("getPlatformStatusService must be composed outside the test environment");
   }
   const createRunService = dependencies.createRunService ?? {
     async create(): Promise<never> {
@@ -169,9 +146,7 @@ export async function buildApp(
   };
   const listRunEventsService = dependencies.listRunEventsService ?? {
     async list(): Promise<never> {
-      throw new Error(
-        "listRunEventsService was not supplied to this test application",
-      );
+      throw new Error("listRunEventsService was not supplied to this test application");
     },
   };
   const cancelRunService = dependencies.cancelRunService ?? {
@@ -191,35 +166,25 @@ export async function buildApp(
   };
   const getUsageSummaryService = dependencies.getUsageSummaryService ?? {
     async get(): Promise<never> {
-      throw new Error(
-        "getUsageSummaryService was not supplied to this test application",
-      );
+      throw new Error("getUsageSummaryService was not supplied to this test application");
     },
   };
   const listUsageEventsService = dependencies.listUsageEventsService ?? {
     async list(): Promise<never> {
-      throw new Error(
-        "listUsageEventsService was not supplied to this test application",
-      );
+      throw new Error("listUsageEventsService was not supplied to this test application");
     },
   };
   const getPlatformStatusService = dependencies.getPlatformStatusService ?? {
     async get(): Promise<never> {
-      throw new Error(
-        "getPlatformStatusService was not supplied to this test application",
-      );
+      throw new Error("getPlatformStatusService was not supplied to this test application");
     },
   };
   const marketplacePreviewService = dependencies.marketplacePreviewService ?? {
     async get(): Promise<never> {
-      throw new Error(
-        "marketplacePreviewService was not supplied to this test application",
-      );
+      throw new Error("marketplacePreviewService was not supplied to this test application");
     },
     async query(): Promise<never> {
-      throw new Error(
-        "marketplacePreviewService was not supplied to this test application",
-      );
+      throw new Error("marketplacePreviewService was not supplied to this test application");
     },
   };
   const marketplaceSampleDownloadService = dependencies.marketplaceSampleDownloadService ?? {
@@ -236,6 +201,9 @@ export async function buildApp(
     logger: createLoggerOptions(config),
     requestIdHeader: false,
     genReqId: createRequestId,
+    childLoggerFactory(logger, bindings, options, rawRequest) {
+      return logger.child({ ...bindings, trace_id: requestTraceId(rawRequest) }, options);
+    },
     bodyLimit: 1_048_576,
     connectionTimeout: 10_000,
     requestTimeout: 30_000,
@@ -253,17 +221,17 @@ export async function buildApp(
     },
   });
 
+  app.decorate('organizationActivityService',dependencies.organizationActivityService??{async get(){throw new Error('Activity service is not composed');}});
   app.decorate("signupService", dependencies.signupService);
+  app.decorate("organizationWorkflowService", dependencies.organizationWorkflowService ?? {
+    async run() { throw new Error("Organization workflows are not composed in this legacy test"); },
+  });
   app.decorate("signInService", dependencies.signInService);
   app.decorate("refreshService", dependencies.refreshService);
   app.decorate("browserAuthenticationService", dependencies.browserAuthenticationService);
   app.decorate("logoutService", dependencies.logoutService);
   app.decorate("tenantAuthorizationService", dependencies.tenantAuthorizationService);
   app.decorate("workspaceService", dependencies.workspaceService);
-  app.decorate("createApiKeyService", dependencies.createApiKeyService);
-  app.decorate("listApiKeysService", dependencies.listApiKeysService);
-  app.decorate("revokeApiKeyService", dependencies.revokeApiKeyService);
-  app.decorate("apiKeyAuthenticationService", dependencies.apiKeyAuthenticationService);
   app.decorate("listCatalogTemplatesService", dependencies.listCatalogTemplatesService);
   app.decorate("getCatalogTemplateService", dependencies.getCatalogTemplateService);
   app.decorate("listServicesService", dependencies.listServicesService);
@@ -286,11 +254,13 @@ export async function buildApp(
   app.decorateRequest("trustedSessionIdentity", null);
   app.decorateRequest("trustedTenantIdentity", null);
   app.decorateRequest("trustedTenantPrincipal", null);
+  app.decorateRequest("trustedBrowsePrincipal", null);
 
   await installRequestSecurity(app, config);
   installRequestContext(app);
   installJsonContentTypeGuard(app);
   installErrorHandling(app);
+  installAccessSurface(app);
   await registerRoutes(app, config);
   return app;
 }

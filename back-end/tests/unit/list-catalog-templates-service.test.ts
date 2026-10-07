@@ -73,6 +73,7 @@ describe("listCatalogTemplatesService", () => {
     expect(repository.calls).toEqual([
       {
         tenantId: principal.tenantId,
+        userId: principal.userId,
         family: undefined,
         cursor: undefined,
         fetchLimit: 21,
@@ -119,6 +120,7 @@ describe("listCatalogTemplatesService", () => {
     expect(repository.calls).toEqual([
       {
         tenantId: principal.tenantId,
+        userId: principal.userId,
         family: "marketplace_dataset",
         cursor: {
           familyFilter: "marketplace_dataset",

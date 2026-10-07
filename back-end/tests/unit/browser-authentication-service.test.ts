@@ -39,7 +39,6 @@ describe("browser authentication service", () => {
     await expect(service.authenticate(`Bearer ${token}`)).resolves.toEqual({
       userId: identity.userId,
       sessionId: identity.sessionId,
-      issuedTenantId: identity.tenantId,
     });
     expect(store.calls).toEqual([{ userId: identity.userId, sessionId: identity.sessionId }]);
   });

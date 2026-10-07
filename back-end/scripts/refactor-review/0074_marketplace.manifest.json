@@ -1,0 +1,19 @@
+{
+  "status": "APPLIED",
+  "sqlSha256": "ef4856733c5d7fd9f0ef390a2f46d772fdb8128919f95333764e8390e8db73d0",
+  "postgresQualification": {
+    "path": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0074-Marketplace/Qualification.json",
+    "sha256": "d370eeacc584dff1023cbd3b72c36a3d08f24215b2d3f30a33521df4f35aa773"
+  },
+  "database": "127.0.0.1:5432/dhumi_test",
+  "migration": "0074_marketplace",
+  "tablesBefore": 26,
+  "tablesAfter": 25,
+  "tableColumnsAfter": 282,
+  "identitiesUnchanged": true,
+  "application": {
+    "path": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0074-Marketplace/Application.json",
+    "sha256": "f69e5b33216815cf55905efa5ddf9ba5d816e0cf5d0178c270b070679ac457ae"
+  },
+  "appliedAtUtc": "2026-10-07T17:53:45.050Z"
+}

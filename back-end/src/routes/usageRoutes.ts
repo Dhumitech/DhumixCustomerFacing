@@ -117,7 +117,7 @@ export async function registerUsageRoutes(app: FastifyInstance): Promise<void> {
       querystring: usageSummaryQuerySchema,
       response: { 200: usageSummaryResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("usage:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: getUsageSummary,
   });
 
@@ -127,7 +127,7 @@ export async function registerUsageRoutes(app: FastifyInstance): Promise<void> {
       querystring: usageEventsQuerySchema,
       response: { 200: usageEventPageResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("usage:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: listUsageEvents,
   });
 }

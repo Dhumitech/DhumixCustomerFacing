@@ -1,3 +1,4 @@
+import { organizationHeaders } from "./organizationScope";
 import { dhumiClient } from "./client";
 import { asDhumiRequest } from "./errors";
 import {
@@ -15,8 +16,9 @@ const MAX_PAGE_SIZE = 100;
 
 export const workspaceApi = Object.freeze({
   async get(): Promise<Workspace> {
+    const scope = organizationHeaders();
     const response = await asDhumiRequest(
-      generatedGetWorkspace({ client: dhumiClient, throwOnError: true }),
+      generatedGetWorkspace({ client: dhumiClient, headers: scope, throwOnError: true }),
     );
     return response.data;
   },
@@ -24,9 +26,10 @@ export const workspaceApi = Object.freeze({
 
 export const catalogueApi = Object.freeze({
   async listScraperLibrary(): Promise<TemplatePage> {
+    const scope = organizationHeaders();
     const response = await asDhumiRequest(
       generatedListTemplates({
-        client: dhumiClient,
+        client: dhumiClient, headers: scope,
         query: { family: "scraper_library", limit: MAX_PAGE_SIZE },
         throwOnError: true,
       }),
@@ -35,9 +38,10 @@ export const catalogueApi = Object.freeze({
   },
 
   async getTemplate(slug: string): Promise<ServiceTemplate> {
+    const scope = organizationHeaders();
     const response = await asDhumiRequest(
       generatedGetTemplate({
-        client: dhumiClient,
+        client: dhumiClient, headers: scope,
         path: { slug },
         throwOnError: true,
       }),
@@ -48,9 +52,10 @@ export const catalogueApi = Object.freeze({
 
 export const servicesApi = Object.freeze({
   async list(): Promise<ServicePage> {
+    const scope = organizationHeaders();
     const response = await asDhumiRequest(
       generatedListServices({
-        client: dhumiClient,
+        client: dhumiClient, headers: scope,
         query: { limit: MAX_PAGE_SIZE },
         throwOnError: true,
       }),

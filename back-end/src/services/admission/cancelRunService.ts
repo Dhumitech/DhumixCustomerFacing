@@ -6,6 +6,7 @@ import {
 } from "../../helpers/runActionCanonicalization.js";
 import { tenantActorFingerprint } from "../../helpers/tenantActorFingerprint.js";
 import { csrfValidationFailed } from "../identity/sessionErrors.js";
+import { accessDenied } from "../tenantAccess/tenantAccessErrors.js";
 import type { Run } from "../runQuery/listRunsService.js";
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
 import {
@@ -60,14 +61,12 @@ export function createCancelRunService(
 
   return {
     async cancel(request): Promise<Run> {
+      if (request.principal.kind !== "browser") throw accessDenied();
       if (
-        request.principal.kind === "browser" &&
-        (
-          request.csrfToken === undefined ||
-          request.csrfToken.length < 16 ||
-          request.csrfToken.length > 512 ||
-          !dependencies.csrf.verify(request.principal.sessionId, request.csrfToken)
-        )
+        request.csrfToken === undefined ||
+        request.csrfToken.length < 16 ||
+        request.csrfToken.length > 512 ||
+        !dependencies.csrf.verify(request.principal.sessionId, request.csrfToken)
       ) {
         throw csrfValidationFailed();
       }
@@ -98,10 +97,7 @@ export function createCancelRunService(
           runEventId: createId(),
           outboxEventId: createId(),
           tenantId: request.principal.tenantId,
-          actor:
-            request.principal.kind === "browser"
-              ? { kind: "browser", userId: request.principal.userId }
-              : { kind: "api_key", apiKeyId: request.principal.apiKeyId },
+          actor: { kind: "browser", userId: request.principal.userId },
           actorFingerprint: tenantActorFingerprint(request.principal),
           requestHash: runCancellationRequestHash(canonical),
           idempotencyKey: request.idempotencyKey as string,

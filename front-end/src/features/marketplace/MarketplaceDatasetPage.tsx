@@ -1,3 +1,4 @@
+import { organizationPath } from "../../api/organizationScope";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { DhumiApiError } from "../../api/errors";
@@ -413,17 +414,17 @@ export function MarketplaceDatasetPage({
       <div className="marketplace-state marketplace-state--error" role="alert">
         <strong>The requested LinkedIn sample is unavailable.</strong>
         <p>Return to the Dataset Marketplace and try again.</p>
-        <Link to="/workspace/marketplace">Back to marketplace</Link>
+        <Link to={organizationPath("/workspace/marketplace")}>Back to marketplace</Link>
       </div>
     );
   }
 
-  const domainPath = `/workspace/marketplace/groups/${templateQuery.data.presentation.domain_slug}`;
+  const domainPath = organizationPath(`/workspace/marketplace/groups/${templateQuery.data.presentation.domain_slug}`);
 
   return (
     <section className="sample-workspace" aria-labelledby="sample-title">
       <nav className="sample-breadcrumbs" aria-label="Breadcrumb">
-        <Link to="/workspace/marketplace">Dataset Marketplace</Link>
+        <Link to={organizationPath("/workspace/marketplace")}>Dataset Marketplace</Link>
         <span aria-hidden="true">/</span>
         <Link to={domainPath}>
           {templateQuery.data.presentation.domain_name}

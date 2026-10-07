@@ -8,12 +8,6 @@ import {
 } from "../../src/config/environment.js";
 import type { GetPlatformStatusService } from "../../src/services/status/getPlatformStatusService.js";
 import {
-  stubCreateApiKeyService,
-  stubApiKeyAuthenticationService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -78,7 +72,6 @@ function config(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
@@ -103,10 +96,6 @@ async function build(): Promise<FastifyInstance> {
     logoutService: { async logout() { throw new Error("unexpected"); } },
     tenantAuthorizationService: { async authorizeBrowserTenant() { throw new Error("unexpected"); } },
     workspaceService: { async getWorkspace() { throw new Error("unexpected"); } },
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: stubApiKeyAuthenticationService,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,

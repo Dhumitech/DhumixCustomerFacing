@@ -5,7 +5,7 @@ import rateLimit from "@fastify/rate-limit";
 import type { FastifyInstance } from "fastify";
 import type { RuntimeConfig } from "../config/environment.js";
 
-const CORS_METHODS = ["GET", "POST", "DELETE", "OPTIONS"] as const;
+const CORS_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"] as const;
 const CORS_ALLOWED_HEADERS = [
   "Authorization",
   "Content-Type",
@@ -13,6 +13,7 @@ const CORS_ALLOWED_HEADERS = [
   "X-CSRF-Token",
   "X-Canary-Confirmation",
   "X-Request-ID",
+  "X-Dhumi-Organization",
 ] as const;
 const CORS_EXPOSED_HEADERS = ["Retry-After", "X-Request-ID"] as const;
 

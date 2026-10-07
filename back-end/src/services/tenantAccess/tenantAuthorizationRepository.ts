@@ -1,17 +1,17 @@
 import type { Pool } from "pg";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withIdentityTransaction } from "../database/transactions.js";
+import { withIdentityUserTransaction } from "../database/transactions.js";
 
 export interface ActiveTenantCandidate {
   readonly tenantId: string;
 }
 
 export interface TenantAuthorizationRepository {
-  findActiveTenantCandidates(userId: string): Promise<readonly ActiveTenantCandidate[]>;
+  findActiveTenantCandidates(userId: string, organizationId?: string): Promise<readonly ActiveTenantCandidate[]>;
 }
 
 interface ActiveTenantCandidateRow {
-  readonly tenant_id: string;
+  readonly organization_id: string;
 }
 
 function internalFailure(cause: unknown): ApplicationError {
@@ -27,28 +27,29 @@ export function createTenantAuthorizationRepository(
   pool: Pool,
 ): TenantAuthorizationRepository {
   return {
-    async findActiveTenantCandidates(userId): Promise<readonly ActiveTenantCandidate[]> {
+    async findActiveTenantCandidates(userId, organizationId): Promise<readonly ActiveTenantCandidate[]> {
       try {
-        return await withIdentityTransaction(pool, async (database) => {
+        return await withIdentityUserTransaction(pool, userId, async (database) => {
           const result = await database.query<ActiveTenantCandidateRow>(
             `
-              SELECT access.tenant_id
+              SELECT access.organization_id
               FROM app.users identity
-              JOIN app.tenant_user_access access
+              JOIN app.organization_members access
                 ON access.user_id = identity.id
-              JOIN app.tenants tenant
-                ON tenant.id = access.tenant_id
+              JOIN app.organizations tenant
+                ON tenant.id = access.organization_id
               WHERE identity.id = $1
                 AND identity.state = 'active'
                 AND access.state = 'active'
                 AND tenant.state = 'active'
-              ORDER BY access.created_at, access.tenant_id
+                AND ($2::uuid IS NULL OR access.organization_id = $2::uuid)
+              ORDER BY access.created_at, access.organization_id
               LIMIT 2
             `,
-            [userId],
+            [userId, organizationId ?? null],
           );
 
-          return result.rows.map((row) => ({ tenantId: row.tenant_id }));
+          return result.rows.map((row) => ({ tenantId: row.organization_id }));
         });
       } catch (error) {
         if (error instanceof ApplicationError) {

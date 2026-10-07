@@ -1,3 +1,4 @@
+import { organizationPath } from "../../api/organizationScope";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import type { ServiceTemplate } from "../../api/generated";
@@ -200,7 +201,7 @@ export function WorkspaceLibraryPage() {
               <Link
                 className="domain-card"
                 key={domain.slug}
-                to={`/workspace/scrapers/${domain.slug}`}
+                to={organizationPath(`/workspace/scrapers/${domain.slug}`)}
                 aria-label={`${domain.name}: ${domain.description}`}
               >
                 <span className="domain-card__topline">

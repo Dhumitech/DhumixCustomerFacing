@@ -11,6 +11,7 @@ import {
   type ServiceConfigurationValidator,
 } from "../../helpers/serviceConfigurationValidator.js";
 import { csrfValidationFailed } from "../identity/sessionErrors.js";
+import { accessDenied } from "../tenantAccess/tenantAccessErrors.js";
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
 import {
   ServiceAdmissionUnavailableError,
@@ -60,8 +61,8 @@ export function createServiceService(
 
   return {
     async create(request): Promise<CreatedService> {
+      if (request.principal.kind !== "browser") throw accessDenied();
       if (
-        request.principal.kind === "browser" &&
         (
           request.csrfToken === undefined ||
           request.csrfToken.length < 16 ||
@@ -92,12 +93,8 @@ export function createServiceService(
         const outcome = await dependencies.repository.persist({
           idempotencyRecordId: createId(),
           serviceId: createId(),
-          serviceVersionId: createId(),
           tenantId: request.principal.tenantId,
-          actor:
-            request.principal.kind === "browser"
-              ? { kind: "browser", userId: request.principal.userId }
-              : { kind: "api_key", apiKeyId: request.principal.apiKeyId },
+          actor: { kind: "browser", userId: request.principal.userId },
           idempotencyKey: request.idempotencyKey as string,
           actorFingerprint: serviceActorFingerprint(request.principal),
           requestHash: serviceRequestHash(canonical.value),

@@ -8,6 +8,7 @@ import {
   queryMarketplaceSample,
 } from "../controllers/catalogueController.js";
 import { CATALOG_PRODUCT_FAMILIES } from "../helpers/catalogTemplateListCursor.js";
+import { requireBrowsePrincipal } from "../middleware/browsePrincipal.js";
 import { requireTenantPrincipal } from "../middleware/tenantPrincipal.js";
 import { CATALOG_TEMPLATE_AVAILABILITY } from "../services/catalogue/catalogTemplate.js";
 
@@ -106,10 +107,7 @@ const templatePageResponseSchema = {
       required: ["next_cursor", "has_more"],
       properties: {
         next_cursor: {
-          anyOf: [
-            { type: "string", minLength: 1, maxLength: 2048 },
-            { type: "null" },
-          ],
+          anyOf: [{ type: "string", minLength: 1, maxLength: 2048 }, { type: "null" }],
         },
         has_more: { type: "boolean" },
       },
@@ -118,7 +116,14 @@ const templatePageResponseSchema = {
 } as const;
 
 const filterOperators = [
-  "=", "!=", "in", "not_in", "includes", "not_includes", "is_null", "is_not_null",
+  "=",
+  "!=",
+  "in",
+  "not_in",
+  "includes",
+  "not_includes",
+  "is_null",
+  "is_not_null",
 ] as const;
 
 const samplePageQuerySchema = {
@@ -195,10 +200,7 @@ const sampleQueryBodySchema = {
       properties: {
         limit: { type: "integer", minimum: 1, maximum: 100 },
         cursor: {
-          anyOf: [
-            { type: "string", minLength: 1, maxLength: 2048 },
-            { type: "null" },
-          ],
+          anyOf: [{ type: "string", minLength: 1, maxLength: 2048 }, { type: "null" }],
         },
       },
     },
@@ -209,8 +211,15 @@ const sampleResultResponseSchema = {
   type: "object",
   additionalProperties: false,
   required: [
-    "template_slug", "template_version", "sample_version", "sample_record_count",
-    "matches_in_sample", "selected_fields", "rows", "masking_notice", "page",
+    "template_slug",
+    "template_version",
+    "sample_version",
+    "sample_record_count",
+    "matches_in_sample",
+    "selected_fields",
+    "rows",
+    "masking_notice",
+    "page",
   ],
   properties: {
     template_slug: { type: "string" },
@@ -227,10 +236,7 @@ const sampleResultResponseSchema = {
       required: ["next_cursor", "has_more"],
       properties: {
         next_cursor: {
-          anyOf: [
-            { type: "string", minLength: 1, maxLength: 2048 },
-            { type: "null" },
-          ],
+          anyOf: [{ type: "string", minLength: 1, maxLength: 2048 }, { type: "null" }],
         },
         has_more: { type: "boolean" },
       },
@@ -243,7 +249,9 @@ const sampleDownloadHeadersSchema = {
   required: ["idempotency-key"],
   properties: {
     "idempotency-key": {
-      type: "string", minLength: 16, maxLength: 128,
+      type: "string",
+      minLength: 16,
+      maxLength: 128,
       pattern: "^[A-Za-z0-9._:-]+$",
     },
     "x-csrf-token": { type: "string", minLength: 16, maxLength: 512 },
@@ -257,7 +265,10 @@ const sampleDownloadBodySchema = {
   properties: {
     expected_sample_version: { type: "integer", minimum: 1 },
     selected_fields: {
-      type: "array", minItems: 1, maxItems: 100, uniqueItems: true,
+      type: "array",
+      minItems: 1,
+      maxItems: 100,
+      uniqueItems: true,
       items: { type: "string", minLength: 1, maxLength: 160 },
     },
     filter: { anyOf: [filterPredicateSchema, filterGroupSchema] },
@@ -270,8 +281,16 @@ const sampleDownloadBodySchema = {
 const sampleDownloadResponseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["sample_version", "format", "record_count", "content_type", "byte_count",
-    "checksum", "download_url", "download_expires_at"],
+  required: [
+    "sample_version",
+    "format",
+    "record_count",
+    "content_type",
+    "byte_count",
+    "checksum",
+    "download_url",
+    "download_expires_at",
+  ],
   properties: {
     sample_version: { type: "integer", minimum: 1 },
     format: { type: "string", enum: ["json", "csv"] },
@@ -313,7 +332,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance): Promise<voi
       querystring: listCatalogTemplatesQuerySchema,
       response: { 200: templatePageResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("catalog:read")],
+    preHandler: [requireBrowsePrincipal],
     handler: listCatalogTemplates,
   });
 
@@ -323,7 +342,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance): Promise<voi
       params: getCatalogTemplateParamsSchema,
       response: { 200: serviceTemplateResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("catalog:read")],
+    preHandler: [requireBrowsePrincipal],
     handler: getTemplate,
   });
 
@@ -334,7 +353,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance): Promise<voi
       querystring: samplePageQuerySchema,
       response: { 200: sampleResultResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("catalog:read")],
+    preHandler: [requireBrowsePrincipal],
     handler: getMarketplaceSample,
   });
 
@@ -345,7 +364,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance): Promise<voi
       body: sampleQueryBodySchema,
       response: { 200: sampleResultResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("catalog:read")],
+    preHandler: [requireBrowsePrincipal],
     handler: queryMarketplaceSample,
   });
 
@@ -357,7 +376,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance): Promise<voi
       body: sampleDownloadBodySchema,
       response: { 201: sampleDownloadResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("catalog:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: authorizeMarketplaceSampleDownload,
   });
 
@@ -369,7 +388,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance): Promise<voi
       body: expertEnquiryBodySchema,
       response: { 201: expertEnquiryResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("catalog:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: createMarketplaceExpertEnquiry,
   });
 }

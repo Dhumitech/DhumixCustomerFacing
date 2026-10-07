@@ -1,8 +1,5 @@
-import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
-import {
-  toServiceTemplate,
-  type ServiceTemplate,
-} from "./catalogTemplate.js";
+import type { TrustedBrowsePrincipal } from "../tenantAccess/trustedBrowsePrincipal.js";
+import { toServiceTemplate, type ServiceTemplate } from "./catalogTemplate.js";
 import { catalogTemplateNotFound } from "./catalogueErrors.js";
 import type { GetCatalogTemplateRepository } from "./getCatalogTemplateRepository.js";
 
@@ -11,7 +8,7 @@ const MIN_SLUG_LENGTH = 3;
 const MAX_SLUG_LENGTH = 100;
 
 export interface GetCatalogTemplateRequest {
-  readonly principal: TrustedTenantPrincipal;
+  readonly principal: TrustedBrowsePrincipal;
   readonly slug: unknown;
   readonly schemaErrors: readonly { readonly field: string; readonly message: string }[];
 }
@@ -43,7 +40,10 @@ export function createGetCatalogTemplateService(
       }
 
       const record = await dependencies.repository.findBySlug({
-        tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
+        ...(request.principal.tenantId === undefined
+          ? {}
+          : { tenantId: request.principal.tenantId }),
         slug: request.slug,
       });
       if (record === undefined) throw catalogTemplateNotFound();

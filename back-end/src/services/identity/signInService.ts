@@ -13,7 +13,6 @@ export interface SignInRequest {
   /** Already validated as a UUID or null; `audit_events.request_id` is `uuid`. */
   readonly requestId: string | null;
   readonly ipFingerprint: Buffer | null;
-  readonly deviceMetadata: Readonly<Record<string, unknown>>;
 }
 
 export interface SignInResult {
@@ -51,16 +50,6 @@ export function authenticationFailed(): ApplicationError {
     code: "AUTHENTICATION_REQUIRED",
     title: "Authentication failed",
     detail: "The email address or password is incorrect.",
-  });
-}
-
-/** Reachable only after a correct password, so it may be specific. */
-function workspaceUnavailable(): ApplicationError {
-  return new ApplicationError({
-    status: 403,
-    code: "ACCESS_DENIED",
-    title: "Workspace unavailable",
-    detail: "This account has no active workspace.",
   });
 }
 
@@ -148,41 +137,24 @@ export function createSignInService(
         throw authenticationFailed();
       }
 
-      const access = await repository.findActiveTenantAccess(identity.userId);
-      if (access === undefined || access.tenantState !== "active") {
-        // Past the password check, so the caller already knows the account
-        // exists. Being specific here leaks nothing further.
-        await repository.recordFailure(
-          { ...audit, outcome: "denied_workspace" },
-          identity.userId,
-          0,
-        );
-        throw workspaceUnavailable();
-      }
-
       const refreshToken = refreshTokens.generate();
       const refreshExpiresAt = new Date(Date.now() + session.refreshTtlSeconds * 1_000);
 
-      // Identity lock timing, Tenant access and Tenant state are all re-checked
-      // under row locks inside the session transaction. The initial reads are
-      // useful for rejecting early, but never authorize the eventual write.
+      // Recheck identity state and PostgreSQL lock expiry in the session transaction.
       const sessionOutcome = await repository.createSession(
         {
           userId: identity.userId,
           tokenFamilyHash: refreshTokens.hash(refreshToken),
           expiresAt: refreshExpiresAt,
-          deviceMetadata: request.deviceMetadata,
-          securityMetadata: { issued_by: "sign_in" },
         },
         {
           ...audit,
-          tenantId: access.tenantId,
           actorUserId: identity.userId,
           outcome: "accepted",
         },
         {
-          tenantId: access.tenantId,
           allowExpiredLock: identity.state === "locked",
+          verifiedPasswordHash: identity.passwordHash,
           lockoutWindowMs: lockout.windowMs,
         },
       );
@@ -197,15 +169,6 @@ export function createSignInService(
         throw authenticationFailed();
       }
 
-      if (sessionOutcome.kind === "workspace_unavailable") {
-        await repository.recordFailure(
-          { ...audit, outcome: "denied_workspace_race" },
-          identity.userId,
-          0,
-        );
-        throw workspaceUnavailable();
-      }
-
       const sessionId = sessionOutcome.sessionId;
 
       // Issued only after the session row is committed. A token minted earlier
@@ -214,7 +177,6 @@ export function createSignInService(
       const issued = await accessTokens.issue({
         userId: identity.userId,
         sessionId,
-        tenantId: access.tenantId,
       });
 
       // Upgrade a hash created under a lower cost, now that the password is
@@ -224,6 +186,7 @@ export function createSignInService(
           await repository.updatePasswordHash(
             identity.userId,
             await passwordHasher.hash(request.password),
+            identity.passwordHash,
           );
         } catch {
           // Intentionally ignored: the customer is authenticated either way.

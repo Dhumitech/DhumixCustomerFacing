@@ -38,6 +38,7 @@ describe("database transactions", () => {
     expect(query.mock.calls.map((call) => call[0])).toEqual([
       "BEGIN",
       "SET LOCAL ROLE dhumi_identity",
+      "SELECT set_config('app.user_id', '', true), set_config('app.organization_id', '', true), set_config('app.verification_id', '', true), set_config('app.invite_token_hash', '', true)",
       "SELECT 42",
       "COMMIT",
     ]);
@@ -49,7 +50,7 @@ describe("database transactions", () => {
     const { pool, query } = fakePool([
       { rows: [], rowCount: 0 },
       { rows: [], rowCount: 0 },
-      { rows: [{ tenant_id: tenantId }], rowCount: 1 },
+      { rows: [{ organization_id: tenantId }], rowCount: 1 },
       { rows: [{ visible: true }], rowCount: 1 },
       { rows: [], rowCount: 0 },
     ]);
@@ -60,7 +61,7 @@ describe("database transactions", () => {
 
     expect(query.mock.calls[1]?.[0]).toBe("SET LOCAL ROLE dhumi_customer_api");
     expect(query.mock.calls[2]).toEqual([
-      "SELECT set_config('app.tenant_id', $1, true) AS tenant_id",
+      "SELECT set_config('app.organization_id', $1, true) AS organization_id",
       [tenantId],
     ]);
     expect(query.mock.calls.at(-1)?.[0]).toBe("COMMIT");
@@ -71,7 +72,7 @@ describe("database transactions", () => {
     const { pool, query } = fakePool([
       { rows: [], rowCount: 0 },
       { rows: [], rowCount: 0 },
-      { rows: [{ tenant_id: tenantId }], rowCount: 1 },
+      { rows: [{ organization_id: tenantId }], rowCount: 1 },
       { rows: [{ admitted: true }], rowCount: 1 },
       { rows: [], rowCount: 0 },
     ]);
@@ -82,7 +83,7 @@ describe("database transactions", () => {
 
     expect(query.mock.calls[1]?.[0]).toBe("SET LOCAL ROLE dhumi_admission");
     expect(query.mock.calls[2]).toEqual([
-      "SELECT set_config('app.tenant_id', $1, true) AS tenant_id",
+      "SELECT set_config('app.organization_id', $1, true) AS organization_id",
       [tenantId],
     ]);
   });
@@ -105,13 +106,13 @@ describe("database transactions", () => {
     const { pool, query } = fakePool([
       { rows: [], rowCount: 0 },
       { rows: [], rowCount: 0 },
-      { rows: [{ tenant_id: tenantId }], rowCount: 1 },
+      { rows: [{ organization_id: tenantId }], rowCount: 1 },
       { rows: [], rowCount: 0 },
     ]);
     await withJobManagerTenantTransaction(pool, tenantId, async () => undefined);
     expect(query.mock.calls[1]?.[0]).toBe("SET LOCAL ROLE dhumi_job_manager");
     expect(query.mock.calls[2]).toEqual([
-      "SELECT set_config('app.tenant_id', $1, true) AS tenant_id",
+      "SELECT set_config('app.organization_id', $1, true) AS organization_id",
       [tenantId],
     ]);
   });
@@ -128,6 +129,7 @@ describe("database transactions", () => {
     expect(query.mock.calls.map((call) => call[0])).toEqual([
       "BEGIN",
       "SET LOCAL ROLE dhumi_identity",
+      "SELECT set_config('app.user_id', '', true), set_config('app.organization_id', '', true), set_config('app.verification_id', '', true), set_config('app.invite_token_hash', '', true)",
       "ROLLBACK",
     ]);
     expect(release).toHaveBeenCalledWith(undefined);

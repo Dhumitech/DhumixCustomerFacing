@@ -17,6 +17,7 @@ const workspace: WorkspaceRecord = {
   id: identity.tenantId,
   name: "Acme Research",
   state: "active",
+  role: "member",
   createdAt: new Date("2026-08-23T10:20:30.000Z"),
 };
 
@@ -29,9 +30,6 @@ function repository(
     async findBrowserWorkspace(input) {
       calls.push(input);
       return result;
-    },
-    async findApiKeyWorkspace() {
-      throw new Error("API-key workspace lookup was not expected");
     },
   };
 }
@@ -47,29 +45,12 @@ describe("workspace service", () => {
     ]);
   });
 
-  it("reads an API-key workspace without manufacturing browser identity", async () => {
-    const calls: string[] = [];
-    const service = createWorkspaceService({
-      repository: {
-        async findBrowserWorkspace() {
-          throw new Error("browser lookup was not expected");
-        },
-        async findApiKeyWorkspace(tenantId) {
-          calls.push(tenantId);
-          return workspace;
-        },
-      },
-    });
-
-    await expect(
-      service.getWorkspace({
-        kind: "api_key",
-        apiKeyId: randomUUID(),
-        tenantId: identity.tenantId,
-        scopes: ["catalog:read"],
-      }),
-    ).resolves.toBe(workspace);
-    expect(calls).toEqual([identity.tenantId]);
+  it("rejects non-browser actors before any workspace lookup", async () => {
+    const store = repository(workspace);
+    const service = createWorkspaceService({ repository: store });
+    const invalid = { kind: "api_key", tenantId: identity.tenantId } as unknown as typeof identity;
+    await expect(service.getWorkspace(invalid)).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
+    expect(store.calls).toHaveLength(0);
   });
 
   it("turns an RLS-hidden or unavailable row into the declared 403", async () => {
@@ -81,36 +62,11 @@ describe("workspace service", () => {
     });
   });
 
-  it("uses the generic access denial when an API-key Tenant disappears", async () => {
-    const service = createWorkspaceService({
-      repository: {
-        async findBrowserWorkspace() {
-          throw new Error("browser lookup was not expected");
-        },
-        async findApiKeyWorkspace() {
-          return undefined;
-        },
-      },
-    });
-
-    await expect(
-      service.getWorkspace({
-        kind: "api_key",
-        apiKeyId: randomUUID(),
-        tenantId: identity.tenantId,
-        scopes: ["catalog:read"],
-      }),
-    ).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
-  });
-
   it("preserves repository failures for centralized safe error handling", async () => {
     const failure = new Error("database unavailable");
     const service = createWorkspaceService({
       repository: {
         async findBrowserWorkspace() {
-          throw failure;
-        },
-        async findApiKeyWorkspace() {
           throw failure;
         },
       },

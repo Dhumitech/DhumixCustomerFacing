@@ -71,7 +71,7 @@ describe("Run list cursor", () => {
       encoded({ ...valid, created_at: "not-a-date" }),
       encoded({ ...valid, created_at: "2026-08-25T12:00:00Z" }),
       encoded({ ...valid, id: "not-a-uuid" }),
-      encoded({ ...valid, tenant_id: "forbidden" }),
+      encoded({ ...valid, organization_id: "forbidden" }),
       encoded({
         kind: "runs",
         version: 1,

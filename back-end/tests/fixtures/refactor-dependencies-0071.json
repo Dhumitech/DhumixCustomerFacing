@@ -1,0 +1,11 @@
+{
+  "purpose": "Owner-selected in-place 0071 source baseline; packages, lockfiles, npm scripts and compose inputs remain byte-identical. Updating this guard requires explicit dependency/infrastructure scope review.",
+  "hashes": {
+    "back-end/package.json": "2889a7da32de20c3a4612ec0b278418032af47335a6270508af1762d22b87bbe",
+    "back-end/package-lock.json": "e0a1f4b452402bbfbc3bdf573d554c3f84f36866228cdc7a1cc76528c64785ae",
+    "front-end/package.json": "ecd28ce81c81024ea493bca290eefaac64a9c51342c9970cf8183bf842c5921e",
+    "front-end/package-lock.json": "232dea235c52934a776e1ed2e9bdb00a58e363727dbfcf96037092363d8ce960",
+    "back-end/compose.pattern3.yml": "d91ee1961f85929c3e4433e344c2ac04e4bf4353dff9315ea48edf61bcfcd33a",
+    "back-end/compose.pattern4.yml": "b0037e439b389b65fbf70608752ed6fa666be31ca77eb67e09f959165541d0c5"
+  }
+}

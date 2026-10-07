@@ -1,4 +1,7 @@
 import type { SessionCookieConfig } from "../config/environment.js";
+import type { OrganizationWorkflowService } from "../services/organizations/organizationWorkflowService.js";
+import type { OrganizationActivityService } from '../services/organizations/organizationActivity.js';
+import type { AccessLevel } from "../routes/accessSurface.js";
 import type {
   BrowserAuthenticationService,
   TrustedSessionIdentity,
@@ -12,11 +15,8 @@ import type {
   TrustedTenantIdentity,
 } from "../services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../services/workspace/workspaceService.js";
-import type { CreateApiKeyService } from "../services/apiKeys/createApiKeyService.js";
-import type { ListApiKeysService } from "../services/apiKeys/listApiKeysService.js";
-import type { RevokeApiKeyService } from "../services/apiKeys/revokeApiKeyService.js";
-import type { ApiKeyAuthenticationService } from "../services/apiKeys/apiKeyAuthenticationService.js";
 import type { TrustedTenantPrincipal } from "../services/tenantAccess/trustedTenantPrincipal.js";
+import type { TrustedBrowsePrincipal } from "../services/tenantAccess/trustedBrowsePrincipal.js";
 import type { ListCatalogTemplatesService } from "../services/catalogue/listCatalogTemplatesService.js";
 import type { GetCatalogTemplateService } from "../services/catalogue/getCatalogTemplateService.js";
 import type { ListServicesService } from "../services/customerServices/listServicesService.js";
@@ -32,15 +32,15 @@ import type { RetryRunService } from "../services/admission/retryRunService.js";
 import type { GetUsageSummaryService } from "../services/usage/getUsageSummaryService.js";
 import type { ListUsageEventsService } from "../services/usage/listUsageEventsService.js";
 import type { GetPlatformStatusService } from "../services/status/getPlatformStatusService.js";
-import type { MarketplacePreviewService } from
-  "../services/marketplacePreview/marketplacePreviewService.js";
-import type { MarketplaceSampleDownloadService } from
-  "../services/marketplaceSampleDownload/marketplaceSampleDownloadService.js";
-import type { MarketplaceExpertEnquiryService } from
-  "../services/marketplaceExpertEnquiry/marketplaceExpertEnquiryService.js";
+import type { MarketplacePreviewService } from "../services/marketplacePreview/marketplacePreviewService.js";
+import type { MarketplaceSampleDownloadService } from "../services/marketplaceSampleDownload/marketplaceSampleDownloadService.js";
+import type { MarketplaceExpertEnquiryService } from "../services/marketplaceExpertEnquiry/marketplaceExpertEnquiryService.js";
 
 declare module "fastify" {
+  interface FastifyContextConfig { access?: AccessLevel }
   interface FastifyInstance {
+    organizationActivityService:OrganizationActivityService;
+    organizationWorkflowService: OrganizationWorkflowService;
     /**
      * Composed in the application entry point from the Identity pool. Routes
      * receive a service, never a connection pool, so controllers cannot reach
@@ -53,10 +53,6 @@ declare module "fastify" {
     logoutService: LogoutService;
     tenantAuthorizationService: TenantAuthorizationService;
     workspaceService: WorkspaceService;
-    createApiKeyService: CreateApiKeyService;
-    listApiKeysService: ListApiKeysService;
-    revokeApiKeyService: RevokeApiKeyService;
-    apiKeyAuthenticationService: ApiKeyAuthenticationService;
     listCatalogTemplatesService: ListCatalogTemplatesService;
     getCatalogTemplateService: GetCatalogTemplateService;
     listServicesService: ListServicesService;
@@ -79,8 +75,11 @@ declare module "fastify" {
   }
 
   interface FastifyRequest {
+    /** Server-generated correlation UUID; caller request.id is echo/log only. */
+    traceId: string;
     trustedSessionIdentity: TrustedSessionIdentity | null;
     trustedTenantIdentity: TrustedTenantIdentity | null;
     trustedTenantPrincipal: TrustedTenantPrincipal | null;
+    trustedBrowsePrincipal: TrustedBrowsePrincipal | null;
   }
 }

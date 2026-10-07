@@ -1,3 +1,4 @@
+import { organizationPath } from "../../api/organizationScope";
 import { Link } from "react-router";
 import type { MarketplaceMetadata, ServiceTemplate } from "../../api/generated";
 import {
@@ -189,7 +190,7 @@ export function MarketplaceDatasetInformation({
       <h3 id="related-title">Related LinkedIn datasets</h3>
       <Link
         className="dataset-related-card"
-        to={`/workspace/marketplace/groups/${template.presentation.domain_slug}`}
+        to={organizationPath(`/workspace/marketplace/groups/${template.presentation.domain_slug}`)}
       >
         <span className="marketplace-card__brand" aria-hidden="true">
           in

@@ -5,10 +5,6 @@ import { buildApp } from "../../src/app.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "../../src/config/environment.js";
 import { encodeRunEventListCursor } from "../../src/helpers/runEventListCursor.js";
 import type {
-  ApiKeyAuthenticationService,
-  TrustedApiKeyIdentity,
-} from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
-import type {
   BrowserAuthenticationService,
   TrustedSessionIdentity,
 } from "../../src/services/identity/browserAuthenticationService.js";
@@ -30,11 +26,6 @@ import type {
 } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import {
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -52,21 +43,15 @@ const API_KEY = `dhk_v1_${"A".repeat(16)}.${"A".repeat(43)}`;
 const RUN_ID = "74000000-0000-4000-8000-000000000001";
 const OTHER_RUN_ID = "74000000-0000-4000-8000-000000000002";
 const EVENT_ID = "75000000-0000-4000-8000-000000000001";
+const organizationId = randomUUID();
 const sessionIdentity: TrustedSessionIdentity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: randomUUID(),
 };
 const tenantIdentity: TrustedTenantIdentity = {
   userId: sessionIdentity.userId,
   sessionId: sessionIdentity.sessionId,
-  tenantId: sessionIdentity.issuedTenantId,
-};
-const apiKeyIdentity: TrustedApiKeyIdentity = {
-  kind: "api_key",
-  apiKeyId: randomUUID(),
-  tenantId: tenantIdentity.tenantId,
-  scopes: ["runs:read"],
+  tenantId: organizationId,
 };
 const record: ListRunEventsRecord = {
   id: EVENT_ID,
@@ -162,21 +147,6 @@ function tenantAuthorization(): SwitchableTenantAuthorization {
   return service;
 }
 
-interface SwitchableApiKeyAuthentication extends ApiKeyAuthenticationService {
-  identity: TrustedApiKeyIdentity;
-}
-
-function apiKeyAuthentication(): SwitchableApiKeyAuthentication {
-  const service: SwitchableApiKeyAuthentication = {
-    identity: apiKeyIdentity,
-    async authenticate(authorization) {
-      if (authorization !== `Bearer ${API_KEY}`) throw authenticationRequired();
-      return service.identity;
-    },
-  };
-  return service;
-}
-
 function config(): RuntimeConfig {
   return loadRuntimeConfig({
     NODE_ENV: "test",
@@ -193,19 +163,16 @@ function config(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
 let app: FastifyInstance | undefined;
 let events: RecordingService;
 let tenant: SwitchableTenantAuthorization;
-let apiKeyAuth: SwitchableApiKeyAuthentication;
 
 beforeEach(() => {
   events = listService();
   tenant = tenantAuthorization();
-  apiKeyAuth = apiKeyAuthentication();
 });
 
 afterEach(async () => {
@@ -224,10 +191,6 @@ async function build(
     logoutService: stubLogoutService,
     tenantAuthorizationService: tenant,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: apiKeyAuth,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -279,16 +242,11 @@ describe("GET /v1/runs/{run_id}/events contract", () => {
     ]);
   });
 
-  it("accepts runs:read API keys and rejects a missing scope before lookup", async () => {
+  it("rejects retired customer API keys before lookup", async () => {
     const instance = await build();
-    expect((await get(instance, "", `Bearer ${API_KEY}`)).statusCode).toBe(200);
-    expect(events.calls[0]?.principal).toEqual(apiKeyIdentity);
-
-    events.calls.length = 0;
-    apiKeyAuth.identity = { ...apiKeyIdentity, scopes: ["runs:write"] };
     const denied = await get(instance, "", `Bearer ${API_KEY}`);
-    expect(denied.statusCode).toBe(403);
-    expect(denied.json()).toMatchObject({ code: "ACCESS_DENIED" });
+    expect(denied.statusCode).toBe(401);
+    expect(denied.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
     expect(events.calls).toHaveLength(0);
   });
 
@@ -414,6 +372,6 @@ describe("GET /v1/runs/{run_id}/events contract", () => {
   });
 
   it("does not require cookies or CSRF for this read-only operation", async () => {
-    expect((await get(await build(), "", `Bearer ${API_KEY}`)).statusCode).toBe(200);
+    expect((await get(await build(), "", `Bearer ${ACCESS_TOKEN}`)).statusCode).toBe(200);
   });
 });

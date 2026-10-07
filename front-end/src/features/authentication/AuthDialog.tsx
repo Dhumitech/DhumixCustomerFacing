@@ -1,3 +1,4 @@
+import { PasswordResetPanel } from "./PasswordResetPanel";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { DhumiApiError } from "../../api/auth";
@@ -14,7 +15,6 @@ interface AuthDialogProps {
 }
 
 interface AuthFormValues {
-  readonly companyNameOrWebsite: string;
   readonly email: string;
   readonly password: string;
   readonly legalConsent: boolean;
@@ -56,6 +56,7 @@ export function AuthDialog({
   const { signIn, signUp } = useSession();
   const [requestError, setRequestError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
   const isSignUp = mode === "sign-up";
   const {
     register,
@@ -65,7 +66,6 @@ export function AuthDialog({
     formState: { errors, isSubmitting },
   } = useForm<AuthFormValues>({
     defaultValues: {
-      companyNameOrWebsite: "",
       email: "",
       password: "",
       legalConsent: false,
@@ -95,7 +95,6 @@ export function AuthDialog({
   function changeMode(nextMode: AuthMode): void {
     const email = getValues("email");
     reset({
-      companyNameOrWebsite: "",
       email,
       password: "",
       legalConsent: false,
@@ -112,12 +111,10 @@ export function AuthDialog({
     try {
       if (isSignUp) {
         const result = await signUp({
-          companyNameOrWebsite: values.companyNameOrWebsite,
           email: values.email,
           password: values.password,
         });
         reset({
-          companyNameOrWebsite: "",
           email: values.email,
           password: "",
           legalConsent: false,
@@ -196,14 +193,14 @@ export function AuthDialog({
             </div>
 
             <p className="auth-eyebrow">
-              {isSignUp ? "Create your workspace" : "Welcome back"}
+              {isSignUp ? "Create your account" : "Welcome back"}
             </p>
             <h2 id="auth-dialog-title">
               {isSignUp ? "Start with Dhumi." : "Continue your work."}
             </h2>
             <p className="auth-intro" id="auth-dialog-intro">
               {isSignUp
-                ? "Keep your scrapers, collections, and results together in one workspace."
+                ? "Create your account to browse. Create or join an organization when you need to collect data."
                 : "Sign in to open your workspace and continue collecting data."}
             </p>
 
@@ -219,41 +216,13 @@ export function AuthDialog({
               </p>
             )}
 
+            {!isSignUp && <button type="button" onClick={() => setResetting(value => !value)}>Forgot password?</button>}
+            {resetting && <PasswordResetPanel onDone={() => { setResetting(false); changeMode("sign-in"); setNotice("Sign in with your password."); }} />}
             <form
               className="auth-form"
               onSubmit={handleSubmit(submit)}
               noValidate
             >
-              {isSignUp && (
-                <label className="auth-field">
-                  Company website or company name
-                  <input
-                    type="text"
-                    autoComplete="organization"
-                    placeholder="acme.com or Acme"
-                    aria-invalid={
-                      errors.companyNameOrWebsite ? "true" : "false"
-                    }
-                    {...register("companyNameOrWebsite", {
-                      required: "Enter your company website or company name.",
-                      minLength: {
-                        value: 2,
-                        message: "Use at least 2 characters.",
-                      },
-                      maxLength: {
-                        value: 120,
-                        message: "Use no more than 120 characters.",
-                      },
-                    })}
-                  />
-                  {errors.companyNameOrWebsite && (
-                    <span className="auth-field__error" role="alert">
-                      {errors.companyNameOrWebsite.message}
-                    </span>
-                  )}
-                </label>
-              )}
-
               <label className="auth-field">
                 Email address
                 <input

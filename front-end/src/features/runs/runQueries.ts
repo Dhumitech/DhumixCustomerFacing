@@ -1,3 +1,4 @@
+import { selectedOrganization } from "../../api/organizationScope";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { runsApi, serviceExecutionApi } from "../../api/customerRuns";
 import type { RunStatus } from "../../api/generated";
@@ -13,10 +14,11 @@ const TERMINAL_STATUSES = new Set<RunStatus>([
 
 export function useServiceQuery(serviceId: string | null) {
   const { identityEmail, isAuthenticated } = useSession();
+  const organizationId = selectedOrganization();
   return useQuery({
-    queryKey: ["service", identityEmail, serviceId],
+    queryKey: ["service", identityEmail, organizationId, serviceId],
     queryFn: () => serviceExecutionApi.get(serviceId as string),
-    enabled: isAuthenticated && serviceId !== null,
+    enabled: isAuthenticated && !!organizationId && serviceId !== null,
     staleTime: 30_000,
   });
 }
@@ -35,15 +37,16 @@ export function useRunsQuery(
   filters: { readonly status?: RunStatus; readonly serviceId?: string } = {},
 ) {
   const { identityEmail, isAuthenticated } = useSession();
+  const organizationId = selectedOrganization();
   return useQuery({
     queryKey: [
       "runs",
-      identityEmail,
+      identityEmail, organizationId,
       filters.status ?? "all",
       filters.serviceId ?? "all",
     ],
     queryFn: () => runsApi.list(filters),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !!organizationId,
     refetchInterval: (query) =>
       query.state.data?.data.some((run) => !TERMINAL_STATUSES.has(run.status))
         ? POLL_INTERVAL_MS
@@ -53,10 +56,11 @@ export function useRunsQuery(
 
 export function useRunQuery(runId: string | null) {
   const { identityEmail, isAuthenticated } = useSession();
+  const organizationId = selectedOrganization();
   return useQuery({
-    queryKey: ["run", identityEmail, runId],
+    queryKey: ["run", identityEmail, organizationId, runId],
     queryFn: () => runsApi.get(runId as string),
-    enabled: isAuthenticated && runId !== null,
+    enabled: isAuthenticated && !!organizationId && runId !== null,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status && TERMINAL_STATUSES.has(status) ? false : POLL_INTERVAL_MS;
@@ -66,10 +70,11 @@ export function useRunQuery(runId: string | null) {
 
 export function useRunEventsQuery(runId: string | null, status?: RunStatus) {
   const { identityEmail, isAuthenticated } = useSession();
+  const organizationId = selectedOrganization();
   return useQuery({
-    queryKey: ["run-events", identityEmail, runId],
+    queryKey: ["run-events", identityEmail, organizationId, runId],
     queryFn: () => runsApi.events(runId as string),
-    enabled: isAuthenticated && runId !== null && status !== undefined,
+    enabled: isAuthenticated && !!organizationId && runId !== null && status !== undefined,
     refetchInterval:
       status && TERMINAL_STATUSES.has(status) ? false : POLL_INTERVAL_MS,
   });

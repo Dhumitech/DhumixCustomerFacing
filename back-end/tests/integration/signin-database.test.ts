@@ -85,7 +85,6 @@ function request(email: string, password = PASSWORD) {
     password,
     requestId: randomUUID(),
     ipFingerprint: null,
-    deviceMetadata: { user_agent_family: "vitest" },
   };
 }
 
@@ -113,13 +112,11 @@ async function readSessions(userId: string): Promise<
     state: string;
     token_family_hash: Buffer;
     expires_at: Date;
-    issued_at: Date;
-    device_metadata: Record<string, unknown>;
-    security_metadata: Record<string, unknown>;
+    created_at: Date;
   }>
 > {
   const result = await withIdentityTransaction(must(pools).identity, async (db) =>
-    db.query(`SELECT * FROM app.auth_sessions WHERE user_id = $1 ORDER BY issued_at`, [userId]),
+    db.query(`SELECT * FROM app.auth_sessions WHERE user_id = $1 ORDER BY created_at`, [userId]),
   );
   return result.rows as never;
 }
@@ -156,18 +153,18 @@ describe.skipIf(!enabled)("sign-in against PostgreSQL", () => {
     const sessions = await readSessions(before.id);
     expect(sessions).toHaveLength(1);
     expect(sessions[0]?.state).toBe("active");
-    // CHECK (expires_at > issued_at) must hold, and the stored value must be
+    // CHECK (expires_at > created_at) must hold, and the stored value must be
     // the family hash, never the token itself.
     expect(sessions[0]!.expires_at.getTime()).toBeGreaterThan(
-      sessions[0]!.issued_at.getTime(),
+      sessions[0]!.created_at.getTime(),
     );
     expect(sessions[0]!.token_family_hash).toHaveLength(32);
     expect(sessions[0]!.token_family_hash.toString("utf8")).not.toContain(result.refreshToken);
-    expect(sessions[0]!.device_metadata).toEqual({ user_agent_family: "vitest" });
-    expect(sessions[0]!.security_metadata).toEqual({ issued_by: "sign_in" });
+    expect(sessions[0]).not.toHaveProperty("device_metadata");
+    expect(sessions[0]).not.toHaveProperty("security_metadata");
   });
 
-  it("issues a token carrying the resolved Tenant, which the customer never supplied", async () => {
+  it("issues only user/session claims for a user without organization access", async () => {
     const email = await createIdentity();
     const result = await signIn().authenticate(request(email));
 
@@ -176,15 +173,8 @@ describe.skipIf(!enabled)("sign-in against PostgreSQL", () => {
     ).verify(result.accessToken);
 
     const user = await readUser(email);
-    const tenant = await withIdentityTransaction(must(pools).identity, async (db) =>
-      db.query<{ tenant_id: string }>(
-        `SELECT tenant_id FROM app.tenant_user_access WHERE user_id = $1`,
-        [user.id],
-      ),
-    );
-
     expect(claims?.userId).toBe(user.id);
-    expect(claims?.tenantId).toBe(tenant.rows[0]?.tenant_id);
+    expect(claims).not.toHaveProperty("tenantId");
     expect(claims?.sessionId).toBe((await readSessions(user.id))[0]?.id);
   });
 
@@ -254,66 +244,16 @@ describe.skipIf(!enabled)("sign-in against PostgreSQL", () => {
     }
   });
 
-  it("returns 403 when the Tenant access is revoked", async () => {
+  it("rejects a user suspended between password verification and session creation", async () => {
     const email = await createIdentity();
     const user = await readUser(email);
-
-    await withIdentityTransaction(must(pools).identity, async (db) =>
-      db.query(`UPDATE app.tenant_user_access SET state = 'revoked' WHERE user_id = $1`, [
-        user.id,
-      ]),
-    );
-
-    // Past the password check, so being specific leaks nothing further.
-    await expect(signIn().authenticate(request(email))).rejects.toMatchObject({
-      status: 403,
-      code: "ACCESS_DENIED",
-    });
-    expect(await readSessions(user.id)).toHaveLength(0);
-  });
-
-  it("fails closed when a User has more than one active Tenant access", async () => {
-    const email = await createIdentity();
-    const user = await readUser(email);
-
-    await withIdentityTransaction(must(pools).identity, async (db) => {
-      const tenant = await db.query<{ id: string }>(
-        `INSERT INTO app.tenants (display_name) VALUES ('Second Sign-in Tenant') RETURNING id`,
-      );
-      await db.query(
-        `INSERT INTO app.tenant_user_access (tenant_id, user_id, access_role)
-         VALUES ($1, $2, 'owner')`,
-        [tenant.rows[0]?.id, user.id],
-      );
-    });
-
-    await expect(signIn().authenticate(request(email))).rejects.toMatchObject({
-      status: 403,
-      code: "ACCESS_DENIED",
-    });
-    expect(await readSessions(user.id)).toHaveLength(0);
-  });
-
-  it("does not create a session when Tenant access is revoked after the access read", async () => {
-    const email = await createIdentity();
-    const user = await readUser(email);
-    const service = signIn({}, (repository) => ({
-      ...repository,
+    const service = signIn({}, (repository) => ({ ...repository,
       async createSession(session, audit, authorization) {
-        await withIdentityTransaction(must(pools).identity, async (db) =>
-          db.query(
-            `UPDATE app.tenant_user_access SET state = 'revoked' WHERE user_id = $1`,
-            [session.userId],
-          ),
-        );
+        await setUserState(session.userId, "suspended");
         return repository.createSession(session, audit, authorization);
       },
     }));
-
-    await expect(service.authenticate(request(email))).rejects.toMatchObject({
-      status: 403,
-      code: "ACCESS_DENIED",
-    });
+    await expect(service.authenticate(request(email))).rejects.toMatchObject({ status: 401 });
     expect(await readSessions(user.id)).toHaveLength(0);
   });
 

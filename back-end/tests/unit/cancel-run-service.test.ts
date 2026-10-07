@@ -68,21 +68,16 @@ describe("cancel Run service", () => {
     });
   });
 
-  it("allows a scoped API-key principal without browser CSRF", async () => {
-    const apiKeyId = randomUUID();
-    const persist = vi.fn<CancelRunRepository["persist"]>(async () => ({
-      kind: "replay",
-      run: accepted,
-    }));
-
+  it.each([undefined, csrf.issue(sessionId)])("rejects API-key actors regardless of CSRF (%s)", async (csrfToken) => {
+    const persist = vi.fn<CancelRunRepository["persist"]>();
     await expect(
       service({ persist }).cancel({
         ...request(),
-        principal: { kind: "api_key", tenantId, apiKeyId, scopes: ["runs:write"] },
-        csrfToken: undefined,
+        principal: { kind: "api_key", tenantId, apiKeyId: randomUUID() } as unknown as ReturnType<typeof request>["principal"],
+        csrfToken,
       }),
-    ).resolves.toEqual(accepted);
-    expect(persist.mock.calls[0]?.[0].actor).toEqual({ kind: "api_key", apiKeyId });
+    ).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
+    expect(persist).not.toHaveBeenCalled();
   });
 
   it("rejects browser CSRF before body and resource validation", async () => {

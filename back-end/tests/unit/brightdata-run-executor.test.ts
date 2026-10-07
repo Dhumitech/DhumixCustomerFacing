@@ -13,7 +13,7 @@ import {
   RunExecutionTerminalError,
 } from "../../src/services/jobs/controlledRunExecutor.js";
 import {
-  providerMappingAad,
+  providerDatasetAad,
   providerSnapshotAad,
   type ProviderExecutionPlan,
   type ProviderExecutionPlanRepository,
@@ -28,8 +28,7 @@ const tenantId = "11111111-1111-4111-8111-111111111111";
 const runId = "22222222-2222-4222-8222-222222222222";
 const attemptId = "33333333-3333-4333-8333-333333333333";
 const fenceToken = "44444444-4444-4444-8444-444444444444";
-const mappingId = "55555555-5555-4555-8555-555555555555";
-const providerResourceAadMappingId = "77777777-7777-4777-8777-777777777777";
+const templateVersionId = "77777777-7777-4777-8777-777777777777";
 const sourceAttemptId = "66666666-6666-4666-8666-666666666666";
 const snapshotReference = "s_m4x7enmven8djfqak";
 
@@ -52,21 +51,20 @@ async function fixture(options: {
   );
   const protectedMapping = await protector.protect(
     "gd_l7q7dkf244hwjntr0",
-    providerMappingAad(providerResourceAadMappingId),
+    providerDatasetAad(templateVersionId),
   );
   const protectedSnapshot = await protector.protect(
     snapshotReference,
     providerSnapshotAad({ tenantId, runId, attemptId: sourceAttemptId }),
   );
   const plan: ProviderExecutionPlan = {
-    mappingId,
-    providerResourceAadMappingId,
+    templateVersionId,
     validatedInput: {
       targets: [{ url: "https://www.amazon.com/dp/B0CRMZHDG8" }],
     },
     operationCode: "amazon.products.collect_by_url",
-    providerResourceCiphertext: protectedMapping.ciphertext,
-    providerResourceFingerprint: protectedMapping.fingerprint,
+    datasetCiphertext: protectedMapping.ciphertext,
+    datasetFingerprint: protectedMapping.fingerprint,
     outputPolicy: {
       provider_submission: { endpoint: options.providerExecutionMode ?? "scrape" },
       provider_request: { mode: "collect", limit_per_input: null },
@@ -80,10 +78,10 @@ async function fixture(options: {
       normalizer_version: 2,
       normalized_schema_version: "amazon.products.collect-by-url.output.v1",
     },
-    mappingConfigVersion: "amazon-v1",
+    definitionConfigVersion: "amazon-v1",
     providerCode: "bright_data",
     providerEnvironment: options.planProviderEnvironment ?? "test",
-    vaultSecretReference: "BRIGHTDATA_API_KEY",
+    secretReference: "BRIGHTDATA_API_KEY",
   };
   let failures = 0;
   const repository: ProviderExecutionPlanRepository = {

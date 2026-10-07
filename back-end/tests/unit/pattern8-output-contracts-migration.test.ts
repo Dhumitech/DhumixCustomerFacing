@@ -6,10 +6,6 @@ const migrationUrl = new URL(
   "../../scripts/migrations/0040_amazon_precise_output_contracts.sql",
   import.meta.url,
 );
-const repositoryUrl = new URL(
-  "../../src/services/qualification/amazonQualificationRepository.ts",
-  import.meta.url,
-);
 const implementationUrls = [
   new URL(
     "../../src/services/brightdata/amazon/amazonOperationDefinitions.ts",
@@ -59,14 +55,6 @@ describe("Pattern 8 Priority 4 output-contract migration", () => {
     expect(sql).not.toMatch(/provider_mappings[\s\S]{0,1000}'enabled'/i);
   });
 
-  it("moves the operator repository to the v2 registry and v3 acceptance gate", async () => {
-    const source = await readFile(repositoryUrl, "utf8");
-    expect(source).toContain("app.begin_amazon_scraper_catalog_import_v2");
-    expect(source).toContain("app.resolve_amazon_qualification_candidate_v2");
-    expect(source).toContain("app.begin_amazon_provider_qualification_v3");
-    expect(source).toContain("app.resolve_amazon_qualification_acceptance_plan_v3");
-    expect(source).toContain("app.accept_amazon_provider_qualification_v3");
-  });
 
   it("pins the exact current Amazon contract implementation bytes", async () => {
     const sql = await readFile(migrationUrl, "utf8");

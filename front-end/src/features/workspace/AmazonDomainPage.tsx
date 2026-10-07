@@ -1,3 +1,4 @@
+import { organizationPath } from "../../api/organizationScope";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { DhumiApiError } from "../../api/errors";
@@ -653,7 +654,7 @@ export function AmazonDomainPage() {
 
   useEffect(() => {
     if (!templateSlug && activeSlug) {
-      navigate(`/workspace/scrapers/${domainSlug}/${activeSlug}`, {
+      navigate(organizationPath(`/workspace/scrapers/${domainSlug}/${activeSlug}`), {
         replace: true,
       });
     }
@@ -670,7 +671,7 @@ export function AmazonDomainPage() {
   return (
     <section className="collector-page" aria-labelledby="collector-title">
       <div className="collector-breadcrumb">
-        <Link to="/workspace/scrapers">Scrapers Library</Link>
+        <Link to={organizationPath("/workspace/scrapers")}>Scrapers Library</Link>
         <span aria-hidden="true">/</span>
         <strong>{domainName}</strong>
       </div>
@@ -679,7 +680,7 @@ export function AmazonDomainPage() {
           <span className="operation-method">Available</span>
           <h2 id="collector-title">{pageTitle}</h2>
         </div>
-        <Link className="back-to-library" to="/workspace/scrapers">
+        <Link className="back-to-library" to={organizationPath("/workspace/scrapers")}>
           <span aria-hidden="true">←</span>Back to library
         </Link>
       </header>
@@ -728,7 +729,7 @@ export function AmazonDomainPage() {
                     onClick={() => {
                       setActiveSection("configuration");
                       navigate(
-                        `/workspace/scrapers/${domainSlug}/${operation.slug}`,
+                        organizationPath(`/workspace/scrapers/${domainSlug}/${operation.slug}`),
                       );
                     }}
                   >
@@ -762,7 +763,7 @@ export function AmazonDomainPage() {
               Configuration
             </button>
             <Link
-              to={`/workspace/runs${activeServices[0] ? `?service=${encodeURIComponent(activeServices[0].id)}` : ""}`}
+              to={organizationPath(`/workspace/runs${activeServices[0] ? `?service=${encodeURIComponent(activeServices[0].id)}` : ""}`)}
             >
               Runs
             </Link>
@@ -810,7 +811,7 @@ export function AmazonDomainPage() {
               template={template}
               schema={schema}
               services={activeServices}
-              servicesPending={servicesQuery.isPending}
+              servicesPending={servicesQuery.isFetching}
             />
           )}
           {template && schema && activeSection === "overview" && (

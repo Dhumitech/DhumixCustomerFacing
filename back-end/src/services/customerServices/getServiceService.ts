@@ -1,13 +1,9 @@
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
-import type {
-  GetServiceRecord,
-  GetServiceRepository,
-} from "./getServiceRepository.js";
+import type { GetServiceRecord, GetServiceRepository } from "./getServiceRepository.js";
 import type { Service } from "./listServicesService.js";
 import { serviceNotFound } from "./serviceErrors.js";
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface ServiceDetail extends Service {
   readonly configuration: Readonly<Record<string, unknown>>;
@@ -56,6 +52,7 @@ export function createGetServiceService(
 
       const record = await dependencies.repository.findById({
         tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
         serviceId: request.serviceId,
       });
       if (record === undefined) throw serviceNotFound();

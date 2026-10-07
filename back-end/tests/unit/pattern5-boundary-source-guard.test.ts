@@ -25,11 +25,12 @@ describe("Pattern 5 private-boundary source guard", () => {
     );
 
     expect(worker).toContain("createBrightDataRunExecutor");
-    expect(worker).toContain("createProviderExecutionPlanRepository(jobPool)");
+    expect(worker).toContain("createProviderExecutionPlanRepository(jobPool,");
     expect(server).not.toContain("createBrightDataRunExecutor");
-    expect(repository).toContain("resolve_provider_execution_plan_v2");
-    expect(repository).toContain("resolve_provider_reconciliation_plan_v2");
-    expect(repository).toContain("providerResourceAadMappingId");
+    expect(repository).toContain("resolveFencedTemplate");
+    expect(repository).toContain("providerDatasetAad");
+    expect(worker).toContain("createRecordedRunExecutor");
+    expect(repository).not.toMatch(/app\.resolve_provider_(execution|reconciliation)_plan/);
   });
 
   it("creates no Pattern 5 database role/bootstrap and redacts private key material", () => {

@@ -12,6 +12,7 @@ export async function getWorkspace(
     id: workspace.id,
     name: workspace.name,
     state: workspace.state,
+    role: workspace.role,
     created_at: workspace.createdAt.toISOString(),
   });
 }

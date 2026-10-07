@@ -1,0 +1,801 @@
+{
+  "preparedAtUtc": "2026-10-07T05:32:06.806Z",
+  "status": "APPLIED_VERIFIED_MAIN_DHUMI_TEST",
+  "authority": "Direct owner reply: Apply reviewed 0071. Applied only to localhost:5432/dhumi_test with subsequent preservation, retained-login and rollback-only backend verification. Later migrations/runtime/identity consolidation remain separate.",
+  "target": "127.0.0.1:5432/dhumi_test",
+  "draftPath": "back-end/scripts/refactor-review/0071_organizations.draft.sql",
+  "draftSha256": "af85bea48d8bb0e4c77ba9d301a23977ecfc33b5fe77ded0469c207e13e17bd9",
+  "sourceFingerprint": "3a2b31b1d9d744510fe2544493657d30",
+  "sourceLedger": [
+    {
+      "version": "0001_bootstrap_roles_and_schema",
+      "checksum": "f3bb8b9318b74413ba4cb570262046df2b7cbaeedfcbad2bc8ffc6fba61fa9ea"
+    },
+    {
+      "version": "0002_core_tables",
+      "checksum": "7747ed1b26b990e20de30fa19478914fa02ab69c742d78b585784d78cf4e10bf"
+    },
+    {
+      "version": "0003_rls_transitions_and_transaction_functions",
+      "checksum": "23b1073746a3dacc145ecd4c3454e5938d1a9d9e530e4fe778ef21bccd9f9bc2"
+    },
+    {
+      "version": "0004_database_integrity_corrections",
+      "checksum": "34710ca15692ee3319fcf1cbbcb1db52f06a149f13c4405a3f067a8f36c6cc91"
+    },
+    {
+      "version": "0005_tenant_workspace_state_alignment",
+      "checksum": "7780b5fd3fb6c9126df449249fa6f096f679bdf63ed6db1f61070e92d6131831"
+    },
+    {
+      "version": "0006_refresh_token_rotation",
+      "checksum": "af3c6101c956bda36ef313efff2f1d678397af3842a94db415e2e05c4ed2faa4"
+    },
+    {
+      "version": "0007_api_key_schema_foundation",
+      "checksum": "cb2dd9b4ace666d2b1c6a5edba9dd437f15daaca199929c1413edfb0246bbde0"
+    },
+    {
+      "version": "0008_core_integrity_constraints",
+      "checksum": "08b8ab9db3fad43aec23ebad44f268e3007d81e977ff911fa142cf5b740a6529"
+    },
+    {
+      "version": "0009_envelope_destruction",
+      "checksum": "29f5e7e80e4b92215549e4c225221ef30e505f152e7688af2581297697f4cbbf"
+    },
+    {
+      "version": "0010_api_key_list_read_surface",
+      "checksum": "b299e93840b05495298b941e8fc497d3c44730629b44a90cb4f57d1e2fe06913"
+    },
+    {
+      "version": "0011_api_key_revocation",
+      "checksum": "f80d48efbffef4c8ded2a5f4054a87a2a315c8ae7c840ed2ec11a86edd4d4750"
+    },
+    {
+      "version": "0012_api_key_revocation_event_v2",
+      "checksum": "da57b06c2121afec6dc756fe5e9c6b3903982ac91cc241d525ced19140b0d0e9"
+    },
+    {
+      "version": "0013_catalogue_public_read_surface",
+      "checksum": "869451d73d6507278329a0490b3d863986029ca5e4bdf00e676dc20bdcb88812"
+    },
+    {
+      "version": "0014_catalogue_slug_integrity",
+      "checksum": "a23db772d09350684e9d08da7f9ab022fe049527beb64974e75d36b5e2572f79"
+    },
+    {
+      "version": "0015_service_list_read_surface",
+      "checksum": "25cfbd8c387f2b9311ec29b2f453cf5cb6ed5c44c5aa76055e64345290d94571"
+    },
+    {
+      "version": "0016_service_creation",
+      "checksum": "8c967f523485214a11b7b9b6b233cf79d028545c1076e9d5656ef3100dec5da4"
+    },
+    {
+      "version": "0017_service_detail_read_surface",
+      "checksum": "8d9b859b0540ee3e3c07384d496418d3db6cb360ac97e62c37830e709d172bbd"
+    },
+    {
+      "version": "0018_run_admission",
+      "checksum": "94ae9d7adb9ffece2e7424219945f6e77e15c04dd5a20b0ce2943d3d4063077b"
+    },
+    {
+      "version": "0019_run_service_lock",
+      "checksum": "cdde64eff8757e0b0999db64fe34bc440724365b12108bc62f0f8828ed157688"
+    },
+    {
+      "version": "0020_run_list_read_surface",
+      "checksum": "6c0f87c6f2c47adc88bb2af5a41ee3740cb325e5a9e44b0e236c05af96b43fd3"
+    },
+    {
+      "version": "0021_run_cancellation",
+      "checksum": "abe0895839780783fb32c141e91cf82474cc442739602bace868f85340ea2dfe"
+    },
+    {
+      "version": "0022_run_retry",
+      "checksum": "96f89ccca5dfb35081857054af170e4e40ba1595c4cc8072d503bd166ec4212d"
+    },
+    {
+      "version": "0023_run_retry_owner_rls",
+      "checksum": "ed87bac9e51d05128276a82622440cb291a6cc8a6e053fb93355138bc1013971"
+    },
+    {
+      "version": "0024_run_retry_idempotency_lineage",
+      "checksum": "92bed8d95e91d30330db4ecd9762237ab462ad81105084d4f7268ea3e250a140"
+    },
+    {
+      "version": "0025_run_event_list_read_surface",
+      "checksum": "88ad8cf9ccc7206685dd028b59a52323e11a55dd4686a1cc844890385974c448"
+    },
+    {
+      "version": "0026_template_presentation_and_configuration_schema",
+      "checksum": "5c1442740fa41ddd2a51443e990cfb2ea141cd20ec06d86a56fe500fba956db3"
+    },
+    {
+      "version": "0027_run_list_service_filter",
+      "checksum": "5e538b6f30540716b2d776fb0e28d6e037aec718ffdc5fee7ef6b53a1cd72030"
+    },
+    {
+      "version": "0028_run_result_read_surface",
+      "checksum": "08c122231cf9bb74971f770c707f77ce7c09d9bf12bffc2c58e48ff258722093"
+    },
+    {
+      "version": "0029_durable_execution_fencing",
+      "checksum": "b935672cc78820410ab93d5c09c4d4511a32c270c1fea36352418b8ba95d0977"
+    },
+    {
+      "version": "0030_durable_execution_reconciliation",
+      "checksum": "b8bcd4a6e1cc72f1d60e16a545c3a4478f9fab46f65ebd09d19c58bf17fc7651"
+    },
+    {
+      "version": "0031_provider_execution_boundary",
+      "checksum": "61c19bb9dfac565db1ccf8f473f5c397b9d8d65c645963337a6ae01ffbfa2bc6"
+    },
+    {
+      "version": "0032_amazon_operation_definitions",
+      "checksum": "92a60d577d0fa84a47fe03b4ca0aab70e8783c1d258cba888ea43ce99ea281b7"
+    },
+    {
+      "version": "0033_amazon_live_qualification_foundation",
+      "checksum": "a08ed607df2231a408043628592b322f6a996ae1e396c36e314f0e396dfc7db5"
+    },
+    {
+      "version": "0034_amazon_qualification_audit_rls",
+      "checksum": "a5c9eba29d6df6bc4894372a6e6daa5035c1690a3e9767c993ad5bf36a5ec857"
+    },
+    {
+      "version": "0035_amazon_qualification_template_version_rls",
+      "checksum": "d7b3c67edf88a4f277ae736f5728339fc80e12ef9c8a7e6d40c464896c39d7e2"
+    },
+    {
+      "version": "0036_amazon_qualification_execution_mode",
+      "checksum": "cee070da327c40ac779b4577f64833846b8ff3ad2dc6ad52229ff207c183e48b"
+    },
+    {
+      "version": "0037_usage_finalization",
+      "checksum": "09829dc1f9637f4bbe00bf32f4250f1ae07824800cc4bf4d16b542115d6aacf3"
+    },
+    {
+      "version": "0038_usage_read_surface",
+      "checksum": "050aab6e5903dd4513c621d3acd372dcc23eb0b4a9845d6e5e551845d2bb4e23"
+    },
+    {
+      "version": "0039_platform_status_projection",
+      "checksum": "5db6faed19a73e30ae568dd822658d8f52a4faa9270233019c7f1a48650061fb"
+    },
+    {
+      "version": "0040_amazon_precise_output_contracts",
+      "checksum": "1733b72ccb31d00065735f99ae96ef2d7e380d4a5c6c648ac99dc25c395e87c2"
+    },
+    {
+      "version": "0041_amazon_controlled_publication",
+      "checksum": "6d1c813a275e172c537cd49f260269a0592ba94bb81cac10901c90d07bb3972c"
+    },
+    {
+      "version": "0042_provider_mapping_aad_lineage",
+      "checksum": "0e258efec49c1e3745441cd242f9a9359e667fefc2987ac7e2053fae7d839442"
+    },
+    {
+      "version": "0043_amazon_products_input_contract_v4",
+      "checksum": "56f00965f10d1abcb13ec4165a5914e6f85098201d12a4ccfaa83c5b238100ae"
+    },
+    {
+      "version": "0044_provider_poll_checkpoint",
+      "checksum": "6144ea86ba338f2c51edd69d6c42c113b0b0a3ff40e2639a52c603849ba697f2"
+    },
+    {
+      "version": "0045_marketplace_catalogue_import",
+      "checksum": "5a3602bb0125bb587cfe1ac7394745d29b73f4256e81f6015a89242b3c6a5d5a"
+    },
+    {
+      "version": "0046_marketplace_sample_ingestion",
+      "checksum": "e6e0c12509d574ded99deb23cfddc15b8e25b880f67533b9a3d4e250f3d233f5"
+    },
+    {
+      "version": "0047_marketplace_sample_retention_policy",
+      "checksum": "d372502c00bfbd240f619a55f104f7cfcf121c2edd59832a112a71a7f7315478"
+    },
+    {
+      "version": "0048_marketplace_sample_fixture_lifecycle",
+      "checksum": "5cc2ca451dc3d6edf25a0ffedc6311fbc6d98933fb487016d7119889ce28def9"
+    },
+    {
+      "version": "0049_marketplace_sample_preview_read",
+      "checksum": "93c7a4b612a03ce765e50d5545143842703fb0022e73300e4bb0770e512b5eb7"
+    },
+    {
+      "version": "0050_marketplace_sample_download_authorization",
+      "checksum": "526b488ea947cf3bd75b0741f446d4290f81465500a3eae1616ba52f38345a78"
+    },
+    {
+      "version": "0051_marketplace_expert_enquiries",
+      "checksum": "b96c2a55ead67f2492355ebdfccf6cc770f93db27c58f90eb88630cc07ba00c8"
+    },
+    {
+      "version": "0052_marketplace_filter_adapter_fixture",
+      "checksum": "e78ab7338aa7eee7ce9980ac6e5b0af6ce54ead2c32e3cc5b5f44cd8b18b5c60"
+    },
+    {
+      "version": "0053_marketplace_filter_execution_rls",
+      "checksum": "5e4b98e1745f8b176f317dffa7f8f0994bf1ceb6d0a781d597dc3368f3285c6c"
+    },
+    {
+      "version": "0054_marketplace_qualification_preflight",
+      "checksum": "ada06465a57dc50a52967dd7fb1a8b519537a075a97c871dd5243f0704628ea9"
+    },
+    {
+      "version": "0055_marketplace_qualification_execution",
+      "checksum": "7393871036e47966764606a8c4cd7dd84759b8a06b9dfa0486a36d56021920ed"
+    },
+    {
+      "version": "0056_marketplace_export_candidate",
+      "checksum": "53eb18f59c2485c2456cb6966227d6395581c7caeec59baa54ec004c4cc9ab1e"
+    },
+    {
+      "version": "0057_linkedin_posts_provider_sample",
+      "checksum": "535860e803d7b811614b76b583672d55a0a4a7495ffa44782fdb09138f224286"
+    },
+    {
+      "version": "0058_marketplace_provider_sample_timestamp_authority",
+      "checksum": "c1160595d9fdc7385becf02ea584963870b75b1a1c2674bdf668960caf357014"
+    },
+    {
+      "version": "0059_linkedin_posts_provider_sample_version_3",
+      "checksum": "b32eda2ff7e7484e2361b5147c72343db74dde62c71c4a935acdd9e5f2848f9e"
+    },
+    {
+      "version": "0060_linkedin_people_metadata_observation",
+      "checksum": "e5a1877abd766cb5f3c24a88865009ef23436d36b10f3d2b7cd29c5354eb922b"
+    },
+    {
+      "version": "0061_linkedin_people_synthetic_preview",
+      "checksum": "12b41e3887642a7d4da6d1bade8c10f363c34a0dad0849e0a9631aa9ac3c330e"
+    },
+    {
+      "version": "0062_linkedin_people_sample_timestamp_authority",
+      "checksum": "077b8abbbd9d56ad8c5cd5f2fbc05ac0edea20a748081ed359abcf1b78b0dcbb"
+    },
+    {
+      "version": "0063_linkedin_people_contact_contract",
+      "checksum": "af1a9b8900adc369d20e1dbb8193fa68dfb478769b24bd3b2e9443a80b8afe83"
+    },
+    {
+      "version": "0064_marketplace_sample_download_cleanup",
+      "checksum": "eefa25c1aac1bd5a9527624a2e860a7f2da6b71307f49577fe2e5c6b427ba422"
+    },
+    {
+      "version": "0065_marketplace_fixture_current_schema",
+      "checksum": "a555b737e3dfd73fd835a271c9ac562ec5203bbb87bff8616dc738c8a065f894"
+    },
+    {
+      "version": "0066_shared_scraper_processing",
+      "checksum": "65da95f341d63abc8a7861d0f08936e111af69fb8b4a2abd0b50359c0b443a60"
+    },
+    {
+      "version": "0067_shared_scraper_draft_registration",
+      "checksum": "c79b9dcd42fb0fb5261905f7ebd9cf0dff3fc8400ecdfaecaeb5b3842cc573fb"
+    },
+    {
+      "version": "0068_shared_scraper_release_identity",
+      "checksum": "0fac582eef7e19bcfa969bf4b45482d8e9c6312e7ebc7c5821e6a2058bd379c7"
+    },
+    {
+      "version": "0069_shared_scraper_commercial_capacity",
+      "checksum": "6b729ac9d99717371fe1354c3efa296625b492f07dc008f4706aea8796e9efe5"
+    },
+    {
+      "version": "0070_archive",
+      "checksum": "0804b5d0716f47f3e826e9aa4c67e38b8d34e2d83ae284eb7cd2a6b1bfdc297a"
+    }
+  ],
+  "sourceRowDigests": {
+    "adapter_definitions": {
+      "n": "4",
+      "digest": "04aa97e9c7d58af72bc0afb198e7c041"
+    },
+    "adapter_versions": {
+      "n": "7",
+      "digest": "953d355709b7bd018543fef572310a7c"
+    },
+    "artifacts": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "audit_events": {
+      "n": "18831",
+      "digest": "bacb24d2f28aad763d83065ffba86e19"
+    },
+    "auth_refresh_tokens": {
+      "n": "3357",
+      "digest": "6d5f8855be97d1b669e357fb3cf3bfc7"
+    },
+    "auth_sessions": {
+      "n": "2967",
+      "digest": "72fbc6592669d8758c355eac291d7d8f"
+    },
+    "dead_letter_recovery_intents": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "feature_flags": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "idempotency_records": {
+      "n": "11008",
+      "digest": "369f45982e8bace45c00b2f1e37baa4f"
+    },
+    "launch_evidence": {
+      "n": "26",
+      "digest": "62c6f63d2f9ec8e47ca034de22c97832"
+    },
+    "legal_acceptances": {
+      "n": "10192",
+      "digest": "1a13ea2be2487333440c487a453116e2"
+    },
+    "marketplace_expert_enquiries": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "marketplace_sample_deletions": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "marketplace_sample_download_authorizations": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "marketplace_sample_versions": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "outbox_events": {
+      "n": "10823",
+      "digest": "c1acb8874ab02acf84469eb5fbcfc704"
+    },
+    "provider_cost_holds": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "provider_credentials": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "provider_mappings": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "run_attempts": {
+      "n": "4",
+      "digest": "8021c2177ad8cab5a2a52fad4b6b6482"
+    },
+    "run_events": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "run_status_transitions": {
+      "n": "10",
+      "digest": "1e1b865cb1b9207fcd9fad62b9b13839"
+    },
+    "runs": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "schema_migrations": {
+      "n": "70",
+      "digest": "f30d66e4298167c77f5d3ff2bc912b0a"
+    },
+    "service_template_versions": {
+      "n": "26",
+      "digest": "7c4ea72b9d7cb3e91def5380e418377e"
+    },
+    "service_templates": {
+      "n": "13",
+      "digest": "dff7eff4302ee75ef6942c3a41648d36"
+    },
+    "service_versions": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "services": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tenant_user_access": {
+      "n": "10192",
+      "digest": "b273740cc3e32fe399936d4c4aa83079"
+    },
+    "tenants": {
+      "n": "10192",
+      "digest": "92ed0ea8cd532b862aaf2fb41d36b4a2"
+    },
+    "usage_events": {
+      "n": "0",
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "users": {
+      "n": "10962",
+      "digest": "8559b89eda4c85aeac24fbccb2e16cf0"
+    }
+  },
+  "columnDrops": {
+    "users": [
+      "updated_at"
+    ],
+    "tenants": [
+      "suspension_reason_code",
+      "suspension_reference",
+      "updated_at"
+    ],
+    "tenant_user_access": [
+      "updated_at"
+    ],
+    "auth_sessions": [
+      "issued_at",
+      "last_used_at",
+      "device_metadata",
+      "security_metadata",
+      "updated_at"
+    ],
+    "auth_refresh_tokens": [
+      "issued_at",
+      "rotated_at",
+      "reused_at",
+      "revoked_at",
+      "expired_at"
+    ],
+    "legal_acceptances": [
+      "tenant_id",
+      "locale",
+      "ip_fingerprint",
+      "acceptance_method",
+      "created_at"
+    ]
+  },
+  "addedExistingFields": {
+    "tenants": [
+      "is_internal",
+      "created_by_user_id"
+    ],
+    "tenant_user_access": [
+      "invite_id"
+    ],
+    "auth_sessions": [
+      "revoked_reason"
+    ],
+    "auth_refresh_tokens": [
+      "ended_at"
+    ],
+    "service_templates": [
+      "access"
+    ]
+  },
+  "renamedExistingField": {
+    "table": "legal_acceptances",
+    "from": "request_id",
+    "to": "trace_id"
+  },
+  "newTables": {
+    "organization_invites": 11,
+    "email_verifications": 10,
+    "organization_templates": 2
+  },
+  "deferredNames": [
+    "tenants -> organizations",
+    "tenant_user_access -> organization_members",
+    "tenant_id -> organization_id",
+    "display_name -> name",
+    "access_role -> role",
+    "app.tenant_id setting"
+  ],
+  "newInvokerHelpers": [
+    "app.current_user_id()",
+    "app.reject_organization_creator_mutation()",
+    "app.guard_organization_membership_update()"
+  ],
+  "droppedFunction": {
+    "name": "create_signup",
+    "arguments": "p_email_normalized text, p_password_hash text, p_workspace_name text, p_legal_acceptances jsonb, p_idempotency_key text, p_request_hash bytea, p_actor_fingerprint bytea, p_request_id uuid",
+    "sourceDefinitionSha256": "e57f36f8b805d34457d9c5a07637c4c77c2f1b203b892b09a70cfd3184b4d617",
+    "sourceSecurityDefiner": false
+  },
+  "historicalFacts": {
+    "tokenRows": 259,
+    "suspensionRows": 208,
+    "totalAuditAdditions": 467
+  },
+  "historicalTimestampHandling": "State-based token backfill; preserve old clocks, archive removed fields in qualified dump; new-row cutover time CHECKs with created_at denied to runtime INSERT/UPDATE",
+  "proposedInterimRoles": "Reuse existing capability roles and passwords, with reviewed narrow column grants/RLS; no dhumi_app/dhumi_worker role creation",
+  "runtimeActivation": false,
+  "identitiesChanged": false,
+  "databaseWrites": true,
+  "matchingBackend": "ORGANIZATION_PERMISSION_WORKFLOW_RACES_POSTGRESQL_VERIFIED; EDITABLE_INVITE_RESEND_EXPIRY_AND_TARGET_202_VERIFIED; RUNTIME/REAL_EMAIL/RELEASE_NOT_QUALIFIED",
+  "writePathQualified": true,
+  "runnerSupports0071": true,
+  "sourceInspection": {
+    "checkedAtUtc": "2026-10-07T05:14:50.764Z",
+    "status": "PASSED",
+    "target": {
+      "db": "dhumi_test",
+      "port": 5432,
+      "host": "127.0.0.1",
+      "read_only": "on"
+    },
+    "readOnly": true,
+    "provenance": {
+      "organizations": 10192,
+      "active": 9751,
+      "suspended": 441,
+      "unresolvedCreators": 0,
+      "activeWithoutOwner": 0
+    },
+    "shapes": {
+      "sessions": [
+        {
+          "rows": 2967,
+          "issued_differs_created": 704,
+          "expiry_not_after_created": 130,
+          "revocation_reason_rows": 1097,
+          "revoked_without_timestamp": 0,
+          "unrevoked_with_timestamp": 0
+        }
+      ],
+      "refresh": [
+        {
+          "rows": 3357,
+          "issued_differs_created": 742,
+          "multiple_lifecycle_timestamps": 259,
+          "terminal_without_own_timestamp": 0
+        }
+      ],
+      "legal": [
+        {
+          "rows": 10192,
+          "accepted_differs_created": 5873,
+          "no_request_trace": 5
+        }
+      ],
+      "memberships": [
+        {
+          "access_role": "owner",
+          "state": "active",
+          "rows": 10192
+        }
+      ],
+      "tenants": [
+        {
+          "rows": 10192,
+          "with_suspension_details": 208
+        }
+      ],
+      "securityKeys": [
+        {
+          "key": "issued_by",
+          "rows": 2967
+        },
+        {
+          "key": "revoked_by",
+          "rows": 1097
+        }
+      ],
+      "sessionStates": [
+        {
+          "state": "active",
+          "rows": 1738
+        },
+        {
+          "state": "expired",
+          "rows": 132
+        },
+        {
+          "state": "revoked",
+          "rows": 1097
+        }
+      ],
+      "refreshStates": [
+        {
+          "state": "active",
+          "rows": 1738
+        },
+        {
+          "state": "expired",
+          "rows": 132
+        },
+        {
+          "state": "reused",
+          "rows": 259
+        },
+        {
+          "state": "revoked",
+          "rows": 1097
+        },
+        {
+          "state": "rotated",
+          "rows": 131
+        }
+      ]
+    },
+    "tables": 32,
+    "ledgerEntries": 70,
+    "appliedMigrationBytesMatch": true,
+    "schemaFingerprint": "3a2b31b1d9d744510fe2544493657d30",
+    "allRowsCatalogLedgerUnchanged": true,
+    "databaseWrites": false
+  },
+  "qualification": {
+    "status": "OFFLINE_DECLARATION_CHECKS_PASSED; POSTGRESQL_QUALIFICATION_PENDING",
+    "staticChecks": {
+      "noTableDrops": true,
+      "noRoleChanges": true,
+      "noPasswords": true,
+      "noCascade": true,
+      "noHistoryOrFkGuardDisable": true,
+      "noNewSecurityDefiner": true,
+      "noBodyCommitOrRollback": true,
+      "noPsqlDirectives": true,
+      "noLedgerWrite": true,
+      "twentyPlannedColumns": true,
+      "exactlyThreeNewTables": true,
+      "exactlyOneFunctionDrop": true,
+      "exactlyThreeNewInvokers": true,
+      "noActiveMigration0071": true,
+      "defaultGateBeforeMutation": true,
+      "selfApprovalGatesRetained": true,
+      "membershipGuardAttached": true,
+      "identityOrganizationMutationDenied": true,
+      "admissionLockMutationsDenied": true,
+      "activeIdentityMutationRejected": true,
+      "currentAdminMutationGuards": true,
+      "sessionPointerGrant": true,
+      "workflowResponseGrant": true,
+      "restrictiveAdmissionVisibility": true,
+      "unchangedSourceFingerprint": true,
+      "expectedFunctionCounts": true,
+      "capabilityAclAssertions": true,
+      "noSeededNewStores": true
+    },
+    "fullSqlTopLevelSyntaxAccepted": false,
+    "mutationSqlAndPlpgsqlBodiesQualified": false,
+    "liveBaselineRechecked": false,
+    "defaultRefusal": "Gate text/order preserved; preceding draft live refusal is dated evidence only, not a connection test of these revised bytes",
+    "actualPostgreSqlRoleTestsRun": false,
+    "actualPostgreSqlConcurrencyTestsRun": false,
+    "staticCheckCount": 28,
+    "checkedAtUtc": "2026-10-07T08:47:14.180Z",
+    "offlineTests": {
+      "passed": 89,
+      "failed": 0,
+      "skipped": 0,
+      "files": 4,
+      "newDeclaredAclTests": 18,
+      "typecheck": "PASSED",
+      "privateEnvLoaded": false,
+      "finalAclRerun": {
+        "passed": 18,
+        "failed": 0,
+        "files": 1
+      }
+    }
+  },
+  "precedingDraftQualification": {
+    "draftSha256": "4a464a076eeca5a83b5aff3d07251f5c82b17a8059d9a273e76dda12d88c5ae2",
+    "preparedAtUtc": "2026-10-07T05:32:06.806Z",
+    "qualification": {
+      "staticChecks": {
+        "noTableDrops": true,
+        "noRoleChanges": true,
+        "noPasswords": true,
+        "noCascade": true,
+        "noHistoryOrFkGuardDisable": true,
+        "noNewSecurityDefiner": true,
+        "noBodyCommitOrRollback": true,
+        "noPsqlDirectives": true,
+        "noLedgerWrite": true,
+        "twentyPlannedColumns": true,
+        "exactlyThreeNewTables": true,
+        "exactlyOneFunctionDrop": true,
+        "newInvokerHelpers": true,
+        "exactAll70AppliedFiles": true,
+        "actualSignupSourceHash": true,
+        "noActiveMigration0071": true,
+        "defaultGateBeforeMutation": true,
+        "explicitSingleUseEmailInvite": true,
+        "issuanceClockProtected": true,
+        "passwordResetLookupBound": true,
+        "invitationAdministrationSeparated": true,
+        "exactReviewedSchemaFingerprint": true,
+        "retainedFunctionsCount": true,
+        "documentedStateBasedTokenMap": true,
+        "creatorGuardInstalled": true,
+        "noSeededMembershipChallengeOrInternalOrg": true,
+        "allNamedDropsObserved": true,
+        "existingSourceColumnsObserved": true
+      },
+      "defaultReadOnlyRefusal": {
+        "status": "PASSED",
+        "sqlState": "55000",
+        "message": "0071 draft is blocked: owner, backup, matching code, privilege/write and stopped-process proofs required",
+        "readOnly": true,
+        "mutationBranchReached": false
+      },
+      "fullSqlTopLevelSyntaxAccepted": true,
+      "mutationSqlAndPlpgsqlBodiesQualified": false,
+      "liveBaselineUnchanged": true
+    }
+  },
+  "updatedAtUtc": "2026-10-07T10:24:57.264Z",
+  "grantRlsAlignment": {
+    "status": "MAIN_APPLIED_RETAINED_LOGINS_AND_BACKEND_ROLLBACK_VERIFIED",
+    "checkedAgainstSourceAtUtc": "2026-10-07T08:42:08.731Z",
+    "checkpoint": "Checkpoints\\Refactor-Checks\\2026-10-07-0071-Grants-RLS-1791362215397",
+    "expectedFunctions": 78,
+    "expectedSecurityDefinerFunctions": 54,
+    "newMembershipGuard": "SECURITY INVOKER; immutable membership identity/time, removed-only identity reactivation, active-admin customer mutation",
+    "lockOnlyCapabilities": "Identity organization UPDATE(id); admission organization UPDATE(id) and membership UPDATE(user_id), with UPDATE WITH CHECK false",
+    "ordinaryMemberLocks": "Customer UPDATE USING admits own active membership and selected organization; invoker BEFORE guards require an active admin for actual mutations",
+    "auditReplay": "Existing scoped customer audit/idempotency policies intentionally remain usable after authorized self-demotion/removal; customer response_body completion UPDATE added",
+    "changes": [
+      "Identity session-family pointer UPDATE",
+      "Admission own-user/scoped-row SELECT and lock ACL/policies",
+      "Identity pending-proof organization lock and active-own membership lock",
+      "Customer ordinary-member lock visibility plus invoker actual-mutation guards",
+      "Admission all/selected template restrictive SELECT",
+      "Customer workflow response_body UPDATE",
+      "23 effective capability ACL assertions"
+    ],
+    "realRoleAndConcurrencyQualified": true,
+    "loginIsolationQualified": true,
+    "sourcePins": [
+      {
+        "path": "back-end/src/services/database/transactions.ts",
+        "sha256": "1f4412295db21a36cd2717d00b3ed0d74e82afdb72214c0c7a6881aaabd4e6c6"
+      },
+      {
+        "path": "back-end/src/services/organizations/organizationWorkflowRepository.ts",
+        "sha256": "30afbd1f61c6203b3858996fe50f918c888407feec6245c6db935b22fc5264a1"
+      },
+      {
+        "path": "back-end/src/services/organizations/workflowIdempotency.ts",
+        "sha256": "e3c17b421c936f208328df0c1126052b2595f202b3ecda2582471bd1873062e5"
+      },
+      {
+        "path": "back-end/src/services/identity/signupRepository.ts",
+        "sha256": "b0c96bba39ce4f92977129eddcdef752f18a78cfe693b01218a3fe9cf1b4d9c0"
+      },
+      {
+        "path": "back-end/src/services/identity/signInRepository.ts",
+        "sha256": "dac1f2e76c979401d1d8e695b363611cbcdcc28cd9a131cef0bef8bc7cbda258"
+      },
+      {
+        "path": "back-end/src/services/identity/refreshRepository.ts",
+        "sha256": "e32697f856c184acd996f9c90a3d83e6fd9852e7ca6d1270aaff7088959b9f51"
+      },
+      {
+        "path": "back-end/src/services/identity/sessionRevocation.ts",
+        "sha256": "5d36ca61442de63c546fdd7791699857220081c9e0a5ede516121240acefd41b"
+      },
+      {
+        "path": "back-end/src/services/customerServices/createServiceRepository.ts",
+        "sha256": "95f3e770c1a887bc77a43e4c2f00c916daae4e11dab161759d27115ac58e44e4"
+      }
+    ],
+    "postgresQualifiedAtUtc": "2026-10-07T10:13:09.536Z",
+    "mainAppliedAtUtc": "2026-10-07T10:17:55.363Z"
+  },
+  "postgresQualification": {
+    "path": "Checkpoints/Database-Inspections/2026-10-07-0071-Live-Qualification-1791363221105/Qualification-Resend-Expiry.json",
+    "sha256": "7d4aee75c06e5c888ddd7e2af4404e72353e47fa396f37dde0ba7ef0567b0df7",
+    "status": "PASSED",
+    "purpose": "Dated pre-application qualification; consult applicationVerification for current applied status"
+  },
+  "mainCommittedWrites": true,
+  "migrationApplied": true,
+  "applicationVerification": {
+    "path": "Checkpoints/Database-Inspections/2026-10-07-0071-Live-Qualification-1791363221105/0071-Application-Verified.json",
+    "sha256": "cc9efaa27c40e2fd4bc40ce3b9f7a423c3ebb56aed353d8ab9b57f9e21207486",
+    "status": "APPLIED_AND_POST_CHECKS_PASSED",
+    "migrationApplied": true,
+    "tables": 35,
+    "ledgerEntries": 71
+  }
+}

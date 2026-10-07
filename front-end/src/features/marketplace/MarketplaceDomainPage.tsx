@@ -1,3 +1,4 @@
+import { organizationPath } from "../../api/organizationScope";
 import { useMemo } from "react";
 import { Link, useParams } from "react-router";
 import { cleanCustomerText } from "../workspace/customerText";
@@ -39,7 +40,7 @@ export function MarketplaceDomainPage({
       <div className="marketplace-state marketplace-state--error" role="alert">
         <strong>This dataset collection is unavailable.</strong>
         <p>Return to the Dataset Marketplace and choose another collection.</p>
-        <Link to="/workspace/marketplace">Back to marketplace</Link>
+        <Link to={organizationPath("/workspace/marketplace")}>Back to marketplace</Link>
       </div>
     );
   }
@@ -48,7 +49,7 @@ export function MarketplaceDomainPage({
 
   return (
     <section className="marketplace-domain" aria-labelledby="domain-title">
-      <Link className="sample-back" to="/workspace/marketplace">
+      <Link className="sample-back" to={organizationPath("/workspace/marketplace")}>
         ← Dataset Marketplace
       </Link>
 
@@ -94,7 +95,7 @@ export function MarketplaceDomainPage({
             <Link
               className="marketplace-offer-card"
               key={template.slug}
-              to={`/workspace/marketplace/${template.slug}`}
+              to={organizationPath(`/workspace/marketplace/${template.slug}`)}
             >
               <span
                 className="marketplace-offer-card__number"

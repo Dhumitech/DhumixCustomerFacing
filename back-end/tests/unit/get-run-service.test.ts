@@ -36,9 +36,7 @@ class RecordingRepository implements GetRunRepository {
 
   public constructor(public result: GetRunRecord | undefined) {}
 
-  public async findById(
-    input: GetRunRepositoryInput,
-  ): Promise<GetRunRecord | undefined> {
+  public async findById(input: GetRunRepositoryInput): Promise<GetRunRecord | undefined> {
     this.calls.push(input);
     if (this.failure !== undefined) throw this.failure;
     return this.result;
@@ -59,7 +57,9 @@ describe("getRunService", () => {
 
     const result = await createGetRunService({ repository }).get(request());
 
-    expect(repository.calls).toEqual([{ tenantId: principal.tenantId, runId }]);
+    expect(repository.calls).toEqual([
+      { tenantId: principal.tenantId, userId: principal.userId, runId },
+    ]);
     expect(result).toEqual({
       id: runId,
       service_id: serviceId,

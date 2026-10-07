@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   ConfigurationError,
-  loadEnvelopeJanitorConfig,
   loadResultRecorderConfig,
   loadRuntimeConfig,
 } from "../../src/config/environment.js";
@@ -33,24 +32,10 @@ function validEnvironment(): NodeJS.ProcessEnv {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
     MARKETPLACE_SAMPLE_DOWNLOAD_MAX_RECORDS: "100",
     MARKETPLACE_SAMPLE_DOWNLOAD_MAX_BYTES: "1048576",
     MARKETPLACE_SAMPLE_DOWNLOAD_RATE_LIMIT_MAX: "10",
     MARKETPLACE_SAMPLE_DOWNLOAD_RATE_WINDOW_SECONDS: "3600",
-  };
-}
-
-function validEnvelopeJanitorEnvironment(): NodeJS.ProcessEnv {
-  return {
-    NODE_ENV: "test",
-    LOG_LEVEL: "silent",
-    DATABASE_HOST: "localhost",
-    DATABASE_PORT: "5432",
-    DATABASE_NAME: "dhumi_test",
-    DATABASE_ENVELOPE_JANITOR_USER: "dhumi_test_envelope_janitor_login",
-    DATABASE_ENVELOPE_JANITOR_PASSWORD: "janitor-password-at-least-20-characters",
-    DATABASE_SSL_MODE: "disable",
   };
 }
 
@@ -80,7 +65,7 @@ describe("loadRuntimeConfig", () => {
     expect(config.database.admission.user).toBe("dhumi_test_admission_login");
     expect(config.providerEnvironment).toBe("local");
     expect(config.database.ssl).toBe(false);
-    expect(config.responseEnvelope.localKeyBase64Url).toBe("A".repeat(43));
+    expect(config).not.toHaveProperty("responseEnvelope");
     expect(config.resultStorage).toMatchObject({
       driver: "unavailable",
       containerName: "dhumi-results",
@@ -166,14 +151,11 @@ describe("loadRuntimeConfig", () => {
     expect(() => loadRuntimeConfig(production)).toThrow(/ACCESS_TOKEN_TTL_SECONDS/);
   });
 
-  it("requires a canonical, independent 32-byte local response-envelope key", () => {
-    const missing = validEnvironment();
-    delete missing.RESPONSE_ENVELOPE_LOCAL_KEY;
-    expect(() => loadRuntimeConfig(missing)).toThrow(/RESPONSE_ENVELOPE_LOCAL_KEY/);
-
-    const malformed = validEnvironment();
-    malformed.RESPONSE_ENVELOPE_LOCAL_KEY = "not-a-32-byte-key";
-    expect(() => loadRuntimeConfig(malformed)).toThrow(/RESPONSE_ENVELOPE_LOCAL_KEY/);
+  it("loads browser runtime configuration without retired envelope or janitor settings", () => {
+    const source = validEnvironment();
+    expect(source).not.toHaveProperty("RESPONSE_ENVELOPE_LOCAL_KEY");
+    expect(source).not.toHaveProperty("DATABASE_ENVELOPE_JANITOR_USER");
+    expect(() => loadRuntimeConfig(source)).not.toThrow();
   });
 
   it("rejects postgres and migration-owner runtime identities", () => {
@@ -246,23 +228,7 @@ describe("loadRuntimeConfig", () => {
   });
 });
 
-describe("loadEnvelopeJanitorConfig", () => {
-  it("loads only the worker boundary and applies bounded defaults", () => {
-    const config = loadEnvelopeJanitorConfig(validEnvelopeJanitorEnvironment());
-
-    expect(config).toMatchObject({
-      intervalMs: 5_000,
-      batchSize: 100,
-      database: {
-        database: "dhumi_test",
-        credential: { user: "dhumi_test_envelope_janitor_login" },
-        poolMax: 2,
-      },
-    });
-    expect(config.database).not.toHaveProperty("identity");
-    expect(config.database).not.toHaveProperty("customerApi");
-  });
-
+describe("runtime admission configuration", () => {
   it("requires a separate admission LOGIN role and derives the provider environment", () => {
     const duplicate = validEnvironment();
     duplicate.DATABASE_ADMISSION_USER = duplicate.DATABASE_CUSTOMER_API_USER;
@@ -271,44 +237,6 @@ describe("loadEnvelopeJanitorConfig", () => {
     const test = validEnvironment();
     test.NODE_ENV = "test";
     expect(loadRuntimeConfig(test).providerEnvironment).toBe("test");
-  });
-
-  it("does not require web, authentication, or customer database settings", () => {
-    expect(() =>
-      loadEnvelopeJanitorConfig(validEnvelopeJanitorEnvironment()),
-    ).not.toThrow();
-  });
-
-  it("rejects unsafe names and out-of-range polling controls", () => {
-    const source = validEnvelopeJanitorEnvironment();
-    source.DATABASE_ENVELOPE_JANITOR_USER = "dhumi_owner";
-    source.ENVELOPE_JANITOR_BATCH_SIZE = "501";
-    source.ENVELOPE_JANITOR_INTERVAL_MS = "99";
-
-    expect(() => loadEnvelopeJanitorConfig(source)).toThrow(
-      /DATABASE_ENVELOPE_JANITOR_USER.*ENVELOPE_JANITOR_BATCH_SIZE.*ENVELOPE_JANITOR_INTERVAL_MS/,
-    );
-  });
-
-  it("never includes the worker password in validation errors", () => {
-    const source = validEnvelopeJanitorEnvironment();
-    source.DATABASE_ENVELOPE_JANITOR_PASSWORD = "secret-value-that-must-not-appear";
-    source.DATABASE_POOL_MAX = "invalid";
-
-    try {
-      loadEnvelopeJanitorConfig(source);
-      expect.fail("Expected configuration validation to fail");
-    } catch (error) {
-      expect(String(error)).not.toContain("secret-value-that-must-not-appear");
-      expect(String(error)).toContain("DATABASE_POOL_MAX");
-    }
-  });
-
-  it("requires verified TLS in production", () => {
-    const source = validEnvelopeJanitorEnvironment();
-    source.NODE_ENV = "production";
-
-    expect(() => loadEnvelopeJanitorConfig(source)).toThrow(/DATABASE_SSL_MODE/);
   });
 });
 

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../features/organizations/organizations.css";
 
 @theme {
   --color-dhumi-orange: #ffaa00;

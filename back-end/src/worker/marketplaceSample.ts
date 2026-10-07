@@ -2,32 +2,25 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import pino from "pino";
-import { loadQualificationOperatorConfig } from "../config/qualificationEnvironment.js";
+import { loadMarketplaceSampleConfig } from "../config/marketplaceSampleEnvironment.js";
 import { createLoggerOptions, safeErrorLogContext } from "../config/logger.js";
 import { createOperatorPool } from "../services/database/pools.js";
 import { verifyOperatorPool } from "../services/database/roleVerification.js";
-import { createLocalProviderReferenceProtector } from
-  "../services/brightdata/providerReferenceProtector.js";
+import { requireMarketplaceContraction } from "../services/database/refactorSchemaGate.js";
 import { createConfiguredMarketplaceSampleStore } from
   "../services/marketplaceSample/azuriteMarketplaceSampleStore.js";
-import {
-  createMarketplaceProviderSampleService,
-} from "../services/marketplaceSample/marketplaceProviderSampleService.js";
 import { createMarketplaceSampleRepository } from
   "../services/marketplaceSample/marketplaceSampleRepository.js";
 import {
   MarketplaceSampleError,
   createMarketplaceSampleService,
 } from "../services/marketplaceSample/marketplaceSampleService.js";
-import { createConfiguredQualificationEvidenceReader } from
-  "../services/qualification/qualificationEvidenceReader.js";
 
 type Options = Readonly<Record<string, string>>;
 type Action =
   | "ingest-fixture"
   | "inspect-fixture"
-  | "expire-fixtures"
-  | "promote-qualified-sample";
+  | "expire-fixtures";
 
 interface Command {
   readonly action: Action;
@@ -57,21 +50,15 @@ const ACTION_OPTIONS: Readonly<Record<Action, ReadonlySet<string>>> = Object.fre
     "--limit",
     "--actor",
   ]),
-  "promote-qualified-sample": new Set([
-    "--packet-id",
-    "--sample-version",
-    "--actor",
-  ]),
 });
 
-function parse(values: readonly string[]): Command {
+export function parseMarketplaceSampleCommand(values: readonly string[]): Command {
   const [action, ...tokens] = values;
   if (
     !(
       action === "ingest-fixture" ||
       action === "inspect-fixture" ||
-      action === "expire-fixtures" ||
-      action === "promote-qualified-sample"
+      action === "expire-fixtures"
     ) ||
     tokens.length % 2 !== 0
   ) {
@@ -142,8 +129,8 @@ async function bytes(options: Options, name: string, maximum: number): Promise<B
 export async function runMarketplaceSampleCommand(
   values = process.argv.slice(2),
 ): Promise<unknown> {
-  const { action, options } = parse(values);
-  const config = loadQualificationOperatorConfig();
+  const { action, options } = parseMarketplaceSampleCommand(values);
+  const config = loadMarketplaceSampleConfig();
   const logger = pino(createLoggerOptions(config, "dhumi-marketplace-sample-operator"));
   const pool = createOperatorPool(
     config.database,
@@ -155,6 +142,7 @@ export async function runMarketplaceSampleCommand(
   );
   try {
     await verifyOperatorPool(pool, config.database.credential.user);
+    await requireMarketplaceContraction(pool,"dhumi_operator");
     const repository = createMarketplaceSampleRepository(pool);
     const sampleStore = await createConfiguredMarketplaceSampleStore(config.storage);
     const service = createMarketplaceSampleService({
@@ -162,23 +150,6 @@ export async function runMarketplaceSampleCommand(
       store: sampleStore,
       maxBytes: config.storage.maxBytes,
     });
-    if (action === "promote-qualified-sample") {
-      const providerSample = createMarketplaceProviderSampleService({
-        repository,
-        qualificationStore: await createConfiguredQualificationEvidenceReader(config.storage),
-        sampleStore,
-        protector: createLocalProviderReferenceProtector(
-          config.nodeEnv,
-          config.providerReferenceLocalKey,
-        ),
-        maxBytes: config.storage.maxBytes,
-      });
-      return await providerSample.promote({
-        packetId: value(options, "--packet-id"),
-        sampleVersion: integer(options, "--sample-version"),
-        actor: value(options, "--actor"),
-      });
-    }
     if (action === "inspect-fixture") {
       return await service.inspectFixture({
         templateSlug: "linkedin-posts",

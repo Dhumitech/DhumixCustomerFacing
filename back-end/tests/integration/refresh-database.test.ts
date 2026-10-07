@@ -88,7 +88,6 @@ async function createSignedInIdentity(): Promise<{ email: string; signIn: SignIn
       password: PASSWORD,
       requestId: randomUUID(),
       ipFingerprint: null,
-      deviceMetadata: { user_agent_family: "vitest" },
     }),
   };
 }
@@ -98,7 +97,6 @@ async function readSessionByRefreshToken(refreshToken: string): Promise<{
   user_id: string;
   session_state: string;
   token_family_hash: Buffer;
-  last_used_at: Date | null;
 }> {
   const tokenHash = createRefreshTokenService().hash(refreshToken);
   const result = await withIdentityTransaction(must(pools).identity, async (database) =>
@@ -108,8 +106,7 @@ async function readSessionByRefreshToken(refreshToken: string): Promise<{
           session.id AS session_id,
           session.user_id,
           session.state AS session_state,
-          session.token_family_hash,
-          session.last_used_at
+          session.token_family_hash
         FROM app.auth_refresh_tokens token
         JOIN app.auth_sessions session ON session.id = token.session_id
         WHERE token.token_hash = $1
@@ -163,7 +160,7 @@ describe.skipIf(!enabled)("refresh against PostgreSQL", () => {
     const after = await readSessionByRefreshToken(rotated.refreshToken);
     expect(after.session_id).toBe(before.session_id);
     expect(after.session_state).toBe("active");
-    expect(after.last_used_at).toBeInstanceOf(Date);
+    expect(after).not.toHaveProperty("last_used_at");
     expect(after.token_family_hash).toEqual(createRefreshTokenService().hash(rotated.refreshToken));
     expect((await readGenerations(before.session_id)).map(({ generation, state }) => ({ generation, state })))
       .toEqual([
@@ -233,19 +230,19 @@ describe.skipIf(!enabled)("refresh against PostgreSQL", () => {
     ]);
   });
 
-  it("revokes the session and returns 403 if Tenant access was revoked", async () => {
+  it("revokes the session with a generic 401 if its User is suspended", async () => {
     const fixture = await createSignedInIdentity();
     const session = await readSessionByRefreshToken(fixture.signIn.refreshToken);
     await withIdentityTransaction(must(pools).identity, async (database) =>
       database.query(
-        `UPDATE app.tenant_user_access SET state = 'revoked' WHERE user_id = $1`,
+        `UPDATE app.users SET state = 'suspended' WHERE id = $1`,
         [session.user_id],
       ),
     );
 
     await expect(refresh().refresh(refreshRequest(fixture.signIn))).rejects.toMatchObject({
-      status: 403,
-      code: "ACCESS_DENIED",
+      status: 401,
+      code: "AUTHENTICATION_REQUIRED",
     });
     expect((await readSessionByRefreshToken(fixture.signIn.refreshToken)).session_state).toBe(
       "revoked",
@@ -275,28 +272,23 @@ describe.skipIf(!enabled)("refresh against PostgreSQL", () => {
     ]);
   });
 
-  it("expires the family using the PostgreSQL clock", async () => {
+  it("expires a short-lived family using the PostgreSQL clock without altering issuance time", async () => {
     const fixture = await createSignedInIdentity();
-    const session = await readSessionByRefreshToken(fixture.signIn.refreshToken);
-    await withIdentityTransaction(must(pools).identity, async (database) =>
-      database.query(
-        `
-          UPDATE app.auth_sessions
-          SET issued_at = clock_timestamp() - interval '2 hours',
-              expires_at = clock_timestamp() - interval '1 hour'
-          WHERE id = $1
-        `,
-        [session.session_id],
-      ),
-    );
-
-    await expect(refresh().refresh(refreshRequest(fixture.signIn))).rejects.toMatchObject({
-      status: 401,
-      code: "AUTHENTICATION_REQUIRED",
+    const original = await readSessionByRefreshToken(fixture.signIn.refreshToken);
+    const sessionId = randomUUID();
+    const token = createRefreshTokenService().generate();
+    const hash = createRefreshTokenService().hash(token);
+    await withIdentityTransaction(must(pools).identity, async (database) => {
+      await database.query(
+        "INSERT INTO app.auth_sessions (id,user_id,token_family_hash,expires_at) VALUES ($1,$2,$3,clock_timestamp()+interval '1 second')",
+        [sessionId, original.user_id, hash]);
+      await database.query("INSERT INTO app.auth_refresh_tokens (session_id,token_hash,generation) VALUES ($1,$2,1)", [sessionId,hash]);
     });
-    expect((await readSessionByRefreshToken(fixture.signIn.refreshToken)).session_state).toBe(
-      "expired",
-    );
-    expect((await readGenerations(session.session_id))[0]?.state).toBe("expired");
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    await expect(refresh().refresh({ refreshToken: token,
+      csrfToken: createCsrfService(must(config).session.accessToken.secret).issue(sessionId),
+      requestId: randomUUID(), ipFingerprint: null })).rejects.toMatchObject({ status: 401, code: "AUTHENTICATION_REQUIRED" });
+    expect((await readSessionByRefreshToken(token)).session_state).toBe("expired");
+    expect((await readGenerations(sessionId))[0]?.state).toBe("expired");
   });
 });

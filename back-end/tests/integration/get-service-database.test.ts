@@ -97,7 +97,7 @@ async function evidenceCounts(tenantId: string) {
 }
 
 describe.skipIf(!enabled)("get Service against PostgreSQL", () => {
-  it("enforces migration 0017's one-column detail grant and retained denials", async () => {
+  it("enforces retained Service detail grants and API-key removal after 0070", async () => {
     const current = await fixture();
     const privileges = await withTenantTransaction(
       must(pools).customerApi,
@@ -108,7 +108,7 @@ describe.skipIf(!enabled)("get Service against PostgreSQL", () => {
           readonly configuration_select: boolean;
           readonly schema_hash_select: boolean;
           readonly creator_user_select: boolean;
-          readonly creator_key_select: boolean;
+          readonly creator_key_exists: boolean;
           readonly version_created_select: boolean;
           readonly service_updated_select: boolean;
         }>(
@@ -118,7 +118,12 @@ describe.skipIf(!enabled)("get Service against PostgreSQL", () => {
               has_column_privilege(current_user, 'app.service_versions', 'validated_configuration', 'SELECT') AS configuration_select,
               has_column_privilege(current_user, 'app.service_versions', 'schema_hash', 'SELECT') AS schema_hash_select,
               has_column_privilege(current_user, 'app.service_versions', 'created_by_user_id', 'SELECT') AS creator_user_select,
-              has_column_privilege(current_user, 'app.service_versions', 'created_by_api_key_id', 'SELECT') AS creator_key_select,
+              EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = 'app.service_versions'::regclass
+                  AND attname = 'created_by_api_key_id'
+                  AND attnum > 0 AND NOT attisdropped
+              ) AS creator_key_exists,
               has_column_privilege(current_user, 'app.service_versions', 'created_at', 'SELECT') AS version_created_select,
               has_column_privilege(current_user, 'app.services', 'updated_at', 'SELECT') AS service_updated_select
           `,
@@ -132,7 +137,7 @@ describe.skipIf(!enabled)("get Service against PostgreSQL", () => {
       configuration_select: true,
       schema_hash_select: false,
       creator_user_select: false,
-      creator_key_select: false,
+      creator_key_exists: false,
       version_created_select: false,
       service_updated_select: false,
     });
@@ -171,7 +176,6 @@ describe.skipIf(!enabled)("get Service against PostgreSQL", () => {
     for (const query of [
       "SELECT schema_hash FROM app.service_versions LIMIT 1",
       "SELECT created_by_user_id FROM app.service_versions LIMIT 1",
-      "SELECT created_by_api_key_id FROM app.service_versions LIMIT 1",
       "SELECT created_at FROM app.service_versions LIMIT 1",
       "SELECT updated_at FROM app.services LIMIT 1",
     ]) {
@@ -179,7 +183,7 @@ describe.skipIf(!enabled)("get Service against PostgreSQL", () => {
         withTenantTransaction(must(pools).customerApi, current.tenantId, async (database) =>
           database.query(query),
         ),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({ code: "42501" });
     }
   });
 });

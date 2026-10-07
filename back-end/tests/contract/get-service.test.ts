@@ -4,10 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../src/app.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "../../src/config/environment.js";
 import type {
-  ApiKeyAuthenticationService,
-  TrustedApiKeyIdentity,
-} from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
-import type {
   GetServiceRecord,
 } from "../../src/services/customerServices/getServiceRepository.js";
 import {
@@ -31,11 +27,6 @@ import type {
 } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import {
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -47,21 +38,15 @@ import {
 const ACCESS_TOKEN = "header.payload.signature";
 const API_KEY = `dhk_v1_${"A".repeat(16)}.${"A".repeat(43)}`;
 const serviceId = "44444444-4444-4444-8444-444444444444";
+const organizationId = randomUUID();
 const sessionIdentity: TrustedSessionIdentity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: randomUUID(),
 };
 const tenantIdentity: TrustedTenantIdentity = {
   userId: sessionIdentity.userId,
   sessionId: sessionIdentity.sessionId,
-  tenantId: sessionIdentity.issuedTenantId,
-};
-const apiKeyIdentity: TrustedApiKeyIdentity = {
-  kind: "api_key",
-  apiKeyId: randomUUID(),
-  tenantId: tenantIdentity.tenantId,
-  scopes: ["services:read"],
+  tenantId: organizationId,
 };
 const record: GetServiceRecord = {
   id: serviceId,
@@ -136,21 +121,6 @@ function tenantAuthorization(): SwitchableTenantAuthorization {
   return service;
 }
 
-interface SwitchableApiKeyAuthentication extends ApiKeyAuthenticationService {
-  identity: TrustedApiKeyIdentity;
-}
-
-function apiKeyAuthentication(): SwitchableApiKeyAuthentication {
-  const service: SwitchableApiKeyAuthentication = {
-    identity: apiKeyIdentity,
-    async authenticate(authorization) {
-      if (authorization !== `Bearer ${API_KEY}`) throw authenticationRequired();
-      return service.identity;
-    },
-  };
-  return service;
-}
-
 function config(): RuntimeConfig {
   return loadRuntimeConfig({
     NODE_ENV: "test",
@@ -167,19 +137,16 @@ function config(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
 let app: FastifyInstance | undefined;
 let service: RecordingGetService;
 let tenant: SwitchableTenantAuthorization;
-let apiKeyAuth: SwitchableApiKeyAuthentication;
 
 beforeEach(() => {
   service = getService();
   tenant = tenantAuthorization();
-  apiKeyAuth = apiKeyAuthentication();
 });
 
 afterEach(async () => {
@@ -196,10 +163,6 @@ async function build(implementation: GetServiceService = service): Promise<Fasti
     logoutService: stubLogoutService,
     tenantAuthorizationService: tenant,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: apiKeyAuth,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -240,16 +203,11 @@ describe("GET /v1/services/{service_id} contract", () => {
     }]);
   });
 
-  it("accepts services:read API keys and rejects a missing scope before lookup", async () => {
+  it("rejects retired customer API keys before lookup", async () => {
     const instance = await build();
-    expect((await get(instance, serviceId, `Bearer ${API_KEY}`)).statusCode).toBe(200);
-    expect(service.calls[0]?.principal).toEqual(apiKeyIdentity);
-
-    service.calls.length = 0;
-    apiKeyAuth.identity = { ...apiKeyIdentity, scopes: ["catalog:read"] };
     const denied = await get(instance, serviceId, `Bearer ${API_KEY}`);
-    expect(denied.statusCode).toBe(403);
-    expect(denied.json()).toMatchObject({ code: "ACCESS_DENIED" });
+    expect(denied.statusCode).toBe(401);
+    expect(denied.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
     expect(service.calls).toHaveLength(0);
   });
 
@@ -336,6 +294,6 @@ describe("GET /v1/services/{service_id} contract", () => {
   });
 
   it("does not require cookies or CSRF for this read-only operation", async () => {
-    expect((await get(await build(), serviceId, `Bearer ${API_KEY}`)).statusCode).toBe(200);
+    expect((await get(await build(), serviceId, `Bearer ${ACCESS_TOKEN}`)).statusCode).toBe(200);
   });
 });

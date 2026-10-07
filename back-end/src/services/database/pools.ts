@@ -2,7 +2,6 @@ import { Pool, type PoolConfig } from "pg";
 import type {
   DatabaseCredentialConfig,
   DatabaseRuntimeConfig,
-  EnvelopeJanitorDatabaseRuntimeConfig,
   ResultRecorderDatabaseRuntimeConfig,
 } from "../../config/environment.js";
 import type { Pattern4DatabaseRuntimeConfig } from "../../config/pattern4Environment.js";
@@ -18,7 +17,7 @@ export type DatabasePoolName = "identity" | "customerApi" | "admission";
 export type DatabasePoolErrorHandler = (poolName: DatabasePoolName, error: Error) => void;
 
 type SharedDatabasePoolConfig = Omit<
-  EnvelopeJanitorDatabaseRuntimeConfig,
+  ResultRecorderDatabaseRuntimeConfig,
   "credential"
 >;
 
@@ -44,17 +43,6 @@ function createPoolConfig(
     ssl: config.ssl,
     allowExitOnIdle: false,
   };
-}
-
-export function createEnvelopeJanitorPool(
-  config: EnvelopeJanitorDatabaseRuntimeConfig,
-  onUnexpectedError: (error: Error) => void,
-): Pool {
-  const pool = new Pool(
-    createPoolConfig(config, config.credential, "dhumi-envelope-janitor"),
-  );
-  pool.on("error", onUnexpectedError);
-  return pool;
 }
 
 export function createResultRecorderPool(

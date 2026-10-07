@@ -13,12 +13,10 @@ export interface ProviderExecutorKindRepository {
 export function createProviderRunExecutorRouter(input: {
   readonly repository: ProviderExecutorKindRepository;
   readonly amazon: ControlledRunExecutor;
-  readonly marketplace?: ControlledRunExecutor;
 }): ControlledRunExecutor {
   async function resolve(execution: Omit<ControlledRunExecutionInput, "signal">): Promise<ControlledRunExecutor> {
     const kind = await input.repository.resolveExecutorKind(execution);
-    const executor = kind === "amazon" ? input.amazon : input.marketplace;
-    if (executor === undefined) {
+    if (kind !== "amazon") {
       throw new RunExecutionTerminalError({
         customerErrorCode: "SERVICE_UNAVAILABLE",
         retryable: false,
@@ -26,7 +24,7 @@ export function createProviderRunExecutorRouter(input: {
         attemptState: "failed",
       });
     }
-    return executor;
+    return input.amazon;
   }
 
   return Object.freeze({

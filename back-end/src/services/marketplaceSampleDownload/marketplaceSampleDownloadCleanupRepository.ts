@@ -29,11 +29,18 @@ export function createMarketplaceSampleDownloadCleanupRepository(
     async claim(input: MarketplaceSampleDownloadCleanupCandidate): Promise<MarketplaceSampleDownloadCleanupClaim> {
       try {
         return await withOperatorTransaction<MarketplaceSampleDownloadCleanupClaim>(pool, async (database) => {
-          const result = await database.query<ClaimRow>(
-            "SELECT * FROM app.claim_marketplace_sample_download_cleanup($1, $2, $3)",
-            [input.tenantId, input.authorizationId, input.objectKey],
-          );
-          const row = result.rows[0];
+          await database.query("SELECT set_config('app.organization_id',$1,true)",[input.tenantId]);
+          const result=await database.query("SELECT *,clock_timestamp() now FROM app.marketplace_sample_downloads WHERE organization_id=$1 AND id=$2 FOR UPDATE",[input.tenantId,input.authorizationId]);
+          const stored=result.rows[0];
+          if(!stored || stored.object_key!==input.objectKey || stored.object_key!=="marketplace/sample-downloads/"+input.tenantId+"/"+input.authorizationId+"/"+(stored.checksum as Buffer).toString("hex")+"."+stored.format)return {kind:"untracked" as const};
+          const reservedDue=stored.state==="reserved" && stored.created_at instanceof Date && stored.created_at.valueOf()<=stored.now.valueOf()-3600000;
+          const authorizedDue=stored.state==="authorized" && stored.download_expires_at instanceof Date && stored.download_expires_at.valueOf()<=stored.now.valueOf()-3600000;
+          if(stored.state!=="failed" && !reservedDue && !authorizedDue)return {kind:"protected" as const};
+          if(reservedDue){
+            await database.query("UPDATE app.marketplace_sample_downloads SET state='failed',finished_at=clock_timestamp() WHERE organization_id=$1 AND id=$2",[input.tenantId,input.authorizationId]);
+            await database.query("UPDATE app.idempotency_records SET state='failed' WHERE organization_id=$1 AND resource_id=$2 AND operation_code='marketplace.sample_download.authorize.v1'",[input.tenantId,input.authorizationId]);
+          }
+          const row:ClaimRow={disposition:"eligible",stored_content_type:stored.content_type,stored_file_name:stored.file_name,stored_byte_count:stored.byte_count,stored_checksum:stored.checksum};
           if (row?.disposition === "protected" || row?.disposition === "untracked") {
             return { kind: row.disposition };
           }

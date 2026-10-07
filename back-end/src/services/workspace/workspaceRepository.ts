@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withTenantTransaction } from "../database/transactions.js";
+import { withOrganizationReadTransaction } from "../database/transactions.js";
 
 export type WorkspaceState = "active" | "suspended" | "closing" | "closed";
 
@@ -10,6 +10,7 @@ export interface WorkspaceLookup {
 }
 
 export interface WorkspaceRecord {
+  readonly role: "member" | "admin";
   readonly id: string;
   readonly name: string;
   readonly state: WorkspaceState;
@@ -18,10 +19,10 @@ export interface WorkspaceRecord {
 
 export interface WorkspaceRepository {
   findBrowserWorkspace(input: WorkspaceLookup): Promise<WorkspaceRecord | undefined>;
-  findApiKeyWorkspace(tenantId: string): Promise<WorkspaceRecord | undefined>;
 }
 
 interface WorkspaceRow {
+  readonly role: "member" | "admin";
   readonly id: string;
   readonly name: string;
   readonly state: WorkspaceState;
@@ -40,37 +41,35 @@ function internalFailure(cause: unknown): ApplicationError {
 export function createWorkspaceRepository(pool: Pool): WorkspaceRepository {
   async function findWorkspace(
     tenantId: string,
-    userId: string | undefined,
+    userId: string,
   ): Promise<WorkspaceRecord | undefined> {
-    return withTenantTransaction(pool, tenantId, async (database) => {
+    return withOrganizationReadTransaction(pool, { tenantId, userId }, async (database) => {
       const result = await database.query<WorkspaceRow>(
         `
           SELECT
             tenant.id,
-            tenant.display_name AS name,
+            tenant.name AS name,
             tenant.state,
             tenant.created_at
-          FROM app.tenants tenant
+            , (SELECT role FROM app.organization_members WHERE organization_id = tenant.id AND user_id = $2 AND state = 'active') AS role
+          FROM app.organizations tenant
           WHERE tenant.id = $1
             AND tenant.state = 'active'
-            AND (
-              $2::uuid IS NULL
-              OR EXISTS (
+            AND EXISTS (
                 SELECT 1
-                FROM app.tenant_user_access access
-                WHERE access.tenant_id = tenant.id
+                FROM app.organization_members access
+                WHERE access.organization_id = tenant.id
                   AND access.user_id = $2
                   AND access.state = 'active'
-              )
             )
         `,
-        [tenantId, userId ?? null],
+        [tenantId, userId],
       );
 
       const row = result.rows[0];
       return row === undefined
         ? undefined
-        : { id: row.id, name: row.name, state: row.state, createdAt: row.created_at };
+        : { id: row.id, name: row.name, state: row.state, createdAt: row.created_at, role: row.role };
     });
   }
 
@@ -82,14 +81,6 @@ export function createWorkspaceRepository(pool: Pool): WorkspaceRepository {
         if (error instanceof ApplicationError) {
           throw error;
         }
-        throw internalFailure(error);
-      }
-    },
-    async findApiKeyWorkspace(tenantId): Promise<WorkspaceRecord | undefined> {
-      try {
-        return await findWorkspace(tenantId, undefined);
-      } catch (error) {
-        if (error instanceof ApplicationError) throw error;
         throw internalFailure(error);
       }
     },

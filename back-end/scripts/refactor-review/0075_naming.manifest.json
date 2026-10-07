@@ -1,0 +1,21 @@
+{
+  "status": "APPLIED",
+  "sqlSha256": "8d92f877972152407748a80d4203e15bff9acbbe2080103ada151c6778498f6b",
+  "postgresQualification": {
+    "path": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0075-Naming/Qualification.json",
+    "sha256": "1042a5dbe14c4ca3a8ec1dd7867db62187527ae26507b5867492c863e5ce9a27"
+  },
+  "database": "127.0.0.1:5432/dhumi_test",
+  "migration": "0075_naming",
+  "tablesBefore": 25,
+  "tablesAfter": 25,
+  "tableColumnsAfter": 279,
+  "identitiesUnchanged": true,
+  "legacyGrantRevocation": "Deferred to owner-directed identities phase (D-10/D-13)",
+  "application": {
+    "path": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0075-Naming/Application.json",
+    "sha256": "1f946f6ea6b532f1c4bf3078b04da64a26f82f990b35cd191a53719e861512de"
+  },
+  "appliedTarget": "127.0.0.1:5432/dhumi_test",
+  "applicationRecordedAtUtc": "2026-10-07T18:41:00.093Z"
+}

@@ -7,13 +7,6 @@ import type {
 import type { RunCreateBody } from "../helpers/runCanonicalization.js";
 import { requireEstablishedTenantPrincipal } from "../middleware/tenantPrincipal.js";
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function databaseRequestId(requestId: string): string | null {
-  return UUID_PATTERN.test(requestId) ? requestId : null;
-}
-
 function ipFingerprint(ip: string | undefined): Buffer | null {
   return ip === undefined || ip === ""
     ? null
@@ -95,7 +88,7 @@ export async function getRunResult(
     runId: params.run_id,
     representation: query.representation,
     schemaErrors: validationErrors(request),
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
   });
 
@@ -134,7 +127,7 @@ export async function createRun(
     serviceId: params.service_id,
     body: requestBody(request.body),
     schemaErrors: validationErrors(request),
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
   });
 
@@ -156,7 +149,7 @@ export async function cancelRun(
     runId: params.run_id,
     bodyPresent: request.body !== undefined,
     schemaErrors: validationErrors(request),
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
   });
 
@@ -178,7 +171,7 @@ export async function retryRun(
     runId: params.run_id,
     bodyPresent: request.body !== undefined,
     schemaErrors: validationErrors(request),
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
   });
 

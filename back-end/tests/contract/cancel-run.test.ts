@@ -4,10 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../src/app.js";
 import { loadRuntimeConfig } from "../../src/config/environment.js";
 import { createCsrfService } from "../../src/helpers/csrf.js";
-import type {
-  ApiKeyAuthenticationService,
-  TrustedApiKeyIdentity,
-} from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
 import {
   RunCancellationNotFoundError,
   RunCancellationStateConflictError,
@@ -21,11 +17,6 @@ import type {
 } from "../../src/services/identity/browserAuthenticationService.js";
 import { authenticationRequired } from "../../src/services/identity/sessionErrors.js";
 import type { TenantAuthorizationService } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
-import {
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
 import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
@@ -48,13 +39,6 @@ const serviceId = randomUUID();
 const session: TrustedSessionIdentity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: tenantId,
-};
-const apiKeyIdentity: TrustedApiKeyIdentity = {
-  kind: "api_key",
-  apiKeyId: randomUUID(),
-  tenantId,
-  scopes: ["runs:write"],
 };
 const accepted = {
   id: runId,
@@ -89,7 +73,6 @@ function config() {
     ACCESS_TOKEN_SECRET: TOKEN_SECRET,
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
@@ -102,20 +85,8 @@ function browserAuthentication(): BrowserAuthenticationService {
   };
 }
 
-function apiKeyAuthentication(
-  identity: TrustedApiKeyIdentity = apiKeyIdentity,
-): ApiKeyAuthenticationService {
-  return {
-    async authenticate(authorization) {
-      if (authorization !== `Bearer ${API_KEY}`) throw authenticationRequired();
-      return identity;
-    },
-  };
-}
-
 async function build(
   repository: CancelRunRepository,
-  apiKeyAuth: ApiKeyAuthenticationService = apiKeyAuthentication(),
 ): Promise<FastifyInstance> {
   const tenantAuthorization: TenantAuthorizationService = {
     async authorizeBrowserTenant(identity) {
@@ -134,10 +105,6 @@ async function build(
     logoutService: { async logout() { throw new Error("unexpected"); } },
     tenantAuthorizationService: tenantAuthorization,
     workspaceService: { async getWorkspace() { throw new Error("unexpected"); } },
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: apiKeyAuth,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -155,7 +122,23 @@ async function build(
 }
 
 describe("POST /v1/runs/{run_id}/cancel contract", () => {
-  it("accepts a scoped API key and emits only the exact queued Run", async () => {
+  it("rejects a retired customer API key before persistence even with a CSRF header", async () => {
+    const persist = vi.fn<CancelRunRepository["persist"]>();
+    const response = await (await build({ persist })).inject({
+      method: "POST",
+      url: `/v1/runs/${runId}/cancel`,
+      headers: {
+        authorization: `Bearer ${API_KEY}`,
+        "x-csrf-token": createCsrfService(TOKEN_SECRET).issue(session.sessionId),
+        "idempotency-key": "cancel-run-api-key-denied",
+      },
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
+    expect(persist).not.toHaveBeenCalled();
+  });
+
+  it("accepts a browser session and emits only the exact queued Run", async () => {
     const persist = vi.fn<CancelRunRepository["persist"]>(async () => ({
       kind: "accepted",
       run: { ...accepted, provider_id: "must-be-stripped" } as typeof accepted,
@@ -164,7 +147,8 @@ describe("POST /v1/runs/{run_id}/cancel contract", () => {
       method: "POST",
       url: `/v1/runs/${runId}/cancel`,
       headers: {
-        authorization: `Bearer ${API_KEY}`,
+        authorization: `Bearer ${ACCESS_TOKEN}`,
+        "x-csrf-token": createCsrfService(TOKEN_SECRET).issue(session.sessionId),
         "idempotency-key": "cancel-run-contract-0001",
       },
     });
@@ -175,7 +159,7 @@ describe("POST /v1/runs/{run_id}/cancel contract", () => {
     expect(persist.mock.calls[0]?.[0]).toMatchObject({
       tenantId,
       runId,
-      actor: { kind: "api_key", apiKeyId: apiKeyIdentity.apiKeyId },
+      actor: { kind: "browser", userId: session.userId },
     });
   });
 
@@ -210,28 +194,14 @@ describe("POST /v1/runs/{run_id}/cancel contract", () => {
     expect(success.statusCode).toBe(202);
   });
 
-  it("enforces scope, idempotency and non-enumerating Run identifiers", async () => {
+  it("enforces idempotency and non-enumerating Run identifiers", async () => {
     const persist = vi.fn<CancelRunRepository["persist"]>();
-    const deniedIdentity = { ...apiKeyIdentity, scopes: ["runs:read"] as const };
-    const denied = await (
-      await build({ persist }, apiKeyAuthentication(deniedIdentity))
-    ).inject({
-      method: "POST",
-      url: `/v1/runs/${runId}/cancel`,
-      headers: {
-        authorization: `Bearer ${API_KEY}`,
-        "idempotency-key": "cancel-run-contract-0004",
-      },
-    });
-    expect(denied.statusCode).toBe(403);
-    await app?.close();
-    app = undefined;
-
     const malformed = await (await build({ persist })).inject({
       method: "POST",
       url: "/v1/runs/not-a-uuid/cancel",
       headers: {
-        authorization: `Bearer ${API_KEY}`,
+        authorization: `Bearer ${ACCESS_TOKEN}`,
+        "x-csrf-token": createCsrfService(TOKEN_SECRET).issue(session.sessionId),
         "idempotency-key": "cancel-run-contract-0005",
       },
     });
@@ -240,7 +210,7 @@ describe("POST /v1/runs/{run_id}/cancel contract", () => {
     const missingKey = await (await build({ persist })).inject({
       method: "POST",
       url: `/v1/runs/${runId}/cancel`,
-      headers: { authorization: `Bearer ${API_KEY}` },
+      headers: { authorization: `Bearer ${ACCESS_TOKEN}`, "x-csrf-token": createCsrfService(TOKEN_SECRET).issue(session.sessionId) },
     });
     expect(missingKey.statusCode).toBe(422);
     expect(persist).not.toHaveBeenCalled();
@@ -256,7 +226,8 @@ describe("POST /v1/runs/{run_id}/cancel contract", () => {
       method: "POST",
       url: `/v1/runs/${runId}/cancel`,
       headers: {
-        authorization: `Bearer ${API_KEY}`,
+        authorization: `Bearer ${ACCESS_TOKEN}`,
+        "x-csrf-token": createCsrfService(TOKEN_SECRET).issue(session.sessionId),
         "idempotency-key": "cancel-run-contract-body",
         "content-type": "application/json",
       },
@@ -309,7 +280,8 @@ describe("POST /v1/runs/{run_id}/cancel contract", () => {
       method: "POST",
       url: `/v1/runs/${runId}/cancel`,
       headers: {
-        authorization: `Bearer ${API_KEY}`,
+        authorization: `Bearer ${ACCESS_TOKEN}`,
+        "x-csrf-token": createCsrfService(TOKEN_SECRET).issue(session.sessionId),
         "idempotency-key": `cancel-run-domain-${status}`,
       },
     });

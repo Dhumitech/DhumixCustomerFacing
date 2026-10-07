@@ -1,4 +1,5 @@
 import { Readable, Transform } from "node:stream";
+import type { ProviderCallRecorder, ProviderCallPurpose } from './providerCallRepository.js';
 
 const PROVIDER_ORIGIN = "https://api.brightdata.com";
 const DATASET_ID_PATTERN = /^gd_[a-z0-9]{8,128}$/;
@@ -155,6 +156,8 @@ interface Dependencies {
   readonly catalogueResponseMaxBytes: number;
   readonly resultMaxBytes: number;
   readonly fetch?: BrightDataFetch;
+  /** Required by worker composition; optional only for offline characterization/operator catalogue. */
+  readonly recorder?: () => ProviderCallRecorder;
 }
 
 function mediaType(response: Response): string {
@@ -465,6 +468,17 @@ export function createBrightDataIntegrationClient(
     isSubmission: boolean,
   ): Promise<Response> {
     validateApiKey(apiKey);
+    const pathname=new URL(path,PROVIDER_ORIGIN).pathname;
+    const purpose:ProviderCallPurpose|null=pathname==='/datasets/v3/scrapers'?null:
+      isSubmission?'run_submit':pathname.startsWith('/datasets/v3/progress/')?'run_poll':pathname.endsWith('/cancel')?'run_cancel':'run_download';
+    const endpoint=purpose==='run_submit'?pathname:purpose==='run_poll'?'/datasets/v3/progress/:snapshot':
+      purpose==='run_cancel'?'/datasets/v3/snapshot/:snapshot/cancel':pathname.endsWith('/parts')?'/datasets/v3/snapshot/:snapshot/parts':'/datasets/v3/snapshot/:snapshot';
+    const recorder=purpose===null?undefined:dependencies.recorder?.();
+    const callId=recorder&&purpose?await recorder.prepare(purpose,endpoint):undefined;
+    if(signal.aborted){
+      if(recorder&&callId)await recorder.finish(callId,{state:'not_sent',safeErrorCode:'PROVIDER_UNAVAILABLE'});
+      signal.throwIfAborted();
+    }
     const combinedSignal = AbortSignal.any([
       signal,
       AbortSignal.timeout(dependencies.requestTimeoutMs),
@@ -482,6 +496,7 @@ export function createBrightDataIntegrationClient(
         signal: combinedSignal,
       });
     } catch (error) {
+      if(recorder&&callId)await recorder.finish(callId,{state:'uncertain',safeErrorCode:isSubmission?'PROVIDER_SUBMISSION_UNCERTAIN':'PROVIDER_UNAVAILABLE'});
       throw new BrightDataBoundaryError({
         code: isSubmission ? "PROVIDER_SUBMISSION_UNCERTAIN" : "PROVIDER_UNAVAILABLE",
         submissionOutcome: isSubmission ? "uncertain" : "not_applicable",
@@ -489,7 +504,27 @@ export function createBrightDataIntegrationClient(
         cause: error,
       });
     }
-    return response;
+    if(!recorder||!callId)return response;
+    const status=response.status;
+    const safeErrorCode=status>=200&&status<300?null:statusError(status,isSubmission,response.headers).code;
+    let finished=false;
+    const finish=async(bytes:number|null)=>{
+      if(finished)return;finished=true;
+      if(bytes===null&&purpose==='run_download'&&status>=200&&status<300)await recorder.finish(callId,{state:'uncertain',safeErrorCode:'PROVIDER_UNAVAILABLE'});
+      else await recorder.finish(callId,{state:'responded',httpStatus:status,responseBytes:bytes,safeErrorCode});
+    };
+    if(!response.body){await finish(0);return response;}
+    const reader=response.body.getReader();let bytes=0;
+    const body=new ReadableStream<Uint8Array>({
+      async pull(controller){
+        try { const result=await reader.read();
+          if(result.done){await finish(bytes);controller.close();}
+          else {bytes+=result.value.byteLength;controller.enqueue(result.value);}
+        } catch(error){try{await finish(null);}finally{controller.error(error);}}
+      },
+      async cancel(reason){try{await reader.cancel(reason);}finally{await finish(null);}},
+    });
+    return new Response(body,{status,statusText:response.statusText,headers:response.headers});
   }
 
   return {

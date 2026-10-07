@@ -103,6 +103,7 @@ export function createListServicesService(
       const cursor = parseCursor(request.cursor);
       const records = await dependencies.repository.list({
         tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
         cursor,
         fetchLimit: limit + 1,
       });

@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { RuntimeConfig } from "../config/environment.js";
 import { registerAuthRoutes } from "./authRoutes.js";
+import { registerOrganizationRoutes } from "./organizationRoutes.js";
+import { registerActivityRoutes } from './activityRoutes.js';
 import { registerWorkspaceRoutes } from "./workspaceRoutes.js";
-import { registerApiKeyRoutes } from "./apiKeyRoutes.js";
 import { registerCatalogueRoutes } from "./catalogueRoutes.js";
 import { registerServiceRoutes } from "./serviceRoutes.js";
 import { registerRunRoutes } from "./runRoutes.js";
@@ -15,8 +16,9 @@ export async function registerRoutes(
   config: RuntimeConfig,
 ): Promise<void> {
   await registerAuthRoutes(app, config);
+  await registerOrganizationRoutes(app, config);
+  await registerActivityRoutes(app,config);
   await registerWorkspaceRoutes(app);
-  await registerApiKeyRoutes(app);
   await registerCatalogueRoutes(app);
   await registerServiceRoutes(app);
   await registerRunRoutes(app);

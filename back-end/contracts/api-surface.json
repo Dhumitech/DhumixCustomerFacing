@@ -1,0 +1,234 @@
+{
+  "source": "openapi.yaml",
+  "phase": "0073 source; migration pending",
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/v1/auth/signup",
+      "operationId": "signUp",
+      "access": "public"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/auth/sign-in",
+      "operationId": "signIn",
+      "access": "public"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/auth/refresh",
+      "operationId": "refreshSession",
+      "access": "refresh_cookie_csrf"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/auth/logout",
+      "operationId": "logout",
+      "access": "browser_session"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspace",
+      "operationId": "getWorkspace",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/catalog/templates",
+      "operationId": "listTemplates",
+      "access": "browser_user"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/catalog/templates/{slug}",
+      "operationId": "getTemplate",
+      "access": "browser_user"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/catalog/templates/{slug}/sample",
+      "operationId": "getMarketplaceSample",
+      "access": "browser_user"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/catalog/templates/{slug}/sample/query",
+      "operationId": "queryMarketplaceSample",
+      "access": "browser_user"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/catalog/templates/{slug}/sample/downloads",
+      "operationId": "authorizeMarketplaceSampleDownload",
+      "access": "organization_member"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/catalog/templates/{slug}/expert-enquiries",
+      "operationId": "createMarketplaceExpertEnquiry",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/services",
+      "operationId": "listServices",
+      "access": "organization_member"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/services",
+      "operationId": "createService",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/services/{service_id}",
+      "operationId": "getService",
+      "access": "organization_member"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/services/{service_id}/runs",
+      "operationId": "createRun",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs",
+      "operationId": "listRuns",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}",
+      "operationId": "getRun",
+      "access": "organization_member"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/runs/{run_id}/cancel",
+      "operationId": "cancelRun",
+      "access": "organization_member"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/runs/{run_id}/retry",
+      "operationId": "retryRun",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}/events",
+      "operationId": "listRunEvents",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}/result",
+      "operationId": "getRunResult",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/usage/summary",
+      "operationId": "getUsageSummary",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/usage/events",
+      "operationId": "listUsageEvents",
+      "access": "organization_member"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/status",
+      "operationId": "getPlatformStatus",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/organizations",
+      "operationId": "listOrganizations",
+      "access": "browser_session"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/organizations",
+      "operationId": "createOrganization",
+      "access": "browser_session"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/invites/accept",
+      "operationId": "acceptInvite",
+      "access": "browser_session"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/auth/password-reset",
+      "operationId": "requestPasswordReset",
+      "access": "public"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/verifications/{verification_id}/confirm",
+      "operationId": "confirmVerification",
+      "access": "purpose_bound_verification"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/verifications/{verification_id}/resend",
+      "operationId": "resendVerification",
+      "access": "purpose_bound_verification"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/organization/members",
+      "operationId": "listMembers",
+      "access": "organization_member"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/organization/members/{user_id}",
+      "operationId": "updateMember",
+      "access": "organization_admin"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/organization/members/{user_id}",
+      "operationId": "removeMember",
+      "access": "organization_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/organization/invites",
+      "operationId": "listInvites",
+      "access": "organization_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/organization/invites",
+      "operationId": "createInvite",
+      "access": "organization_admin"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/organization/invites/{invite_id}",
+      "operationId": "revokeInvite",
+      "access": "organization_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/organization/invites/{invite_id}/resend",
+      "operationId": "resendInvite",
+      "access": "organization_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/organization/activity",
+      "operationId": "getActivity",
+      "access": "organization_member"
+    }
+  ]
+}

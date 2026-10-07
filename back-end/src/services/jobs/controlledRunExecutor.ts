@@ -7,6 +7,7 @@ export interface ControlledRunExecutionInput {
   readonly attemptId: string;
   readonly fenceToken: string;
   readonly signal: AbortSignal;
+  readonly cancellationRequesterUserId?: string;
 }
 
 export interface ControlledRunNormalizationInput extends ControlledRunExecutionInput {

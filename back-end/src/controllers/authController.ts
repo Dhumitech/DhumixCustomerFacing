@@ -9,22 +9,8 @@ import { authenticationFailed } from "../services/identity/signInService.js";
 export interface SignUpBody {
   readonly email: string;
   readonly password: string;
-  readonly workspace_name: string;
+  readonly workspace_name?: string;
   readonly legal_acceptances: readonly SubmittedLegalAcceptance[];
-}
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-/**
- * `app.create_signup` takes `p_request_id uuid`, but a caller-supplied
- * `X-Request-ID` only has to match `^[A-Za-z0-9._:-]{8,128}$`. Passing a
- * non-UUID correlation ID to a `uuid` parameter raises `22P02`, so anything
- * that is not a UUID is recorded as NULL in the audit row while still being
- * echoed to the caller and used in logs.
- */
-function databaseRequestId(requestId: string): string | null {
-  return UUID_PATTERN.test(requestId) ? requestId : null;
 }
 
 const ACCEPTED_BODY = Object.freeze({
@@ -42,10 +28,10 @@ export async function signUp(
   await request.server.signupService.submit({
     email: body.email,
     password: body.password,
-    workspaceName: body.workspace_name,
+    ...(body.workspace_name === undefined ? {} : { workspaceName: body.workspace_name }),
     legalAcceptances: body.legal_acceptances,
     idempotencyKey: idempotencyKey as string,
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
   });
 
   // One response for every accepted outcome: a new identity, an existing
@@ -67,32 +53,6 @@ export interface SignInBody {
  */
 function ipFingerprint(ip: string | undefined): Buffer | null {
   return ip === undefined || ip === "" ? null : createHash("sha256").update(ip, "utf8").digest();
-}
-
-/**
- * Coarse, non-identifying device facts only. `DiagramsDatavase.md` describes
- * auth_sessions as holding safe device metadata.
- *
- * A truncated user-agent string is **not** a family: the first 32 characters of
- * a real user agent still carry build and platform detail, which is exactly the
- * identifying material this column must not accumulate. Only the leading
- * product token is kept, restricted to a conservative character set, and the
- * full value survives solely as a hash for correlating sessions.
- */
-function deviceMetadata(userAgent: string | undefined): Record<string, unknown> {
-  if (userAgent === undefined || userAgent === "") {
-    return {};
-  }
-
-  const leadingProduct = /^([A-Za-z][A-Za-z0-9.-]{0,23})/.exec(userAgent);
-
-  return {
-    user_agent_family: leadingProduct?.[1] ?? "unknown",
-    user_agent_fingerprint: createHash("sha256")
-      .update(userAgent, "utf8")
-      .digest("hex")
-      .slice(0, 32),
-  };
 }
 
 function setRefreshCookie(
@@ -140,9 +100,8 @@ export async function signIn(
   const result = await request.server.signInService.authenticate({
     email: request.body.email,
     password: request.body.password,
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
-    deviceMetadata: deviceMetadata(request.headers["user-agent"]),
   });
 
   setRefreshCookie(
@@ -170,7 +129,7 @@ export async function refreshSession(
   const result = await request.server.refreshService.refresh({
     refreshToken: request.cookies[cookie.name],
     csrfToken: typeof csrfHeader === "string" ? csrfHeader : undefined,
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
   });
 
@@ -198,7 +157,7 @@ export async function logout(
   await request.server.logoutService.logout({
     identity,
     csrfToken: typeof csrfHeader === "string" ? csrfHeader : undefined,
-    requestId: databaseRequestId(request.id),
+    requestId: request.traceId,
     ipFingerprint: ipFingerprint(request.ip),
   });
 

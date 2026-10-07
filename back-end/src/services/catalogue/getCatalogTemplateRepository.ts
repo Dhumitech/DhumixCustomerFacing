@@ -1,6 +1,7 @@
+import { marketplacePreviewSource } from '../marketplacePreview/marketplacePreviewQuery.js';
 import type { Pool } from "pg";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withTenantTransaction } from "../database/transactions.js";
+import { withBrowseTransaction } from "../database/transactions.js";
 import type {
   CatalogTemplateAvailability,
   PublicCatalogTemplateRecord,
@@ -10,7 +11,8 @@ import type {
 } from "./catalogTemplate.js";
 
 export interface GetCatalogTemplateRepositoryInput {
-  readonly tenantId: string;
+  readonly userId: string;
+  readonly tenantId?: string;
   readonly slug: string;
 }
 
@@ -44,13 +46,11 @@ function internalFailure(cause: unknown): ApplicationError {
   });
 }
 
-export function createGetCatalogTemplateRepository(
-  pool: Pool,
-): GetCatalogTemplateRepository {
+export function createGetCatalogTemplateRepository(pool: Pool): GetCatalogTemplateRepository {
   return {
     async findBySlug(input): Promise<PublicCatalogTemplateRecord | undefined> {
       try {
-        return await withTenantTransaction(pool, input.tenantId, async (database) => {
+        return await withBrowseTransaction(pool, input, async (database) => {
           const result = await database.query<GetCatalogTemplateRow>(
             `
               WITH visible_templates AS (
@@ -71,21 +71,15 @@ export function createGetCatalogTemplateRepository(
                 INNER JOIN app.service_template_versions AS version
                   ON version.service_template_id = template.id
                  AND version.id = template.current_public_version_id
-                INNER JOIN app.launch_evidence AS evidence
-                  ON evidence.id = version.launch_evidence_id
                 WHERE template.slug = $1
                   AND template.state IN ('published', 'disabled')
                   AND version.published_at IS NOT NULL
                   AND version.published_at <= statement_timestamp()
-                  AND version.effective_at IS NOT NULL
-                  AND version.effective_at <= statement_timestamp()
                   AND jsonb_typeof(version.input_schema) = 'object'
                   AND jsonb_typeof(version.configuration_schema) = 'object'
                   AND jsonb_typeof(version.presentation_metadata) = 'object'
-                  AND evidence.state = 'approved'
-                  AND evidence.effective_at IS NOT NULL
-                  AND evidence.effective_at <= statement_timestamp()
-                  AND (evidence.expires_at IS NULL OR evidence.expires_at > statement_timestamp())
+                  AND version.published_by IS NOT NULL
+                  AND version.evidence_ref IS NOT NULL
 
                 UNION ALL
 
@@ -128,13 +122,10 @@ export function createGetCatalogTemplateRepository(
                         'preview_state', contact.preview_state,
                         'fulfillment_state', contact.fulfillment_state
                       ) ORDER BY contact.display_order)
-                      FROM app.resolve_marketplace_contact_modes(
-                        preview.template_id,
-                        preview.template_version
-                      ) AS contact
+                      FROM jsonb_to_recordset(COALESCE(preview.presentation_metadata->'contact_modes','[]'::jsonb)) AS contact(code text,display_order integer,customer_meaning text,preview_state text,fulfillment_state text)
                     ), '[]'::jsonb)
                   )
-                FROM app.resolve_marketplace_sample_preview($1, statement_timestamp()) AS preview
+                FROM ${marketplacePreviewSource} WHERE preview.template_slug=$1
               )
               SELECT * FROM visible_templates
               LIMIT 1

@@ -21,6 +21,11 @@ coverage/
 .vite/
 index.scip
 graphify-out/
+.npm/
+.pnpm-store/
+.cache/
+.turbo/
+.eslintcache
 
 # Generated test reports, not test sources or fixtures
 test-reports/
@@ -37,6 +42,38 @@ playwright-report/
 /.ai/
 /.audits/
 /-f
+/.claude/
+/.codex/
+/.cursor/
+/.idea/
+/.vscode/
+
+# Local archives, database exports and performance reports are not source.
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+/*-report.json
+/*-report.html
+/parse.js
+
+# One-off local refactor generators, inspections and qualification helpers.
+# Keep canonical migrations, review launchers, their test inputs and unit tests.
+/back-end/scripts/refactor-review/*.mjs
+/back-end/scripts/refactor-review/0071_fixture_cleanup.*
+/back-end/scripts/refactor-review/Inspect-DhumiTest.sql
+/back-end/scripts/refactor-review/0073-integrity-and-grants.sql
+/back-end/tests/privileged/refactor-0073/
+/back-end/tests/privileged/refactor-0074/
+/back-end/tests/privileged/refactor-0075/
+
+# Credential holders and per-machine connection files.
+*.private.*
+*.credentials.*
+.netrc
+.npmrc
 
 # Local runtime evidence can contain transient sessions and signed URLs.
 /back-end/.runtime/
@@ -48,6 +85,10 @@ playwright-report/
 # Private manual database configuration; portable bootstrap scripts remain eligible.
 /back-end/Script Demo Test/db/config.md
 
+# Shared dev database operator material (ADR 0015): the VM admin SSH key and
+# temporary dumps of dhumi_dev. Never commit anything from this folder.
+/dhumi-private/
+
 # Keep architecture, decisions and runbooks eligible for Git.
 # Restricted evidence is local-only unless explicitly reviewed and allowed here.
 /docs/evidence/*
@@ -56,8 +97,13 @@ playwright-report/
 
 # Logs and OS noise
 *.log
+*.log.*
 .DS_Store
 Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
 
 # Local review exports are derived copies, never the runtime system of record.
 **/Outputs/*
@@ -68,6 +114,8 @@ Thumbs.db
 *.backup
 *.bak
 *.pgerd
+*.sqlite
+*.sqlite3
 **/pgdata/
 **/postgres-data/
 **/mssql-data/

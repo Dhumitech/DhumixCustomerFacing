@@ -1,3 +1,5 @@
+import { guardOrganizationAction, organizationHeaders } from "./organizationScope";
+import { tokenStore } from "../session/tokenStore";
 import { dhumiClient } from "./client";
 import { asDhumiRequest } from "./errors";
 import {
@@ -24,11 +26,19 @@ import {
 const MAX_CATALOGUE_PAGE_SIZE = 100;
 const DEFAULT_SAMPLE_PAGE_SIZE = 30;
 
+function currentCsrfToken(): string {
+  const session = tokenStore.getSnapshot();
+  if (session === null)
+    throw new Error("An authenticated browser session is required.");
+  return session.csrf_token;
+}
+
 export const marketplaceApi = Object.freeze({
   async list(): Promise<TemplatePage> {
+    const scope = organizationHeaders();
     const response = await asDhumiRequest(
       generatedListTemplates({
-        client: dhumiClient,
+        client: dhumiClient, headers: scope,
         query: {
           family: "marketplace_dataset",
           limit: MAX_CATALOGUE_PAGE_SIZE,
@@ -40,9 +50,10 @@ export const marketplaceApi = Object.freeze({
   },
 
   async getTemplate(slug: string): Promise<ServiceTemplate> {
+    const scope = organizationHeaders();
     const response = await asDhumiRequest(
       generatedGetTemplate({
-        client: dhumiClient,
+        client: dhumiClient, headers: scope,
         path: { slug },
         throwOnError: true,
       }),
@@ -54,9 +65,10 @@ export const marketplaceApi = Object.freeze({
     slug: string,
     cursor?: string,
   ): Promise<MarketplaceSampleQueryResult> {
+    const scope = organizationHeaders();
     const response = await asDhumiRequest(
       generatedGetMarketplaceSample({
-        client: dhumiClient,
+        client: dhumiClient, headers: scope,
         path: { slug },
         query: {
           limit: DEFAULT_SAMPLE_PAGE_SIZE,
@@ -72,9 +84,11 @@ export const marketplaceApi = Object.freeze({
     slug: string,
     body: MarketplaceSampleQueryInput,
   ): Promise<MarketplaceSampleQueryResult> {
+    const scope = organizationHeaders();
     const response = await asDhumiRequest(
       generatedQueryMarketplaceSample({
         client: dhumiClient,
+        headers: { ...scope, "X-CSRF-Token": currentCsrfToken() },
         path: { slug },
         body,
         throwOnError: true,
@@ -87,6 +101,8 @@ export const marketplaceApi = Object.freeze({
     slug: string,
     body: MarketplaceSampleDownloadInput,
   ): Promise<MarketplaceSampleDownloadAuthorization> {
+    const scope = organizationHeaders();
+    guardOrganizationAction(scope);
     const lease = await acquireMutationIdempotency(
       "marketplace.sample-download",
       { slug, body },
@@ -96,7 +112,10 @@ export const marketplaceApi = Object.freeze({
         client: dhumiClient,
         path: { slug },
         body,
-        headers: { "Idempotency-Key": lease.headerValue },
+        headers: { ...scope,
+          "Idempotency-Key": lease.headerValue,
+          "X-CSRF-Token": currentCsrfToken(),
+        },
         throwOnError: true,
       }),
     );
@@ -108,6 +127,8 @@ export const marketplaceApi = Object.freeze({
     slug: string,
     body: MarketplaceExpertEnquiryInput,
   ): Promise<MarketplaceExpertEnquiry> {
+    const scope = organizationHeaders();
+    guardOrganizationAction(scope);
     const lease = await acquireMutationIdempotency(
       "marketplace.expert-enquiry",
       { slug, body },
@@ -117,7 +138,10 @@ export const marketplaceApi = Object.freeze({
         client: dhumiClient,
         path: { slug },
         body,
-        headers: { "Idempotency-Key": lease.headerValue },
+        headers: { ...scope,
+          "Idempotency-Key": lease.headerValue,
+          "X-CSRF-Token": currentCsrfToken(),
+        },
         throwOnError: true,
       }),
     );

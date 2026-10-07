@@ -1,8 +1,17 @@
 # ADR 0007 - Versioned Dhumi API-key format and verifier
 
-- **Status:** Accepted
+- **Status:** Superseded / archived by the 0070 refactor (6 October 2026)
 - **Date:** 23 August 2026
 - **Applies to:** Dhumi customer API credentials
+
+## Refactor status
+
+This is a historical decision. Customer API keys and their encrypted secret-response
+recovery are removed from the application in the 0070 compatibility batch. Browser
+sessions remain the customer authentication path; the Bright Data provider key is
+unchanged. Database application and cluster role retirement remain pending. See
+[the archive record](../archive/README.md). The original decision below is retained
+for recovery and migration-history review, not active implementation.
 
 ## Context
 

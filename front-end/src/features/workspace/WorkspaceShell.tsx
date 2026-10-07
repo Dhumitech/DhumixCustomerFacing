@@ -1,3 +1,5 @@
+import { OrganizationPanel } from "../organizations/OrganizationPanel";
+import { organizationPath, selectedOrganization } from "../../api/organizationScope";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { BrandMark } from "../../components/ui/BrandMark";
@@ -22,9 +24,9 @@ export function WorkspaceShell() {
   const workspaceQuery = useWorkspaceQuery();
   const customerLabel = identityEmail ?? "Authenticated customer";
   const customerInitial = customerLabel.slice(0, 1).toLocaleUpperCase();
-  const workspaceName = workspaceQuery.data?.name ?? "Workspace";
+  const workspaceName = workspaceQuery.data?.name ?? "Browse Dhumi";
   const workspaceState = workspaceQuery.data?.state ?? null;
-  const statusFamily = location.pathname.startsWith("/workspace/marketplace")
+  const statusFamily = location.pathname.includes("/workspace/marketplace")
     ? "marketplace_dataset"
     : "scraper_library";
 
@@ -53,7 +55,7 @@ export function WorkspaceShell() {
         <div className="workspace-rail__header">
           <NavLink
             className="workspace-brand"
-            to="/workspace/scrapers"
+            to={organizationPath("/workspace/scrapers")}
             aria-label="Dhumi Data Scrappers home"
           >
             <BrandMark compact={railCollapsed} />
@@ -76,7 +78,7 @@ export function WorkspaceShell() {
             className={({ isActive }) =>
               `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
             }
-            to="/workspace/scrapers"
+            to={organizationPath("/workspace/scrapers")}
             title="Scrapers Library"
           >
             <span>01</span>
@@ -86,7 +88,7 @@ export function WorkspaceShell() {
             className={({ isActive }) =>
               `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
             }
-            to="/workspace/marketplace"
+            to={organizationPath("/workspace/marketplace")}
             title="Dataset Marketplace"
           >
             <span>02</span>
@@ -96,7 +98,7 @@ export function WorkspaceShell() {
             className={({ isActive }) =>
               `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
             }
-            to="/workspace/runs"
+            to={organizationPath("/workspace/runs")}
             title="Runs"
           >
             <span>03</span>
@@ -106,33 +108,25 @@ export function WorkspaceShell() {
             className={({ isActive }) =>
               `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
             }
-            to="/workspace/usage"
+            to={organizationPath("/workspace/usage")}
             title="Usage"
           >
             <span>04</span>
             <strong>Usage</strong>
           </NavLink>
-          <NavLink
-            className={({ isActive }) =>
-              `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
-            }
-            to="/workspace/api-keys"
-            title="API Keys"
-          >
-            <span>05</span>
-            <strong>API Keys</strong>
-          </NavLink>
+          {selectedOrganization(location.pathname) && <NavLink to={organizationPath("/workspace/members")}>Members</NavLink>}
+          {selectedOrganization(location.pathname) && <NavLink to={organizationPath('/workspace/activity')}>Activity</NavLink>}
         </nav>
 
         <div className="workspace-rail__footer">
           <div className="workspace-state">
             <span aria-hidden="true" />
             <span className="workspace-state__label">
-              {workspaceQuery.isPending
+              {selectedOrganization(location.pathname) && workspaceQuery.isPending
                 ? "Loading workspace"
                 : workspaceState
                   ? `Workspace ${workspaceState}`
-                  : "Workspace unavailable"}
+                  : "Browsing without an organization"}
             </span>
           </div>
           <strong>{workspaceName}</strong>
@@ -172,6 +166,7 @@ export function WorkspaceShell() {
             )}
           </div>
 
+          <OrganizationPanel />
           <PlatformStatusNotice family={statusFamily} />
 
           <div className="workspace-account">
@@ -186,7 +181,7 @@ export function WorkspaceShell() {
         </header>
 
         <main className="workspace-content" id="workspace-main">
-          <Outlet />
+          <Outlet key={selectedOrganization(location.pathname) ?? "browse"} />
         </main>
       </div>
     </div>

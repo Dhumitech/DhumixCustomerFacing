@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withTenantTransaction } from "../database/transactions.js";
+import { withOrganizationReadTransaction } from "../database/transactions.js";
 
 export interface UsageSummaryItemRecord {
   readonly meter: string;
@@ -16,6 +16,7 @@ export interface UsageSummaryRecord {
 
 export interface GetUsageSummaryRepositoryInput {
   readonly tenantId: string;
+  readonly userId: string;
   readonly from: string;
   readonly to: string;
 }
@@ -41,26 +42,23 @@ function internalFailure(cause: unknown): ApplicationError {
   });
 }
 
-export function createGetUsageSummaryRepository(
-  pool: Pool,
-): GetUsageSummaryRepository {
+export function createGetUsageSummaryRepository(pool: Pool): GetUsageSummaryRepository {
   return {
     async get(input): Promise<UsageSummaryRecord> {
       try {
-        return await withTenantTransaction(
+        return await withOrganizationReadTransaction(
           pool,
-          input.tenantId,
+          { tenantId: input.tenantId, userId: input.userId },
           async (database) => {
             const result = await database.query<UsageSummaryRow>(
               `
-                SELECT
-                  summary.meter_code,
-                  summary.quantity::text AS quantity,
-                  summary.unit,
-                  summary.updated_at,
-                  summary.reconciliation_state
-                FROM app.get_usage_summary($1::timestamptz, $2::timestamptz)
-                  AS summary
+                WITH totals AS MATERIALIZED (
+                  SELECT meter_code,sum(quantity)::text quantity,unit FROM app.usage_events
+                  WHERE organization_id=app.current_organization_id() AND observed_at>=$1::timestamptz AND observed_at<$2::timestamptz
+                    AND source='artifact' AND outcome='succeeded' GROUP BY meter_code,unit
+                ) SELECT meter_code,quantity,unit,transaction_timestamp() updated_at,'observed'::text reconciliation_state FROM totals
+                UNION ALL SELECT NULL,NULL,NULL,transaction_timestamp(),'observed' WHERE NOT EXISTS(SELECT 1 FROM totals)
+                ORDER BY 1 NULLS LAST,3 NULLS LAST
               `,
               [input.from, input.to],
             );
@@ -70,11 +68,7 @@ export function createGetUsageSummaryRepository(
             }
 
             const items = result.rows.flatMap((row) => {
-              if (
-                row.meter_code === null ||
-                row.quantity === null ||
-                row.unit === null
-              ) {
+              if (row.meter_code === null || row.quantity === null || row.unit === null) {
                 return [];
               }
               return [

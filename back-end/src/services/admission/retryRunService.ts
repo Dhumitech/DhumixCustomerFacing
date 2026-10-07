@@ -11,6 +11,7 @@ import {
 import { tenantActorFingerprint } from "../../helpers/tenantActorFingerprint.js";
 import type { ProviderEnvironment } from "../customerServices/createServiceRepository.js";
 import { csrfValidationFailed } from "../identity/sessionErrors.js";
+import { accessDenied } from "../tenantAccess/tenantAccessErrors.js";
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
 import type { RunAccepted } from "./createRunRepository.js";
 import {
@@ -71,14 +72,12 @@ export function createRetryRunService(
 
   return {
     async retry(request): Promise<RunAccepted> {
+      if (request.principal.kind !== "browser") throw accessDenied();
       if (
-        request.principal.kind === "browser" &&
-        (
-          request.csrfToken === undefined ||
-          request.csrfToken.length < 16 ||
-          request.csrfToken.length > 512 ||
-          !dependencies.csrf.verify(request.principal.sessionId, request.csrfToken)
-        )
+        request.csrfToken === undefined ||
+        request.csrfToken.length < 16 ||
+        request.csrfToken.length > 512 ||
+        !dependencies.csrf.verify(request.principal.sessionId, request.csrfToken)
       ) {
         throw csrfValidationFailed();
       }
@@ -105,13 +104,9 @@ export function createRetryRunService(
           idempotencyRecordId: createId(),
           runId: createId(),
           runEventId: createId(),
-          providerCostHoldId: createId(),
           outboxEventId: createId(),
           tenantId: request.principal.tenantId,
-          actor:
-            request.principal.kind === "browser"
-              ? { kind: "browser", userId: request.principal.userId }
-              : { kind: "api_key", apiKeyId: request.principal.apiKeyId },
+          actor: { kind: "browser", userId: request.principal.userId },
           actorFingerprint: tenantActorFingerprint(request.principal),
           requestHash: runRetryRequestHash(canonical),
           idempotencyKey: request.idempotencyKey as string,

@@ -18,7 +18,8 @@ import {
 export { DhumiApiError } from "./errors";
 
 export interface SignUpRequest {
-  readonly companyNameOrWebsite: string;
+  /** Historical callers may still supply it; ignored by user-only signup. */
+  readonly companyNameOrWebsite?: string;
   readonly email: string;
   readonly password: string;
 }
@@ -37,7 +38,6 @@ export const authApi = Object.freeze({
     }
 
     const body = {
-      workspace_name: input.companyNameOrWebsite,
       email: input.email,
       password: input.password,
       legal_acceptances: [...runtimeConfig.signupLegalAcceptances],

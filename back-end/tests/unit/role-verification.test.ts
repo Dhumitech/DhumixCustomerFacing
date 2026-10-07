@@ -95,22 +95,9 @@ describe("verifyPoolRole", () => {
     ).rejects.toThrow("did not use the configured runtime LOGIN role");
   });
 
-  it("accepts a safe envelope-janitor LOGIN with no other capability", async () => {
-    const attributes = roleAttributes({ rolname: "dhumi_test_envelope_janitor_login" });
-    const { pool, clientQuery } = fakePool(
-      attributes,
-      ["dhumi_envelope_janitor"],
-      "dhumi_envelope_janitor",
-    );
-
-    await expect(
-      verifyPoolRole(
-        pool,
-        "dhumi_test_envelope_janitor_login",
-        "dhumi_envelope_janitor",
-      ),
-    ).resolves.toBeUndefined();
-    expect(clientQuery.mock.calls[1]?.[0]).toBe("SET LOCAL ROLE dhumi_envelope_janitor");
+  it("rejects extra legacy janitor membership on an active runtime login", async () => {
+    const { pool } = fakePool(roleAttributes(), ["dhumi_identity", "dhumi_envelope_janitor"]);
+    await expect(verifyPoolRole(pool, "dhumi_test_identity_login", "dhumi_identity")).rejects.toThrow("must belong only to dhumi_identity");
   });
 
   it("accepts a safe admission LOGIN with no other capability", async () => {

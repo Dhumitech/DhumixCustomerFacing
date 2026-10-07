@@ -7,7 +7,12 @@ export type ClientOptions = {
 export type SignUpInput = {
     email: string;
     password: string;
-    workspace_name: string;
+    /**
+     * Ignored compatibility field. Signup creates no organization.
+     *
+     * @deprecated
+     */
+    workspace_name?: string;
     legal_acceptances: Array<LegalAcceptanceInput>;
 };
 
@@ -40,42 +45,7 @@ export type Workspace = {
     readonly name: string;
     readonly state: 'active' | 'suspended' | 'closing' | 'closed';
     readonly created_at: string;
-};
-
-export type ApiScope = 'catalog:read' | 'services:read' | 'services:write' | 'runs:read' | 'runs:write' | 'results:read' | 'usage:read';
-
-export type ApiKeyCreateInput = {
-    name: string;
-    scopes: Array<ApiScope>;
-    expires_at?: string | null;
-};
-
-export type ApiKeyMetadata = {
-    readonly id: string;
-    readonly name: string;
-    readonly prefix: string;
-    readonly scopes: Array<ApiScope>;
-    readonly state: 'active' | 'revoked' | 'expired';
-    readonly created_at: string;
-    readonly last_used_at?: string | null;
-    readonly expires_at?: string | null;
-    readonly revoked_at?: string | null;
-};
-
-export type ApiKeyCreated = {
-    readonly id: string;
-    readonly name: string;
-    readonly prefix: string;
-    readonly scopes: Array<ApiScope>;
-    readonly state: 'active' | 'revoked' | 'expired';
-    readonly created_at: string;
-    readonly last_used_at?: string | null;
-    readonly expires_at?: string | null;
-    readonly revoked_at?: string | null;
-    /**
-     * Plaintext Dhumi API key returned only by creation or its exact unexpired idempotent replay.
-     */
-    readonly secret: string;
+    readonly role: 'member' | 'admin';
 };
 
 export type ProductFamily = 'marketplace_dataset' | 'scraper_library';
@@ -286,6 +256,8 @@ export type RunAccepted = {
 };
 
 export type Run = {
+    readonly created_by_user_id?: string | null;
+    readonly retry_of_run_id?: string | null;
     readonly id: string;
     readonly service_id: string;
     status: RunStatus;
@@ -377,11 +349,6 @@ export type Page = {
     readonly has_more: boolean;
 };
 
-export type ApiKeyPage = {
-    data: Array<ApiKeyMetadata>;
-    page: Page;
-};
-
 export type TemplatePage = {
     data: Array<ServiceTemplate>;
     page: Page;
@@ -412,7 +379,7 @@ export type ProblemField = {
     message: string;
 };
 
-export type ProblemCode = 'BAD_REQUEST' | 'AUTHENTICATION_REQUIRED' | 'ACCESS_DENIED' | 'RESOURCE_NOT_FOUND' | 'IDEMPOTENCY_CONFLICT' | 'IDEMPOTENCY_REPLAY_EXPIRED' | 'STATE_CONFLICT' | 'PAYLOAD_TOO_LARGE' | 'UNSUPPORTED_MEDIA_TYPE' | 'VALIDATION_ERROR' | 'SERVICE_INPUT_INVALID' | 'PLATFORM_CAPACITY_LIMIT' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE';
+export type ProblemCode = 'BAD_REQUEST' | 'AUTHENTICATION_REQUIRED' | 'ACCESS_DENIED' | 'ORGANIZATION_REQUIRED' | 'ORGANIZATION_MEMBERSHIP_REQUIRED' | 'RESOURCE_NOT_FOUND' | 'IDEMPOTENCY_CONFLICT' | 'STATE_CONFLICT' | 'PAYLOAD_TOO_LARGE' | 'UNSUPPORTED_MEDIA_TYPE' | 'VALIDATION_ERROR' | 'SERVICE_INPUT_INVALID' | 'PLATFORM_CAPACITY_LIMIT' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE';
 
 export type Problem = {
     type: string;
@@ -423,6 +390,165 @@ export type Problem = {
     code: ProblemCode;
     request_id: string;
     errors?: Array<ProblemField>;
+};
+
+export type VerificationAccepted = {
+    accepted: true;
+    verification_id: string;
+    message?: string;
+};
+
+export type VerificationConfirmed = {
+    confirmed: true;
+    organization_id?: string;
+    sign_in_required?: boolean;
+};
+
+export type OrganizationSummary = {
+    id: string;
+    name: string;
+    state: 'active';
+    role: 'member' | 'admin';
+};
+
+export type OrganizationPage = {
+    organizations: Array<OrganizationSummary>;
+};
+
+export type OrganizationCreateInput = {
+    name: string;
+};
+
+export type InviteAcceptInput = unknown & {
+    join_code?: string;
+    invite_token?: string;
+};
+
+export type PasswordResetInput = {
+    email: string;
+};
+
+export type VerificationConfirmInput = unknown & {
+    code?: string;
+    email_link_token?: string;
+    new_password?: string;
+};
+
+export type OrganizationMember = {
+    user_id: string;
+    email: string;
+    role: 'member' | 'admin';
+    state: 'active' | 'removed';
+    created_at: string;
+    is_creator: boolean;
+};
+
+export type OrganizationMemberPage = {
+    members: Array<OrganizationMember>;
+};
+
+export type OrganizationMemberChange = {
+    role: 'member' | 'admin';
+};
+
+export type OrganizationInvite = {
+    id: string;
+    email: string | null;
+    role: 'member' | 'admin';
+    max_uses: number | null;
+    use_count: number;
+    expires_at: string;
+    revoked_at: string | null;
+    created_at: string;
+};
+
+export type OrganizationInvitePage = {
+    invites: Array<OrganizationInvite>;
+};
+
+export type OrganizationInviteInput = {
+    email?: string;
+    role?: 'member' | 'admin';
+    max_uses?: number | null;
+    expires_at: string;
+};
+
+export type OrganizationInviteMinted = {
+    invite: OrganizationInvite;
+    invite_token?: string;
+    invite_url?: string;
+    join_code?: string;
+    message?: string;
+};
+
+export type OrganizationActionCompleted = {
+    completed: true;
+};
+
+export type EmptyWorkflowInput = {
+    [key: string]: never;
+};
+
+export type OrganizationActivity = {
+    from: string;
+    to: string;
+    runs: Array<{
+        id: string;
+        started_by_user_id: string | null;
+        status: string;
+        created_at: string;
+        updated_at: string;
+        completed_at: string | null;
+        first_attempt_at: string | null;
+        last_attempt_at: string | null;
+        calls: {
+            intents: string;
+            confirmed_calls: string;
+            accepted_submissions: string;
+            http_errors: string;
+            not_sent: string;
+            uncertain: string;
+        };
+        usage: Array<{
+            meter: string;
+            quantity: string;
+            unit: string;
+        }>;
+        timeline: Array<{
+            sequence: string;
+            event_type: string;
+            occurred_at: string;
+        }>;
+        timeline_truncated: boolean;
+    }>;
+    actions: Array<{
+        id: string;
+        user_id: string | null;
+        action: string;
+        target_type: string;
+        target_id: string | null;
+        outcome: string;
+        occurred_at: string;
+    }>;
+    members: Array<{
+        user_id: string | null;
+        calls: {
+            intents: string;
+            confirmed_calls: string;
+            accepted_submissions: string;
+            http_errors: string;
+            not_sent: string;
+            uncertain: string;
+        };
+        usage: Array<{
+            meter: string;
+            quantity: string;
+            unit: string;
+        }>;
+    }>;
+    runs_truncated: boolean;
+    actions_truncated: boolean;
+    members_truncated: boolean;
 };
 
 export type ServiceTemplateWritable = {
@@ -467,10 +593,6 @@ export type PlatformStatusWritable = {
     [key: string]: never;
 };
 
-export type ApiKeyPageWritable = {
-    data: Array<unknown>;
-};
-
 export type TemplatePageWritable = {
     data: Array<ServiceTemplateWritable>;
 };
@@ -491,6 +613,15 @@ export type UsageEventPageWritable = {
     data: Array<UsageEventWritable>;
 };
 
+export type EmptyWorkflowInputWritable = {
+    [key: string]: never;
+};
+
+/**
+ * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+ */
+export type OrganizationSelector = string;
+
 /**
  * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
  */
@@ -507,18 +638,11 @@ export type IdempotencyKey = string;
 export type CsrfToken = string;
 
 /**
- * Required when BrowserBearer is used; not used with a Dhumi API key.
- */
-export type ConditionalCsrfToken = string;
-
-/**
  * Opaque cursor returned by the previous page.
  */
 export type Cursor = string;
 
 export type Limit = number;
-
-export type KeyId = string;
 
 export type TemplateSlug = string;
 
@@ -736,6 +860,10 @@ export type GetWorkspaceData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path?: never;
     query?: never;
@@ -744,162 +872,9 @@ export type GetWorkspaceData = {
 
 export type GetWorkspaceErrors = {
     /**
-     * Missing or invalid Dhumi authentication
-     */
-    401: Problem;
-    /**
-     * Authenticated but not authorized or Tenant unavailable
-     */
-    403: Problem;
-};
-
-export type GetWorkspaceError = GetWorkspaceErrors[keyof GetWorkspaceErrors];
-
-export type GetWorkspaceResponses = {
-    /**
-     * Workspace
-     */
-    200: Workspace;
-};
-
-export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses];
-
-export type ListApiKeysData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
-         */
-        'X-Request-ID'?: string;
-    };
-    path?: never;
-    query?: {
-        /**
-         * Opaque cursor returned by the previous page.
-         */
-        cursor?: string;
-        limit?: number;
-    };
-    url: '/v1/keys';
-};
-
-export type ListApiKeysErrors = {
-    /**
-     * Missing or invalid Dhumi authentication
-     */
-    401: Problem;
-    /**
-     * Authenticated but not authorized or Tenant unavailable
-     */
-    403: Problem;
-    /**
-     * Semantically invalid request
-     */
-    422: Problem;
-};
-
-export type ListApiKeysError = ListApiKeysErrors[keyof ListApiKeysErrors];
-
-export type ListApiKeysResponses = {
-    /**
-     * Paginated API keys
-     */
-    200: ApiKeyPage;
-};
-
-export type ListApiKeysResponse = ListApiKeysResponses[keyof ListApiKeysResponses];
-
-export type CreateApiKeyData = {
-    body: ApiKeyCreateInput;
-    headers: {
-        /**
-         * Required for state-changing browser session operations.
-         */
-        'X-CSRF-Token': string;
-        /**
-         * Opaque caller key scoped by authenticated actor/Tenant and operation.
-         */
-        'Idempotency-Key': string;
-        /**
-         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
-         */
-        'X-Request-ID'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/v1/keys';
-};
-
-export type CreateApiKeyErrors = {
-    /**
      * Malformed request
      */
     400: Problem;
-    /**
-     * Missing or invalid Dhumi authentication
-     */
-    401: Problem;
-    /**
-     * Authenticated but not authorized or Tenant unavailable
-     */
-    403: Problem;
-    /**
-     * IDEMPOTENCY_CONFLICT or IDEMPOTENCY_REPLAY_EXPIRED; no new key is created
-     */
-    409: Problem;
-    /**
-     * Request body exceeds the accepted one-mebibyte limit
-     */
-    413: Problem;
-    /**
-     * Request body does not use a supported media type
-     */
-    415: Problem;
-    /**
-     * Semantically invalid request
-     */
-    422: Problem;
-    /**
-     * Unexpected Dhumi server error; internal detail is never exposed
-     */
-    500: Problem;
-    /**
-     * Dhumi or enabled product dependency temporarily unavailable
-     */
-    503: Problem;
-};
-
-export type CreateApiKeyError = CreateApiKeyErrors[keyof CreateApiKeyErrors];
-
-export type CreateApiKeyResponses = {
-    /**
-     * API key created; secret appears only in creation or its exact unexpired idempotent replay
-     */
-    201: ApiKeyCreated;
-};
-
-export type CreateApiKeyResponse = CreateApiKeyResponses[keyof CreateApiKeyResponses];
-
-export type RevokeApiKeyData = {
-    body?: never;
-    headers: {
-        /**
-         * Required for state-changing browser session operations.
-         */
-        'X-CSRF-Token': string;
-        /**
-         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
-         */
-        'X-Request-ID'?: string;
-    };
-    path: {
-        key_id: string;
-    };
-    query?: never;
-    url: '/v1/keys/{key_id}';
-};
-
-export type RevokeApiKeyErrors = {
     /**
      * Missing or invalid Dhumi authentication
      */
@@ -914,16 +889,16 @@ export type RevokeApiKeyErrors = {
     404: Problem;
 };
 
-export type RevokeApiKeyError = RevokeApiKeyErrors[keyof RevokeApiKeyErrors];
+export type GetWorkspaceError = GetWorkspaceErrors[keyof GetWorkspaceErrors];
 
-export type RevokeApiKeyResponses = {
+export type GetWorkspaceResponses = {
     /**
-     * Key revoked
+     * Workspace
      */
-    204: void;
+    200: Workspace;
 };
 
-export type RevokeApiKeyResponse = RevokeApiKeyResponses[keyof RevokeApiKeyResponses];
+export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses];
 
 export type ListTemplatesData = {
     body?: never;
@@ -932,6 +907,10 @@ export type ListTemplatesData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path?: never;
     query?: {
@@ -947,6 +926,10 @@ export type ListTemplatesData = {
 
 export type ListTemplatesErrors = {
     /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
      * Missing or invalid Dhumi authentication
      */
     401: Problem;
@@ -954,6 +937,10 @@ export type ListTemplatesErrors = {
      * Authenticated but not authorized or Tenant unavailable
      */
     403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
     /**
      * Semantically invalid request
      */
@@ -978,6 +965,10 @@ export type GetTemplateData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         slug: string;
@@ -987,6 +978,10 @@ export type GetTemplateData = {
 };
 
 export type GetTemplateErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
     /**
      * Missing or invalid Dhumi authentication
      */
@@ -1019,6 +1014,10 @@ export type GetMarketplaceSampleData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         slug: string;
@@ -1034,6 +1033,10 @@ export type GetMarketplaceSampleData = {
 };
 
 export type GetMarketplaceSampleErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
     /**
      * Missing or invalid Dhumi authentication
      */
@@ -1073,15 +1076,19 @@ export type GetMarketplaceSampleResponse = GetMarketplaceSampleResponses[keyof G
 
 export type QueryMarketplaceSampleData = {
     body: MarketplaceSampleQueryInput;
-    headers?: {
+    headers: {
         /**
-         * Required when BrowserBearer is used; not used with a Dhumi API key.
+         * Required for state-changing browser session operations.
          */
-        'X-CSRF-Token'?: string;
+        'X-CSRF-Token': string;
         /**
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         slug: string;
@@ -1144,9 +1151,9 @@ export type AuthorizeMarketplaceSampleDownloadData = {
     body: MarketplaceSampleDownloadInput;
     headers: {
         /**
-         * Required when BrowserBearer is used; not used with a Dhumi API key.
+         * Required for state-changing browser session operations.
          */
-        'X-CSRF-Token'?: string;
+        'X-CSRF-Token': string;
         /**
          * Opaque caller key scoped by authenticated actor/Tenant and operation.
          */
@@ -1155,6 +1162,10 @@ export type AuthorizeMarketplaceSampleDownloadData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         slug: string;
@@ -1221,9 +1232,9 @@ export type CreateMarketplaceExpertEnquiryData = {
     body: MarketplaceExpertEnquiryInput;
     headers: {
         /**
-         * Required when BrowserBearer is used; not used with a Dhumi API key.
+         * Required for state-changing browser session operations.
          */
-        'X-CSRF-Token'?: string;
+        'X-CSRF-Token': string;
         /**
          * Opaque caller key scoped by authenticated actor/Tenant and operation.
          */
@@ -1232,6 +1243,10 @@ export type CreateMarketplaceExpertEnquiryData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         slug: string;
@@ -1297,6 +1312,10 @@ export type ListServicesData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path?: never;
     query?: {
@@ -1319,6 +1338,10 @@ export type ListServicesErrors = {
      */
     403: Problem;
     /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
      * Semantically invalid request
      */
     422: Problem;
@@ -1339,9 +1362,9 @@ export type CreateServiceData = {
     body: ServiceCreateInput;
     headers: {
         /**
-         * Required when BrowserBearer is used; not used with a Dhumi API key.
+         * Required for state-changing browser session operations.
          */
-        'X-CSRF-Token'?: string;
+        'X-CSRF-Token': string;
         /**
          * Opaque caller key scoped by authenticated actor/Tenant and operation.
          */
@@ -1350,6 +1373,10 @@ export type CreateServiceData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path?: never;
     query?: never;
@@ -1413,6 +1440,10 @@ export type GetServiceData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         service_id: string;
@@ -1422,6 +1453,10 @@ export type GetServiceData = {
 };
 
 export type GetServiceErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
     /**
      * Missing or invalid Dhumi authentication
      */
@@ -1455,9 +1490,9 @@ export type CreateRunData = {
     body: RunCreateInput;
     headers: {
         /**
-         * Required when BrowserBearer is used; not used with a Dhumi API key.
+         * Required for state-changing browser session operations.
          */
-        'X-CSRF-Token'?: string;
+        'X-CSRF-Token': string;
         /**
          * Opaque caller key scoped by authenticated actor/Tenant and operation.
          */
@@ -1466,6 +1501,10 @@ export type CreateRunData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         service_id: string;
@@ -1539,6 +1578,10 @@ export type ListRunsData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path?: never;
     query?: {
@@ -1558,6 +1601,10 @@ export type ListRunsData = {
 
 export type ListRunsErrors = {
     /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
      * Missing or invalid Dhumi authentication
      */
     401: Problem;
@@ -1565,6 +1612,10 @@ export type ListRunsErrors = {
      * Authenticated but not authorized or Tenant unavailable
      */
     403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
     /**
      * Semantically invalid request
      */
@@ -1593,6 +1644,10 @@ export type GetRunData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         run_id: string;
@@ -1602,6 +1657,10 @@ export type GetRunData = {
 };
 
 export type GetRunErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
     /**
      * Missing or invalid Dhumi authentication
      */
@@ -1635,9 +1694,9 @@ export type CancelRunData = {
     body?: never;
     headers: {
         /**
-         * Required when BrowserBearer is used; not used with a Dhumi API key.
+         * Required for state-changing browser session operations.
          */
-        'X-CSRF-Token'?: string;
+        'X-CSRF-Token': string;
         /**
          * Opaque caller key scoped by authenticated actor/Tenant and operation.
          */
@@ -1646,6 +1705,10 @@ export type CancelRunData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         run_id: string;
@@ -1712,9 +1775,9 @@ export type RetryRunData = {
     body?: never;
     headers: {
         /**
-         * Required when BrowserBearer is used; not used with a Dhumi API key.
+         * Required for state-changing browser session operations.
          */
-        'X-CSRF-Token'?: string;
+        'X-CSRF-Token': string;
         /**
          * Opaque caller key scoped by authenticated actor/Tenant and operation.
          */
@@ -1723,6 +1786,10 @@ export type RetryRunData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         run_id: string;
@@ -1796,6 +1863,10 @@ export type ListRunEventsData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         run_id: string;
@@ -1811,6 +1882,10 @@ export type ListRunEventsData = {
 };
 
 export type ListRunEventsErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
     /**
      * Missing or invalid Dhumi authentication
      */
@@ -1851,6 +1926,10 @@ export type GetRunResultData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path: {
         run_id: string;
@@ -1865,6 +1944,10 @@ export type GetRunResultData = {
 };
 
 export type GetRunResultErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
     /**
      * Missing or invalid Dhumi authentication
      */
@@ -1913,6 +1996,10 @@ export type GetUsageSummaryData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path?: never;
     query: {
@@ -1930,6 +2017,10 @@ export type GetUsageSummaryData = {
 
 export type GetUsageSummaryErrors = {
     /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
      * Missing or invalid Dhumi authentication
      */
     401: Problem;
@@ -1937,6 +2028,10 @@ export type GetUsageSummaryErrors = {
      * Authenticated but not authorized or Tenant unavailable
      */
     403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
     /**
      * Semantically invalid request
      */
@@ -1965,6 +2060,10 @@ export type ListUsageEventsData = {
          * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
          */
         'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
     };
     path?: never;
     query: {
@@ -1987,6 +2086,10 @@ export type ListUsageEventsData = {
 
 export type ListUsageEventsErrors = {
     /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
      * Missing or invalid Dhumi authentication
      */
     401: Problem;
@@ -1994,6 +2097,10 @@ export type ListUsageEventsErrors = {
      * Authenticated but not authorized or Tenant unavailable
      */
     403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
     /**
      * Semantically invalid request
      */
@@ -2053,3 +2160,1047 @@ export type GetPlatformStatusResponses = {
 };
 
 export type GetPlatformStatusResponse = GetPlatformStatusResponses[keyof GetPlatformStatusResponses];
+
+export type ListOrganizationsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/organizations';
+};
+
+export type ListOrganizationsErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type ListOrganizationsError = ListOrganizationsErrors[keyof ListOrganizationsErrors];
+
+export type ListOrganizationsResponses = {
+    /**
+     * Success
+     */
+    200: OrganizationPage;
+};
+
+export type ListOrganizationsResponse = ListOrganizationsResponses[keyof ListOrganizationsResponses];
+
+export type CreateOrganizationData = {
+    body: OrganizationCreateInput;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for state-changing browser session operations.
+         */
+        'X-CSRF-Token': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/organizations';
+};
+
+export type CreateOrganizationErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type CreateOrganizationError = CreateOrganizationErrors[keyof CreateOrganizationErrors];
+
+export type CreateOrganizationResponses = {
+    /**
+     * Success
+     */
+    202: VerificationAccepted;
+};
+
+export type CreateOrganizationResponse = CreateOrganizationResponses[keyof CreateOrganizationResponses];
+
+export type AcceptInviteData = {
+    body: InviteAcceptInput;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for state-changing browser session operations.
+         */
+        'X-CSRF-Token': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/invites/accept';
+};
+
+export type AcceptInviteErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type AcceptInviteError = AcceptInviteErrors[keyof AcceptInviteErrors];
+
+export type AcceptInviteResponses = {
+    /**
+     * Success
+     */
+    202: VerificationAccepted;
+};
+
+export type AcceptInviteResponse = AcceptInviteResponses[keyof AcceptInviteResponses];
+
+export type RequestPasswordResetData = {
+    body: PasswordResetInput;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/auth/password-reset';
+};
+
+export type RequestPasswordResetErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type RequestPasswordResetError = RequestPasswordResetErrors[keyof RequestPasswordResetErrors];
+
+export type RequestPasswordResetResponses = {
+    /**
+     * Success
+     */
+    202: VerificationAccepted;
+};
+
+export type RequestPasswordResetResponse = RequestPasswordResetResponses[keyof RequestPasswordResetResponses];
+
+export type ConfirmVerificationData = {
+    body: VerificationConfirmInput;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for signed-in create/join proofs; reset is public OTP-only.
+         */
+        'X-CSRF-Token'?: string;
+    };
+    path: {
+        verification_id: string;
+    };
+    query?: never;
+    url: '/v1/verifications/{verification_id}/confirm';
+};
+
+export type ConfirmVerificationErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type ConfirmVerificationError = ConfirmVerificationErrors[keyof ConfirmVerificationErrors];
+
+export type ConfirmVerificationResponses = {
+    /**
+     * Success
+     */
+    200: VerificationConfirmed;
+};
+
+export type ConfirmVerificationResponse = ConfirmVerificationResponses[keyof ConfirmVerificationResponses];
+
+export type ResendVerificationData = {
+    body: EmptyWorkflowInputWritable;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for signed-in create/join proofs; reset is public OTP-only.
+         */
+        'X-CSRF-Token'?: string;
+    };
+    path: {
+        verification_id: string;
+    };
+    query?: never;
+    url: '/v1/verifications/{verification_id}/resend';
+};
+
+export type ResendVerificationErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type ResendVerificationError = ResendVerificationErrors[keyof ResendVerificationErrors];
+
+export type ResendVerificationResponses = {
+    /**
+     * Success
+     */
+    202: VerificationAccepted;
+};
+
+export type ResendVerificationResponse = ResendVerificationResponses[keyof ResendVerificationResponses];
+
+export type ListMembersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/organization/members';
+};
+
+export type ListMembersErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type ListMembersError = ListMembersErrors[keyof ListMembersErrors];
+
+export type ListMembersResponses = {
+    /**
+     * Success
+     */
+    200: OrganizationMemberPage;
+};
+
+export type ListMembersResponse = ListMembersResponses[keyof ListMembersResponses];
+
+export type RemoveMemberData = {
+    body?: never;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for state-changing browser session operations.
+         */
+        'X-CSRF-Token': string;
+    };
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/v1/organization/members/{user_id}';
+};
+
+export type RemoveMemberErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type RemoveMemberError = RemoveMemberErrors[keyof RemoveMemberErrors];
+
+export type RemoveMemberResponses = {
+    /**
+     * Completed
+     */
+    204: void;
+};
+
+export type RemoveMemberResponse = RemoveMemberResponses[keyof RemoveMemberResponses];
+
+export type UpdateMemberData = {
+    body: OrganizationMemberChange;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for state-changing browser session operations.
+         */
+        'X-CSRF-Token': string;
+    };
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/v1/organization/members/{user_id}';
+};
+
+export type UpdateMemberErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type UpdateMemberError = UpdateMemberErrors[keyof UpdateMemberErrors];
+
+export type UpdateMemberResponses = {
+    /**
+     * Success
+     */
+    200: OrganizationActionCompleted;
+};
+
+export type UpdateMemberResponse = UpdateMemberResponses[keyof UpdateMemberResponses];
+
+export type ListInvitesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/organization/invites';
+};
+
+export type ListInvitesErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type ListInvitesError = ListInvitesErrors[keyof ListInvitesErrors];
+
+export type ListInvitesResponses = {
+    /**
+     * Success
+     */
+    200: OrganizationInvitePage;
+};
+
+export type ListInvitesResponse = ListInvitesResponses[keyof ListInvitesResponses];
+
+export type CreateInviteData = {
+    body: OrganizationInviteInput;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for state-changing browser session operations.
+         */
+        'X-CSRF-Token': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/organization/invites';
+};
+
+export type CreateInviteErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type CreateInviteError = CreateInviteErrors[keyof CreateInviteErrors];
+
+export type CreateInviteResponses = {
+    /**
+     * Success
+     */
+    201: OrganizationInviteMinted;
+};
+
+export type CreateInviteResponse = CreateInviteResponses[keyof CreateInviteResponses];
+
+export type RevokeInviteData = {
+    body?: never;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for state-changing browser session operations.
+         */
+        'X-CSRF-Token': string;
+    };
+    path: {
+        invite_id: string;
+    };
+    query?: never;
+    url: '/v1/organization/invites/{invite_id}';
+};
+
+export type RevokeInviteErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type RevokeInviteError = RevokeInviteErrors[keyof RevokeInviteErrors];
+
+export type RevokeInviteResponses = {
+    /**
+     * Completed
+     */
+    204: void;
+};
+
+export type RevokeInviteResponse = RevokeInviteResponses[keyof RevokeInviteResponses];
+
+export type ResendInviteData = {
+    body: EmptyWorkflowInputWritable;
+    headers: {
+        /**
+         * Optional caller correlation ID; Dhumi returns an accepted/generated ID.
+         */
+        'X-Request-ID'?: string;
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
+        /**
+         * Opaque caller key scoped by authenticated actor/Tenant and operation.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Required for state-changing browser session operations.
+         */
+        'X-CSRF-Token': string;
+    };
+    path: {
+        invite_id: string;
+    };
+    query?: never;
+    url: '/v1/organization/invites/{invite_id}/resend';
+};
+
+export type ResendInviteErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Idempotency or current-state conflict
+     */
+    409: Problem;
+    /**
+     * Request body exceeds the accepted one-mebibyte limit
+     */
+    413: Problem;
+    /**
+     * Request body does not use a supported media type
+     */
+    415: Problem;
+    /**
+     * Semantically invalid request
+     */
+    422: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type ResendInviteError = ResendInviteErrors[keyof ResendInviteErrors];
+
+export type ResendInviteResponses = {
+    /**
+     * Invitation rotated; delivery attempted after commit
+     */
+    202: OrganizationInviteMinted;
+};
+
+export type ResendInviteResponse = ResendInviteResponses[keyof ResendInviteResponses];
+
+export type GetActivityData = {
+    body?: never;
+    headers?: {
+        /**
+         * Selector checked against active membership. Organization operations require selection with several memberships (400 ORGANIZATION_REQUIRED), and reject no membership (403 ORGANIZATION_MEMBERSHIP_REQUIRED). Browse needs no selector or membership for all-access templates. An inaccessible supplied selector gives 404 RESOURCE_NOT_FOUND.
+         */
+        'X-Dhumi-Organization'?: string;
+    };
+    path?: never;
+    query?: {
+        from?: string;
+        to?: string;
+        member?: string;
+        action?: 'services.create' | 'run.create' | 'run.retry' | 'run.cancel' | 'artifacts.download_authorize' | 'organization.created' | 'organization.joined' | 'organization.member_role_changed' | 'organization.member_removed' | 'organization.createInvite' | 'organization.revokeInvite' | 'organization.resendInvite' | 'marketplace.sample_download_authorize' | 'marketplace.expert_enquiry.create';
+        limit?: number;
+    };
+    url: '/v1/organization/activity';
+};
+
+export type GetActivityErrors = {
+    /**
+     * Malformed request
+     */
+    400: Problem;
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Resource does not exist or is not visible to this Tenant
+     */
+    404: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+    /**
+     * Unexpected Dhumi server error; internal detail is never exposed
+     */
+    500: Problem;
+};
+
+export type GetActivityError = GetActivityErrors[keyof GetActivityErrors];
+
+export type GetActivityResponses = {
+    /**
+     * Safe activity
+     */
+    200: OrganizationActivity;
+};
+
+export type GetActivityResponse = GetActivityResponses[keyof GetActivityResponses];

@@ -1,16 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { SHARED_SCRAPER_ARTIFACT_DIGEST, SHARED_SCRAPER_DRAFT_ARTIFACT_DIGEST } from "../../src/services/scrapers/sharedScraperVersion.js";
+import { SHARED_SCRAPER_ARTIFACT_DIGEST, SHARED_SCRAPER_DRAFT_ARTIFACT_DIGEST,SHARED_SCRAPER_LEGACY_RELEASE_ARTIFACT_DIGEST } from "../../src/services/scrapers/sharedScraperVersion.js";
 
-const sources = [
-  "src/services/scrapers/scraperProcessing.ts",
-  "src/services/brightdata/scrapers/sharedScraperRunExecutor.ts",
-  "src/services/brightdata/scrapers/scraperExecutionRepository.ts",
-  "src/services/brightdata/versionedProviderRunExecutor.ts",
-  "src/services/brightdata/brightDataIntegrationClient.ts",
-  "src/services/admission/sharedScraperAdmission.ts",
-] as const;
 const root = new URL("../../", import.meta.url);
 const migration = readFileSync(new URL("scripts/migrations/0066_shared_scraper_processing.sql", root), "utf8");
 const releaseMigration = readFileSync(new URL("scripts/migrations/0068_shared_scraper_release_identity.sql", root), "utf8");
@@ -18,16 +10,17 @@ const capacityMigration = readFileSync(new URL("scripts/migrations/0069_shared_s
 
 describe("shared scraper protocol migration", () => {
   it("pins the reviewed processing/lifecycle/boundary/reader bytes, independent of retailer definitions", () => {
-    const hash = createHash("sha256");
-    for (const source of sources) hash.update(readFileSync(new URL(source, root), "utf8").replace(/\r\n/g, "\n"));
-    expect(hash.digest("hex")).toBe(SHARED_SCRAPER_DRAFT_ARTIFACT_DIGEST);
     expect(migration.split(SHARED_SCRAPER_DRAFT_ARTIFACT_DIGEST)).toHaveLength(4);
+    // Historical migrations retain their original identities. Changed source is bound only to the new recorded release.
+    const manifest=JSON.parse(readFileSync(new URL('contracts/engine-identities.json',root),'utf8')) as {scraper:{digest:string;sources:{path:string;lfSha256:string}[]}};
     const releaseHash = createHash("sha256");
-    for (const source of [...sources, "src/services/admission/runCapacity.ts"])
-      releaseHash.update(readFileSync(new URL(source, root), "utf8").replace(/\r\n/g, "\n"));
+    for (const source of manifest.scraper.sources){const content=readFileSync(new URL(source.path,root),'utf8').replace(/\r\n/g,'\n');
+      expect(createHash('sha256').update(content).digest('hex')).toBe(source.lfSha256);releaseHash.update(content);}
     expect(releaseHash.digest("hex")).toBe(SHARED_SCRAPER_ARTIFACT_DIGEST);
-    expect(releaseMigration.split(SHARED_SCRAPER_ARTIFACT_DIGEST)).toHaveLength(5);
-    expect(capacityMigration).toContain(SHARED_SCRAPER_ARTIFACT_DIGEST);
+    expect(manifest.scraper.digest).toBe(SHARED_SCRAPER_ARTIFACT_DIGEST);
+    expect(SHARED_SCRAPER_ARTIFACT_DIGEST).not.toBe(SHARED_SCRAPER_LEGACY_RELEASE_ARTIFACT_DIGEST);
+    expect(releaseMigration.split(SHARED_SCRAPER_LEGACY_RELEASE_ARTIFACT_DIGEST)).toHaveLength(5);
+    expect(capacityMigration).toContain(SHARED_SCRAPER_LEGACY_RELEASE_ARTIFACT_DIGEST);
     expect(releaseMigration).toContain("commercial_evidence.evidence_hash = sha256");
   });
   it("adds no retailer tables, runtime credentials, publication or work", () => {

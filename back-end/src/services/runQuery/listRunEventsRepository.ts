@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withTenantTransaction } from "../database/transactions.js";
+import { withOrganizationReadTransaction } from "../database/transactions.js";
 
 export interface ListRunEventsRecord {
   readonly id: string;
@@ -11,6 +11,7 @@ export interface ListRunEventsRecord {
 
 export interface ListRunEventsRepositoryInput {
   readonly tenantId: string;
+  readonly userId: string;
   readonly runId: string;
   readonly afterSequence: string | undefined;
   readonly fetchLimit: number;
@@ -42,31 +43,23 @@ function internalFailure(cause: unknown): ApplicationError {
   });
 }
 
-export function createListRunEventsRepository(
-  pool: Pool,
-): ListRunEventsRepository {
+export function createListRunEventsRepository(pool: Pool): ListRunEventsRepository {
   return {
-    async findPage(
-      input,
-    ): Promise<readonly ListRunEventsRecord[] | undefined> {
-      if (
-        !Number.isInteger(input.fetchLimit) ||
-        input.fetchLimit < 2 ||
-        input.fetchLimit > 101
-      ) {
+    async findPage(input): Promise<readonly ListRunEventsRecord[] | undefined> {
+      if (!Number.isInteger(input.fetchLimit) || input.fetchLimit < 2 || input.fetchLimit > 101) {
         throw new TypeError("fetchLimit must be an integer between 2 and 101");
       }
 
       try {
-        return await withTenantTransaction(
+        return await withOrganizationReadTransaction(
           pool,
-          input.tenantId,
+          { tenantId: input.tenantId, userId: input.userId },
           async (database) => {
             const run = await database.query<RunExistsRow>(
               `
                 SELECT run.id
                 FROM app.runs AS run
-                WHERE run.tenant_id = $1
+                WHERE run.organization_id = $1
                   AND run.id = $2::uuid
                 LIMIT 1
               `,
@@ -82,18 +75,13 @@ export function createListRunEventsRepository(
                   event.event_type,
                   event.occurred_at
                 FROM app.run_events AS event
-                WHERE event.tenant_id = $1
+                WHERE event.organization_id = $1
                   AND event.run_id = $2::uuid
                   AND event.sequence > COALESCE($3::bigint, 0::bigint)
                 ORDER BY event.sequence ASC
                 LIMIT $4::integer
               `,
-              [
-                input.tenantId,
-                input.runId,
-                input.afterSequence ?? null,
-                input.fetchLimit,
-              ],
+              [input.tenantId, input.runId, input.afterSequence ?? null, input.fetchLimit],
             );
 
             return events.rows.map((row) => ({

@@ -1,5 +1,13 @@
 # M10 Marketplace export candidate proof
 
+**HISTORICAL — original migration chain through 0069.** The 0070 source cleanup
+removes the qualification/import/export/release operators used by this harness.
+Commands and database targets below are historical receipts, not current instructions.
+Do not run this harness against the refactoring checkout or use it to qualify 0070.
+Retained customer sample journeys require a separately reviewed 0070 proof.
+See [privileged test boundaries](../README.md).
+
+
 This proof replays the complete migration chain in a disposable PostgreSQL 18
 container and runs the rollback-only M10 integration fixture. It uses protected
 fixture bytes and performs no network or Bright Data operation.

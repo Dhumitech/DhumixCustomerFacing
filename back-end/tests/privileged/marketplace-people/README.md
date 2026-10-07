@@ -1,5 +1,13 @@
 # Standard LinkedIn People metadata activation
 
+**HISTORICAL — original migration chain through 0069.** The 0070 source cleanup
+removes the qualification/import/export/release operators used by this harness.
+Commands and database targets below are historical receipts, not current instructions.
+Do not run this harness against the refactoring checkout or use it to qualify 0070.
+Retained customer sample journeys require a separately reviewed 0070 proof.
+See [privileged test boundaries](../README.md).
+
+
 This operator-only proof applies migration `0060`, captures one exact metadata
 document for the already approved standard LinkedIn People M2 candidate, stores
 the bytes privately in the configured result container and records an immutable

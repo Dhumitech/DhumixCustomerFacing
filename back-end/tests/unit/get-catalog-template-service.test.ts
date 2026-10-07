@@ -24,9 +24,7 @@ const presentation = {
   display_priority: 1,
 } as const;
 
-function record(
-  overrides: Partial<PublicCatalogTemplateRecord> = {},
-): PublicCatalogTemplateRecord {
+function record(overrides: Partial<PublicCatalogTemplateRecord> = {}): PublicCatalogTemplateRecord {
   return {
     id: "44444444-4444-4444-8444-444444444444",
     slug: "amazon-products",
@@ -79,7 +77,7 @@ describe("getCatalogTemplateService", () => {
     const result = await createGetCatalogTemplateService({ repository }).get(request());
 
     expect(repository.calls).toEqual([
-      { tenantId: principal.tenantId, slug: "amazon-products" },
+      { tenantId: principal.tenantId, userId: principal.userId, slug: "amazon-products" },
     ]);
     expect(result).toEqual({
       slug: "amazon-products",
@@ -156,8 +154,8 @@ describe("getCatalogTemplateService", () => {
       title: "Internal server error",
     });
 
-    await expect(
-      createGetCatalogTemplateService({ repository }).get(request()),
-    ).rejects.toBe(repository.failure);
+    await expect(createGetCatalogTemplateService({ repository }).get(request())).rejects.toBe(
+      repository.failure,
+    );
   });
 });

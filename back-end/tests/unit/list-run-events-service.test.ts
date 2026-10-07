@@ -62,6 +62,7 @@ describe("listRunEventsService", () => {
     expect(repository.calls).toEqual([
       {
         tenantId: principal.tenantId,
+        userId: principal.userId,
         runId: RUN_ID,
         afterSequence: undefined,
         fetchLimit: 21,

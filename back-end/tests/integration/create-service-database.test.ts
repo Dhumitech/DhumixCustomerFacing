@@ -65,15 +65,19 @@ async function fixture(): Promise<{ readonly userId: string; readonly tenantId: 
 }
 
 describe.skipIf(!enabled)("create Service against PostgreSQL", () => {
-  it("enforces migration 0016 constraints and private admission privileges", async () => {
+  it("enforces retained Service constraints and browser-only admission after 0070", async () => {
     const current = await fixture();
     const evidence = await withAdmissionTenantTransaction(
       must(pools).admission,
       current.tenantId,
       async (database) => {
-        const constraints = await database.query<{ conname: string }>(
+        const constraints = await database.query<{
+          conname: string;
+          convalidated: boolean;
+          definition: string;
+        }>(
           `
-            SELECT conname
+            SELECT conname, convalidated, pg_get_constraintdef(oid) AS definition
             FROM pg_constraint
             WHERE connamespace = 'app'::regnamespace
               AND conname IN (
@@ -83,6 +87,7 @@ describe.skipIf(!enabled)("create Service against PostgreSQL", () => {
                 'service_versions_creator_user_tenant_fk',
                 'service_versions_creator_api_key_tenant_fk',
                 'service_versions_exactly_one_creator_check',
+                'service_versions_browser_creator_check',
                 'audit_events_actor_user_tenant_fk',
                 'audit_events_actor_api_key_tenant_fk',
                 'audit_events_at_most_one_actor_check',
@@ -103,6 +108,8 @@ describe.skipIf(!enabled)("create Service against PostgreSQL", () => {
           evidence_reference: boolean;
           replay_body_select: boolean;
           claim_hash_update: boolean;
+          creator_user_insert: boolean;
+          audit_actor_user_insert: boolean;
         }>(
           `
             SELECT
@@ -115,14 +122,31 @@ describe.skipIf(!enabled)("create Service against PostgreSQL", () => {
               has_column_privilege(current_user, 'app.launch_evidence', 'state', 'SELECT') AS evidence_state,
               has_column_privilege(current_user, 'app.launch_evidence', 'restricted_reference', 'SELECT') AS evidence_reference,
               has_column_privilege(current_user, 'app.idempotency_records', 'response_body', 'SELECT') AS replay_body_select,
-              has_column_privilege(current_user, 'app.idempotency_records', 'request_hash', 'UPDATE') AS claim_hash_update
+              has_column_privilege(current_user, 'app.idempotency_records', 'request_hash', 'UPDATE') AS claim_hash_update,
+              has_column_privilege(current_user, 'app.service_versions', 'created_by_user_id', 'INSERT') AS creator_user_insert,
+              has_column_privilege(current_user, 'app.audit_events', 'actor_user_id', 'INSERT') AS audit_actor_user_insert
           `,
         );
         return { constraints: constraints.rows, privileges: privileges.rows[0] };
       },
     );
 
-    expect(evidence.constraints).toHaveLength(11);
+    // The query also names the four retired constraints, so their return fails
+    // this exact set rather than being mistaken for retained security checks.
+    expect(evidence.constraints.map((row) => row.conname)).toEqual([
+      "audit_events_actor_user_tenant_fk",
+      "idempotency_records_response_body_object_check",
+      "idempotency_records_service_create_semantics_check",
+      "service_versions_browser_creator_check",
+      "service_versions_configuration_object_check",
+      "service_versions_creator_user_tenant_fk",
+      "service_versions_schema_hash_length_check",
+      "services_name_check",
+    ]);
+    expect(evidence.constraints.every((row) => row.convalidated)).toBe(true);
+    expect(evidence.constraints.find(
+      (row) => row.conname === "service_versions_browser_creator_check",
+    )?.definition).toMatch(/created_by_user_id IS NOT NULL/);
     expect(evidence.privileges).toEqual({
       mapping_id: true,
       mapping_ciphertext: false,
@@ -134,6 +158,8 @@ describe.skipIf(!enabled)("create Service against PostgreSQL", () => {
       evidence_reference: false,
       replay_body_select: true,
       claim_hash_update: false,
+      creator_user_insert: true,
+      audit_actor_user_insert: true,
     });
   });
 

@@ -1,3 +1,4 @@
+import { organizationPath } from "../../api/organizationScope";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { cleanCustomerText } from "../workspace/customerText";
@@ -137,7 +138,7 @@ export function MarketplaceLibraryPage() {
             <Link
               className="marketplace-card"
               key={group.slug}
-              to={`/workspace/marketplace/groups/${group.slug}`}
+              to={organizationPath(`/workspace/marketplace/groups/${group.slug}`)}
             >
               <span className="marketplace-card__brand" aria-hidden="true">
                 in

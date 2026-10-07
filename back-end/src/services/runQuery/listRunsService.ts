@@ -6,19 +6,17 @@ import {
   type RunPublicStatus,
 } from "../../helpers/runListCursor.js";
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
-import type {
-  ListRunsRecord,
-  ListRunsRepository,
-} from "./listRunsRepository.js";
+import type { ListRunsRecord, ListRunsRepository } from "./listRunsRepository.js";
 import { runQueryValidationFailed } from "./runQueryErrors.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const DECIMAL_INTEGER_PATTERN = /^[0-9]+$/;
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface Run {
+  readonly created_by_user_id?:string|null;
+  readonly retry_of_run_id?:string|null;
   readonly id: string;
   readonly service_id: string;
   readonly status: RunPublicStatus;
@@ -102,10 +100,7 @@ function parseCursor(
   try {
     const cursor = decodeRunListCursor(value);
     if (cursor.statusFilter !== statusFilter) {
-      return validationError(
-        "cursor",
-        "must use the same status filter as the Run page cursor",
-      );
+      return validationError("cursor", "must use the same status filter as the Run page cursor");
     }
     if (cursor.serviceIdFilter !== serviceIdFilter) {
       return validationError(
@@ -129,12 +124,12 @@ function publicRun(record: ListRunsRecord): Run {
     created_at: record.createdAt.toISOString(),
     updated_at: record.updatedAt.toISOString(),
     completed_at: record.completedAt?.toISOString() ?? null,
+    ...(record.createdByUserId===undefined?{}:{created_by_user_id:record.createdByUserId}),
+    ...(record.retryOfRunId===undefined?{}:{retry_of_run_id:record.retryOfRunId}),
   };
 }
 
-export function createListRunsService(
-  dependencies: ListRunsServiceDependencies,
-): ListRunsService {
+export function createListRunsService(dependencies: ListRunsServiceDependencies): ListRunsService {
   return {
     async list(request): Promise<RunPage> {
       if (request.schemaErrors.length > 0) {
@@ -147,6 +142,7 @@ export function createListRunsService(
       const cursor = parseCursor(request.cursor, statusFilter, serviceIdFilter);
       const records = await dependencies.repository.list({
         tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
         statusFilter,
         serviceIdFilter,
         cursor,

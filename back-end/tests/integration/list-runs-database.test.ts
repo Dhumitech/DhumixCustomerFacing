@@ -261,14 +261,14 @@ describe.skipIf(!enabled)("list Runs against PostgreSQL", () => {
       "SELECT validated_input FROM app.runs LIMIT 1",
       "SELECT provider_mapping_id FROM app.runs LIMIT 1",
       "SELECT schema_hash FROM app.service_versions LIMIT 1",
-      "SELECT created_by_api_key_id FROM app.service_versions LIMIT 1",
+      "SELECT created_by_user_id FROM app.service_versions LIMIT 1",
     ];
     for (const query of forbiddenQueries) {
       await expect(
         withTenantTransaction(must(pools).customerApi, current.tenantId, async (database) =>
           database.query(query),
         ),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({ code: "42501" });
     }
   });
 });

@@ -1,5 +1,7 @@
 # Dhumi customer portal
 
+Current local refactor: [0075 status and checkout guidance](docs/runbooks/refactor-status.md), only in `dhumi_test`: **25 tables / 279 stored columns / 75 migrations**. Source stays in the existing root packages. Local context, snapshots, credentials and runtime evidence are Git-ignored. Existing database identities/passwords remain until their separately qualified replacement. Normal private-env startup still needs owner-provided `OTP_SECRET` and `EMAIL_FROM`. The original setup commands below are historical baseline guidance; do not replay bootstrap/migrations, replace the owner's `.env`, enable another database or start external services merely to follow them.
+
 Dhumi is a customer-facing portal for authenticated, tenant-isolated scraper Runs and Dataset Marketplace previews. Customers use the React portal and Dhumi API; provider credentials and private storage identifiers stay on the backend. The local backend has three processes: Customer API, Outbox Dispatcher, and Job Manager.
 
 This repository is a development/demo implementation, not a turnkey production deployment. Marketplace sample browsing, filtering, and limited downloads are separate from paid dataset purchase and export. Do not treat a visible dataset or a passing local health check as authorization to create billable provider work.

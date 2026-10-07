@@ -4,10 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../src/app.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "../../src/config/environment.js";
 import type {
-  ApiKeyAuthenticationService,
-  TrustedApiKeyIdentity,
-} from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
-import type {
   ListCatalogTemplatesRequest,
   ListCatalogTemplatesService,
   TemplatePage,
@@ -28,32 +24,25 @@ import type {
   TrustedTenantIdentity,
 } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
-import {
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
 import { stubGetCatalogTemplateService } from "../support/catalogueStub.js";
 import { AMAZON_PUBLIC_TEMPLATES } from "../support/amazonCatalogueFixtures.js";
-import { stubCreateServiceService, stubGetServiceService, stubListServicesService } from "../support/serviceStub.js";
+import {
+  stubCreateServiceService,
+  stubGetServiceService,
+  stubListServicesService,
+} from "../support/serviceStub.js";
 
 const ACCESS_TOKEN = "header.payload.signature";
 const API_KEY = `dhk_v1_${"A".repeat(16)}.${"A".repeat(43)}`;
+const organizationId = randomUUID();
 const sessionIdentity: TrustedSessionIdentity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: randomUUID(),
 };
 const tenantIdentity: TrustedTenantIdentity = {
   userId: sessionIdentity.userId,
   sessionId: sessionIdentity.sessionId,
-  tenantId: sessionIdentity.issuedTenantId,
-};
-const apiKeyIdentity: TrustedApiKeyIdentity = {
-  kind: "api_key",
-  apiKeyId: randomUUID(),
-  tenantId: tenantIdentity.tenantId,
-  scopes: ["catalog:read"],
+  tenantId: organizationId,
 };
 const presentation = {
   domain_slug: "amazon-com",
@@ -81,11 +70,31 @@ const page: TemplatePage = {
   page: { next_cursor: null, has_more: false },
 };
 
-const stubSignupService: SignupService = { async submit() { throw new Error("unexpected"); } };
-const stubSignInService: SignInService = { async authenticate() { throw new Error("unexpected"); } };
-const stubRefreshService: RefreshService = { async refresh() { throw new Error("unexpected"); } };
-const stubLogoutService: LogoutService = { async logout() { throw new Error("unexpected"); } };
-const stubWorkspaceService: WorkspaceService = { async getWorkspace() { throw new Error("unexpected"); } };
+const stubSignupService: SignupService = {
+  async submit() {
+    throw new Error("unexpected");
+  },
+};
+const stubSignInService: SignInService = {
+  async authenticate() {
+    throw new Error("unexpected");
+  },
+};
+const stubRefreshService: RefreshService = {
+  async refresh() {
+    throw new Error("unexpected");
+  },
+};
+const stubLogoutService: LogoutService = {
+  async logout() {
+    throw new Error("unexpected");
+  },
+};
+const stubWorkspaceService: WorkspaceService = {
+  async getWorkspace() {
+    throw new Error("unexpected");
+  },
+};
 
 interface RecordingCatalogueService extends ListCatalogTemplatesService {
   readonly calls: ListCatalogTemplatesRequest[];
@@ -151,21 +160,6 @@ function tenantAuthorization(): SwitchableTenantAuthorization {
   return service;
 }
 
-interface SwitchableApiKeyAuthentication extends ApiKeyAuthenticationService {
-  identity: TrustedApiKeyIdentity;
-}
-
-function apiKeyAuthentication(): SwitchableApiKeyAuthentication {
-  const service: SwitchableApiKeyAuthentication = {
-    identity: apiKeyIdentity,
-    async authenticate(authorization) {
-      if (authorization !== `Bearer ${API_KEY}`) throw authenticationRequired();
-      return service.identity;
-    },
-  };
-  return service;
-}
-
 function config(): RuntimeConfig {
   return loadRuntimeConfig({
     NODE_ENV: "test",
@@ -182,19 +176,16 @@ function config(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
 let app: FastifyInstance | undefined;
 let catalogue: RecordingCatalogueService;
 let tenant: SwitchableTenantAuthorization;
-let apiKeyAuth: SwitchableApiKeyAuthentication;
 
 beforeEach(() => {
   catalogue = catalogueService();
   tenant = tenantAuthorization();
-  apiKeyAuth = apiKeyAuthentication();
 });
 
 afterEach(async () => {
@@ -211,10 +202,6 @@ async function build(): Promise<FastifyInstance> {
     logoutService: stubLogoutService,
     tenantAuthorizationService: tenant,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: apiKeyAuth,
     listCatalogTemplatesService: catalogue,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -225,6 +212,17 @@ async function build(): Promise<FastifyInstance> {
 }
 
 describe("GET /v1/catalog/templates contract", () => {
+  it("allows a signed-in user to browse even when organization authorization would fail", async () => {
+    tenant.failWith = workspaceUnavailable();
+    const response = await (await build()).inject({
+      method: "GET",
+      url: "/v1/catalog/templates",
+      headers: { authorization: `Bearer ${ACCESS_TOKEN}` },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(catalogue.calls[0]?.principal).toEqual({ kind: "browser", ...sessionIdentity });
+    expect(catalogue.calls[0]?.principal).not.toHaveProperty("tenantId");
+  });
   it("returns the exact TemplatePage from a trusted browser principal", async () => {
     const requestId = randomUUID();
     const response = await (await build()).inject({
@@ -241,7 +239,7 @@ describe("GET /v1/catalog/templates contract", () => {
     expect(response.json()).toEqual(page);
     expect(catalogue.calls).toEqual([
       {
-        principal: { kind: "browser", ...tenantIdentity },
+        principal: { kind: "browser", ...sessionIdentity },
         family: "marketplace_dataset",
         cursor: undefined,
         limit: "1",
@@ -250,25 +248,14 @@ describe("GET /v1/catalog/templates contract", () => {
     ]);
   });
 
-  it("accepts a Dhumi API key with catalog:read and rejects one without it", async () => {
-    const instance = await build();
-    const accepted = await instance.inject({
+  it("rejects retired customer API keys before lookup", async () => {
+    const denied = await (await build()).inject({
       method: "GET",
       url: "/v1/catalog/templates",
       headers: { authorization: `Bearer ${API_KEY}` },
     });
-    expect(accepted.statusCode).toBe(200);
-    expect(catalogue.calls[0]?.principal).toEqual(apiKeyIdentity);
-
-    catalogue.calls.length = 0;
-    apiKeyAuth.identity = { ...apiKeyIdentity, scopes: ["runs:read"] };
-    const denied = await instance.inject({
-      method: "GET",
-      url: "/v1/catalog/templates",
-      headers: { authorization: `Bearer ${API_KEY}` },
-    });
-    expect(denied.statusCode).toBe(403);
-    expect(denied.json()).toMatchObject({ code: "ACCESS_DENIED" });
+    expect(denied.statusCode).toBe(401);
+    expect(denied.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
     expect(catalogue.calls).toHaveLength(0);
   });
 
@@ -284,12 +271,12 @@ describe("GET /v1/catalog/templates contract", () => {
     expect(catalogue.calls).toHaveLength(0);
   });
 
-  it("returns the generic 403 when the browser Tenant is unavailable", async () => {
+  it("checks a supplied organization selector even for browsing", async () => {
     tenant.failWith = workspaceUnavailable();
     const response = await (await build()).inject({
       method: "GET",
       url: "/v1/catalog/templates",
-      headers: { authorization: `Bearer ${ACCESS_TOKEN}` },
+      headers: { authorization: `Bearer ${ACCESS_TOKEN}`, "x-dhumi-organization": organizationId },
     });
 
     expect(response.statusCode).toBe(403);
@@ -352,7 +339,9 @@ describe("GET /v1/catalog/templates contract", () => {
 
     expect(response.statusCode).toBe(200);
     expect(Object.keys(response.json<Record<string, unknown>>()).sort()).toEqual(["data", "page"]);
-    expect(Object.keys(response.json<{ data: Record<string, unknown>[] }>().data[0]!).sort()).toEqual([
+    expect(
+      Object.keys(response.json<{ data: Record<string, unknown>[] }>().data[0]!).sort(),
+    ).toEqual([
       "availability",
       "configuration_schema",
       "description",

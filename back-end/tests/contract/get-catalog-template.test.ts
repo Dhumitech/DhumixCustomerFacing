@@ -3,10 +3,6 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../src/app.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "../../src/config/environment.js";
-import type {
-  ApiKeyAuthenticationService,
-  TrustedApiKeyIdentity,
-} from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
 import type { PublicCatalogTemplateRecord } from "../../src/services/catalogue/catalogTemplate.js";
 import {
   createGetCatalogTemplateService,
@@ -18,12 +14,9 @@ import type {
   TrustedSessionIdentity,
 } from "../../src/services/identity/browserAuthenticationService.js";
 import type { LogoutService } from "../../src/services/identity/logoutService.js";
-import type { MarketplacePreviewService } from
-  "../../src/services/marketplacePreview/marketplacePreviewService.js";
-import type { MarketplaceSampleDownloadService } from
-  "../../src/services/marketplaceSampleDownload/marketplaceSampleDownloadService.js";
-import type { MarketplaceExpertEnquiryService } from
-  "../../src/services/marketplaceExpertEnquiry/marketplaceExpertEnquiryService.js";
+import type { MarketplacePreviewService } from "../../src/services/marketplacePreview/marketplacePreviewService.js";
+import type { MarketplaceSampleDownloadService } from "../../src/services/marketplaceSampleDownload/marketplaceSampleDownloadService.js";
+import type { MarketplaceExpertEnquiryService } from "../../src/services/marketplaceExpertEnquiry/marketplaceExpertEnquiryService.js";
 import type { RefreshService } from "../../src/services/identity/refreshService.js";
 import { authenticationRequired } from "../../src/services/identity/sessionErrors.js";
 import type { SignInService } from "../../src/services/identity/signInService.js";
@@ -34,35 +27,28 @@ import type {
   TrustedTenantIdentity,
 } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
-import {
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
 import { stubListCatalogTemplatesService } from "../support/catalogueStub.js";
 import {
   AMAZON_OPERATION_FIXTURES,
   AMAZON_PUBLIC_TEMPLATES,
 } from "../support/amazonCatalogueFixtures.js";
-import { stubCreateServiceService, stubGetServiceService, stubListServicesService } from "../support/serviceStub.js";
+import {
+  stubCreateServiceService,
+  stubGetServiceService,
+  stubListServicesService,
+} from "../support/serviceStub.js";
 
 const ACCESS_TOKEN = "header.payload.signature";
 const API_KEY = `dhk_v1_${"A".repeat(16)}.${"A".repeat(43)}`;
+const organizationId = randomUUID();
 const sessionIdentity: TrustedSessionIdentity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: randomUUID(),
 };
 const tenantIdentity: TrustedTenantIdentity = {
   userId: sessionIdentity.userId,
   sessionId: sessionIdentity.sessionId,
-  tenantId: sessionIdentity.issuedTenantId,
-};
-const apiKeyIdentity: TrustedApiKeyIdentity = {
-  kind: "api_key",
-  apiKeyId: randomUUID(),
-  tenantId: tenantIdentity.tenantId,
-  scopes: ["catalog:read"],
+  tenantId: organizationId,
 };
 const presentation = {
   domain_slug: "amazon-com",
@@ -100,11 +86,31 @@ const template = {
   input_schema: record.inputSchema,
 } as const;
 
-const stubSignupService: SignupService = { async submit() { throw new Error("unexpected"); } };
-const stubSignInService: SignInService = { async authenticate() { throw new Error("unexpected"); } };
-const stubRefreshService: RefreshService = { async refresh() { throw new Error("unexpected"); } };
-const stubLogoutService: LogoutService = { async logout() { throw new Error("unexpected"); } };
-const stubWorkspaceService: WorkspaceService = { async getWorkspace() { throw new Error("unexpected"); } };
+const stubSignupService: SignupService = {
+  async submit() {
+    throw new Error("unexpected");
+  },
+};
+const stubSignInService: SignInService = {
+  async authenticate() {
+    throw new Error("unexpected");
+  },
+};
+const stubRefreshService: RefreshService = {
+  async refresh() {
+    throw new Error("unexpected");
+  },
+};
+const stubLogoutService: LogoutService = {
+  async logout() {
+    throw new Error("unexpected");
+  },
+};
+const stubWorkspaceService: WorkspaceService = {
+  async getWorkspace() {
+    throw new Error("unexpected");
+  },
+};
 
 interface RecordingGetTemplateService extends GetCatalogTemplateService {
   readonly calls: GetCatalogTemplateRequest[];
@@ -156,21 +162,6 @@ function tenantAuthorization(): SwitchableTenantAuthorization {
   return service;
 }
 
-interface SwitchableApiKeyAuthentication extends ApiKeyAuthenticationService {
-  identity: TrustedApiKeyIdentity;
-}
-
-function apiKeyAuthentication(): SwitchableApiKeyAuthentication {
-  const service: SwitchableApiKeyAuthentication = {
-    identity: apiKeyIdentity,
-    async authenticate(authorization) {
-      if (authorization !== `Bearer ${API_KEY}`) throw authenticationRequired();
-      return service.identity;
-    },
-  };
-  return service;
-}
-
 function config(): RuntimeConfig {
   return loadRuntimeConfig({
     NODE_ENV: "test",
@@ -187,19 +178,16 @@ function config(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
 let app: FastifyInstance | undefined;
 let detail: RecordingGetTemplateService;
 let tenant: SwitchableTenantAuthorization;
-let apiKeyAuth: SwitchableApiKeyAuthentication;
 
 beforeEach(() => {
   detail = getTemplateService();
   tenant = tenantAuthorization();
-  apiKeyAuth = apiKeyAuthentication();
 });
 
 afterEach(async () => {
@@ -210,14 +198,22 @@ afterEach(async () => {
 async function build(
   getService: GetCatalogTemplateService = detail,
   marketplacePreviewService: MarketplacePreviewService = {
-    async get() { throw new Error("unexpected Marketplace sample read"); },
-    async query() { throw new Error("unexpected Marketplace sample query"); },
+    async get() {
+      throw new Error("unexpected Marketplace sample read");
+    },
+    async query() {
+      throw new Error("unexpected Marketplace sample query");
+    },
   },
   marketplaceSampleDownloadService: MarketplaceSampleDownloadService = {
-    async authorize() { throw new Error("unexpected Marketplace sample download"); },
+    async authorize() {
+      throw new Error("unexpected Marketplace sample download");
+    },
   },
   marketplaceExpertEnquiryService: MarketplaceExpertEnquiryService = {
-    async submit() { throw new Error("unexpected Marketplace expert enquiry"); },
+    async submit() {
+      throw new Error("unexpected Marketplace expert enquiry");
+    },
   },
 ): Promise<FastifyInstance> {
   app = await buildApp(config(), {
@@ -228,10 +224,6 @@ async function build(
     logoutService: stubLogoutService,
     tenantAuthorizationService: tenant,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: apiKeyAuth,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: getService,
     marketplacePreviewService,
@@ -273,23 +265,18 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
     expect(response.json()).toEqual(template);
     expect(detail.calls).toEqual([
       {
-        principal: { kind: "browser", ...tenantIdentity },
+        principal: { kind: "browser", ...sessionIdentity },
         slug: "amazon-products",
         schemaErrors: [],
       },
     ]);
   });
 
-  it("accepts catalog:read API keys and rejects a missing scope before lookup", async () => {
+  it("rejects retired customer API keys before lookup", async () => {
     const instance = await build();
-    expect((await get(instance, "amazon-products", `Bearer ${API_KEY}`)).statusCode).toBe(200);
-    expect(detail.calls[0]?.principal).toEqual(apiKeyIdentity);
-
-    detail.calls.length = 0;
-    apiKeyAuth.identity = { ...apiKeyIdentity, scopes: ["runs:read"] };
     const denied = await get(instance, "amazon-products", `Bearer ${API_KEY}`);
-    expect(denied.statusCode).toBe(403);
-    expect(denied.json()).toMatchObject({ code: "ACCESS_DENIED" });
+    expect(denied.statusCode).toBe(401);
+    expect(denied.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
     expect(detail.calls).toHaveLength(0);
   });
 
@@ -302,9 +289,13 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
     expect(detail.calls).toHaveLength(0);
   });
 
-  it("returns the generic 403 when the browser Tenant is unavailable", async () => {
+  it("checks a supplied organization selector even for browsing", async () => {
     tenant.failWith = workspaceUnavailable();
-    const response = await get(await build());
+    const response = await (await build()).inject({
+      method: "GET",
+      url: "/v1/catalog/templates/amazon-products",
+      headers: { authorization: `Bearer ${ACCESS_TOKEN}`, "x-dhumi-organization": organizationId },
+    });
 
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({ code: "ACCESS_DENIED" });
@@ -426,7 +417,12 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
   });
 
   it("serves masked stored-sample reads and forwards browser CSRF for local queries", async () => {
-    const calls: unknown[] = [];
+    const calls: Array<{
+      operation: string;
+      request:
+        | Parameters<MarketplacePreviewService["get"]>[0]
+        | Parameters<MarketplacePreviewService["query"]>[0];
+    }> = [];
     const result = {
       template_slug: "linkedin-posts",
       template_version: 1,
@@ -449,6 +445,7 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
       },
     };
     const instance = await build(detail, marketplacePreviewService);
+    tenant.failWith = workspaceUnavailable();
 
     const read = await instance.inject({
       method: "GET",
@@ -476,6 +473,10 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
     });
     expect(query.statusCode).toBe(200);
     expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.request.principal).toEqual({ kind: "browser", ...sessionIdentity });
+      expect(call.request.principal).not.toHaveProperty("tenantId");
+    }
     expect(calls[1]).toMatchObject({
       operation: "query",
       request: {
@@ -497,7 +498,8 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
           content_type: "application/json; charset=utf-8",
           byte_count: 241,
           checksum: "a".repeat(64),
-          download_url: "http://127.0.0.1:10000/devstoreaccount1/dhumi-test-results/sample.json?sig=redacted",
+          download_url:
+            "http://127.0.0.1:10000/devstoreaccount1/dhumi-test-results/sample.json?sig=redacted",
           download_expires_at: "2026-09-11T12:05:00.000Z",
         };
       },
@@ -526,7 +528,7 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
     expect(response.body).not.toMatch(/object_key|provider|dataset_id/i);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
-      principal: { kind: "browser", ...tenantIdentity },
+      principal: { kind: "browser", ...sessionIdentity },
       slug: "linkedin-posts",
       csrfToken: "valid-browser-csrf-token",
       idempotencyKey: "sample-download-contract-0001",
@@ -536,7 +538,7 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
     expect(calls[0]?.ipFingerprint).toBeInstanceOf(Buffer);
   });
 
-  it("rejects a sample download without catalog scope before authorization", async () => {
+  it("rejects a sample download with a retired customer API key before authorization", async () => {
     const calls: unknown[] = [];
     const download: MarketplaceSampleDownloadService = {
       async authorize(request) {
@@ -544,7 +546,6 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
         throw new Error("must not authorize");
       },
     };
-    apiKeyAuth.identity = { ...apiKeyIdentity, scopes: ["runs:read"] };
     const instance = await build(detail, undefined, download);
     const response = await instance.inject({
       method: "POST",
@@ -560,8 +561,8 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
         record_limit: 2,
       },
     });
-    expect(response.statusCode).toBe(403);
-    expect(response.json()).toMatchObject({ code: "ACCESS_DENIED" });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
     expect(calls).toHaveLength(0);
   });
 
@@ -601,7 +602,7 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
     expect(response.body).not.toMatch(/provider|dataset_id|payment|entitlement/i);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
-      principal: { kind: "browser", ...tenantIdentity },
+      principal: { kind: "browser", ...sessionIdentity },
       slug: "linkedin-posts",
       csrfToken: "valid-browser-csrf-token",
       idempotencyKey: "expert-enquiry-contract-0001",
@@ -611,7 +612,7 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
     expect(calls[0]?.ipFingerprint).toBeInstanceOf(Buffer);
   });
 
-  it("rejects an expert enquiry without catalog scope before persistence", async () => {
+  it("rejects an expert enquiry with a retired customer API key before persistence", async () => {
     const calls: unknown[] = [];
     const enquiry: MarketplaceExpertEnquiryService = {
       async submit(request) {
@@ -619,7 +620,6 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
         throw new Error("must not persist");
       },
     };
-    apiKeyAuth.identity = { ...apiKeyIdentity, scopes: ["runs:read"] };
     const instance = await build(detail, undefined, undefined, enquiry);
     const response = await instance.inject({
       method: "POST",
@@ -631,8 +631,8 @@ describe("GET /v1/catalog/templates/{slug} contract", () => {
       payload: { expected_template_version: 1 },
     });
 
-    expect(response.statusCode).toBe(403);
-    expect(response.json()).toMatchObject({ code: "ACCESS_DENIED" });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
     expect(calls).toHaveLength(0);
   });
 });

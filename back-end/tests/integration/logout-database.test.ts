@@ -78,7 +78,7 @@ interface SignedInFixture {
   readonly signIn: SignInResult;
   readonly sessionId: string;
   readonly userId: string;
-  readonly tenantId: string;
+  readonly tenantId: null;
 }
 
 async function createSignedInIdentity(): Promise<SignedInFixture> {
@@ -117,7 +117,6 @@ async function createSignedInIdentity(): Promise<SignedInFixture> {
     password: PASSWORD,
     requestId: randomUUID(),
     ipFingerprint: null,
-    deviceMetadata: { user_agent_family: "vitest" },
   });
 
   const claims = await accessTokens().verify(signIn.accessToken);
@@ -128,7 +127,7 @@ async function createSignedInIdentity(): Promise<SignedInFixture> {
     signIn,
     sessionId: claims.sessionId,
     userId: claims.userId,
-    tenantId: claims.tenantId,
+    tenantId: null,
   };
 }
 
@@ -147,7 +146,7 @@ function logoutRequest(fixture: SignedInFixture, identity: TrustedSessionIdentit
 
 async function readFamily(sessionId: string): Promise<{
   readonly sessionState: string;
-  readonly revokedBy: string | undefined;
+  readonly revokedBy: string | null;
   readonly tokenStates: string[];
   readonly activeTokenCount: number;
   readonly logoutAuditCount: number;
@@ -158,8 +157,8 @@ async function readFamily(sessionId: string): Promise<{
   return withIdentityTransaction(must(pools).identity, async (database) => {
     const session = await database.query<{
       state: string;
-      security_metadata: Record<string, unknown>;
-    }>(`SELECT state, security_metadata FROM app.auth_sessions WHERE id = $1`, [sessionId]);
+      revoked_reason: string | null;
+    }>(`SELECT state, revoked_reason FROM app.auth_sessions WHERE id = $1`, [sessionId]);
     const tokens = await database.query<{ state: string }>(
       `
         SELECT state
@@ -189,10 +188,7 @@ async function readFamily(sessionId: string): Promise<{
     }
     return {
       sessionState: row.state,
-      revokedBy:
-        typeof row.security_metadata.revoked_by === "string"
-          ? row.security_metadata.revoked_by
-          : undefined,
+      revokedBy: row.revoked_reason,
       tokenStates: tokens.rows.map((token) => token.state),
       activeTokenCount: tokens.rows.filter((token) => token.state === "active").length,
       logoutAuditCount: audits.rowCount ?? audits.rows.length,
@@ -251,46 +247,13 @@ describe.skipIf(!enabled)("logout against PostgreSQL", () => {
     expect(family.logoutAuditCount).toBe(0);
   });
 
-  it("allows credential destruction after User, access, or Tenant suspension", async () => {
-    const cases = [
-      {
-        name: "User suspended",
-        mutate: (fixture: SignedInFixture) =>
-          withIdentityTransaction(must(pools).identity, async (database) =>
-            database.query(`UPDATE app.users SET state = 'suspended' WHERE id = $1`, [
-              fixture.userId,
-            ]),
-          ),
-      },
-      {
-        name: "Tenant access revoked",
-        mutate: (fixture: SignedInFixture) =>
-          withIdentityTransaction(must(pools).identity, async (database) =>
-            database.query(
-              `UPDATE app.tenant_user_access SET state = 'revoked' WHERE user_id = $1 AND tenant_id = $2`,
-              [fixture.userId, fixture.tenantId],
-            ),
-          ),
-      },
-      {
-        name: "Tenant suspended",
-        mutate: (fixture: SignedInFixture) =>
-          withIdentityTransaction(must(pools).identity, async (database) =>
-            database.query(`UPDATE app.tenants SET state = 'suspended' WHERE id = $1`, [
-              fixture.tenantId,
-            ]),
-          ),
-      },
-    ] as const;
-
-    for (const testCase of cases) {
-      const fixture = await createSignedInIdentity();
-      await testCase.mutate(fixture);
-      const identity = await authenticate(fixture);
-
-      await expect(logout().logout(logoutRequest(fixture, identity)), testCase.name).resolves.toBeUndefined();
-      expect((await readFamily(fixture.sessionId)).sessionState, testCase.name).toBe("revoked");
-    }
+  it("allows credential destruction after User suspension without organization access", async () => {
+    const fixture = await createSignedInIdentity();
+    await withIdentityTransaction(must(pools).identity, async (database) =>
+      database.query("UPDATE app.users SET state = 'suspended' WHERE id = $1", [fixture.userId]));
+    const identity = await authenticate(fixture);
+    await expect(logout().logout(logoutRequest(fixture, identity))).resolves.toBeUndefined();
+    expect((await readFamily(fixture.sessionId)).sessionState).toBe("revoked");
   });
 
   it("serializes simultaneous logout calls and writes one accepted audit", async () => {

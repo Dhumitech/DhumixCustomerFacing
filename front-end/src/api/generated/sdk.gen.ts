@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AuthorizeMarketplaceSampleDownloadData, AuthorizeMarketplaceSampleDownloadErrors, AuthorizeMarketplaceSampleDownloadResponses, CancelRunData, CancelRunErrors, CancelRunResponses, CreateApiKeyData, CreateApiKeyErrors, CreateApiKeyResponses, CreateMarketplaceExpertEnquiryData, CreateMarketplaceExpertEnquiryErrors, CreateMarketplaceExpertEnquiryResponses, CreateRunData, CreateRunErrors, CreateRunResponses, CreateServiceData, CreateServiceErrors, CreateServiceResponses, GetMarketplaceSampleData, GetMarketplaceSampleErrors, GetMarketplaceSampleResponses, GetPlatformStatusData, GetPlatformStatusErrors, GetPlatformStatusResponses, GetRunData, GetRunErrors, GetRunResponses, GetRunResultData, GetRunResultErrors, GetRunResultResponses, GetServiceData, GetServiceErrors, GetServiceResponses, GetTemplateData, GetTemplateErrors, GetTemplateResponses, GetUsageSummaryData, GetUsageSummaryErrors, GetUsageSummaryResponses, GetWorkspaceData, GetWorkspaceErrors, GetWorkspaceResponses, ListApiKeysData, ListApiKeysErrors, ListApiKeysResponses, ListRunEventsData, ListRunEventsErrors, ListRunEventsResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListServicesData, ListServicesErrors, ListServicesResponses, ListTemplatesData, ListTemplatesErrors, ListTemplatesResponses, ListUsageEventsData, ListUsageEventsErrors, ListUsageEventsResponses, LogoutData, LogoutErrors, LogoutResponses, QueryMarketplaceSampleData, QueryMarketplaceSampleErrors, QueryMarketplaceSampleResponses, RefreshSessionData, RefreshSessionErrors, RefreshSessionResponses, RetryRunData, RetryRunErrors, RetryRunResponses, RevokeApiKeyData, RevokeApiKeyErrors, RevokeApiKeyResponses, SignInData, SignInErrors, SignInResponses, SignUpData, SignUpErrors, SignUpResponses } from './types.gen';
+import type { AcceptInviteData, AcceptInviteErrors, AcceptInviteResponses, AuthorizeMarketplaceSampleDownloadData, AuthorizeMarketplaceSampleDownloadErrors, AuthorizeMarketplaceSampleDownloadResponses, CancelRunData, CancelRunErrors, CancelRunResponses, ConfirmVerificationData, ConfirmVerificationErrors, ConfirmVerificationResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMarketplaceExpertEnquiryData, CreateMarketplaceExpertEnquiryErrors, CreateMarketplaceExpertEnquiryResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, CreateRunData, CreateRunErrors, CreateRunResponses, CreateServiceData, CreateServiceErrors, CreateServiceResponses, GetActivityData, GetActivityErrors, GetActivityResponses, GetMarketplaceSampleData, GetMarketplaceSampleErrors, GetMarketplaceSampleResponses, GetPlatformStatusData, GetPlatformStatusErrors, GetPlatformStatusResponses, GetRunData, GetRunErrors, GetRunResponses, GetRunResultData, GetRunResultErrors, GetRunResultResponses, GetServiceData, GetServiceErrors, GetServiceResponses, GetTemplateData, GetTemplateErrors, GetTemplateResponses, GetUsageSummaryData, GetUsageSummaryErrors, GetUsageSummaryResponses, GetWorkspaceData, GetWorkspaceErrors, GetWorkspaceResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListOrganizationsData, ListOrganizationsErrors, ListOrganizationsResponses, ListRunEventsData, ListRunEventsErrors, ListRunEventsResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListServicesData, ListServicesErrors, ListServicesResponses, ListTemplatesData, ListTemplatesErrors, ListTemplatesResponses, ListUsageEventsData, ListUsageEventsErrors, ListUsageEventsResponses, LogoutData, LogoutErrors, LogoutResponses, QueryMarketplaceSampleData, QueryMarketplaceSampleErrors, QueryMarketplaceSampleResponses, RefreshSessionData, RefreshSessionErrors, RefreshSessionResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResendInviteData, ResendInviteErrors, ResendInviteResponses, ResendVerificationData, ResendVerificationErrors, ResendVerificationResponses, RetryRunData, RetryRunErrors, RetryRunResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, SignInData, SignInErrors, SignInResponses, SignUpData, SignUpErrors, SignUpResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -21,8 +21,9 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 /**
  * Submit a local Dhumi signup
  *
- * Creates local User, Tenant, owner Tenant Access, legal evidence, audit
- * and notification outbox atomically. Makes no Bright Data request.
+ * Creates only the local User, legal evidence and audit atomically.
+ * Creates no organization, membership, OTP or notification outbox.
+ * workspace_name is optional, deprecated and ignored. Makes no Bright Data request.
  * Response is deliberately generic. An existing email follows the same
  * accepted flow; 409 is reserved for the same Idempotency-Key used with a
  * different canonical request body.
@@ -39,6 +40,8 @@ export const signUp = <ThrowOnError extends boolean = false>(options: Options<Si
 
 /**
  * Sign in to Dhumi
+ *
+ * Creates a user/session token family without requiring organization membership.
  */
 export const signIn = <ThrowOnError extends boolean = false>(options: Options<SignInData, ThrowOnError>): RequestResult<SignInResponses, SignInErrors, ThrowOnError> => (options.client ?? client).post<SignInResponses, SignInErrors, ThrowOnError>({
     url: '/v1/auth/sign-in',
@@ -52,7 +55,7 @@ export const signIn = <ThrowOnError extends boolean = false>(options: Options<Si
 /**
  * Rotate the browser session token family
  *
- * Refresh token is supplied through the approved secure cookie.
+ * Refresh token is supplied through the approved secure cookie. Organization membership is not required.
  */
 export const refreshSession = <ThrowOnError extends boolean = false>(options: Options<RefreshSessionData, ThrowOnError>): RequestResult<RefreshSessionResponses, RefreshSessionErrors, ThrowOnError> => (options.client ?? client).post<RefreshSessionResponses, RefreshSessionErrors, ThrowOnError>({ url: '/v1/auth/refresh', ...options });
 
@@ -60,11 +63,7 @@ export const refreshSession = <ThrowOnError extends boolean = false>(options: Op
  * Revoke the current browser session family
  */
 export const logout = <ThrowOnError extends boolean = false>(options: Options<LogoutData, ThrowOnError>): RequestResult<LogoutResponses, LogoutErrors, ThrowOnError> => (options.client ?? client).post<LogoutResponses, LogoutErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/auth/logout',
     ...options
 });
@@ -73,99 +72,29 @@ export const logout = <ThrowOnError extends boolean = false>(options: Options<Lo
  * Get the authenticated Tenant workspace
  */
 export const getWorkspace = <ThrowOnError extends boolean = false>(options?: Options<GetWorkspaceData, ThrowOnError>): RequestResult<GetWorkspaceResponses, GetWorkspaceErrors, ThrowOnError> => (options?.client ?? client).get<GetWorkspaceResponses, GetWorkspaceErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/workspace',
     ...options
 });
 
 /**
- * List Dhumi API-key metadata
- */
-export const listApiKeys = <ThrowOnError extends boolean = false>(options?: Options<ListApiKeysData, ThrowOnError>): RequestResult<ListApiKeysResponses, ListApiKeysErrors, ThrowOnError> => (options?.client ?? client).get<ListApiKeysResponses, ListApiKeysErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/v1/keys',
-    ...options
-});
-
-/**
- * Create a Dhumi API key
- *
- * Plaintext secret is never stored. A KMS-envelope-encrypted successful
- * response is retained for a 10-minute idempotent recovery window. An exact
- * replay during that window returns the original 201 response. After the
- * envelope is destroyed, replay returns IDEMPOTENCY_REPLAY_EXPIRED and
- * creates no second key.
- *
- */
-export const createApiKey = <ThrowOnError extends boolean = false>(options: Options<CreateApiKeyData, ThrowOnError>): RequestResult<CreateApiKeyResponses, CreateApiKeyErrors, ThrowOnError> => (options.client ?? client).post<CreateApiKeyResponses, CreateApiKeyErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/v1/keys',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Revoke a Dhumi API key
- */
-export const revokeApiKey = <ThrowOnError extends boolean = false>(options: Options<RevokeApiKeyData, ThrowOnError>): RequestResult<RevokeApiKeyResponses, RevokeApiKeyErrors, ThrowOnError> => (options.client ?? client).delete<RevokeApiKeyResponses, RevokeApiKeyErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/v1/keys/{key_id}',
-    ...options
-});
-
-/**
  * List published Dhumi service templates
+ *
+ * Signed-in active users may browse all-access templates without organization membership. An optional authorized organization selector also exposes templates assigned to that organization.
  */
 export const listTemplates = <ThrowOnError extends boolean = false>(options?: Options<ListTemplatesData, ThrowOnError>): RequestResult<ListTemplatesResponses, ListTemplatesErrors, ThrowOnError> => (options?.client ?? client).get<ListTemplatesResponses, ListTemplatesErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/catalog/templates',
     ...options
 });
 
 /**
  * Get one published Dhumi template
+ *
+ * Signed-in active users may read all-access templates without organization membership. Selected templates require an authorized organization with the access assignment.
  */
 export const getTemplate = <ThrowOnError extends boolean = false>(options: Options<GetTemplateData, ThrowOnError>): RequestResult<GetTemplateResponses, GetTemplateErrors, ThrowOnError> => (options.client ?? client).get<GetTemplateResponses, GetTemplateErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/catalog/templates/{slug}',
     ...options
 });
@@ -173,18 +102,10 @@ export const getTemplate = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * Read one page from a governed stored Marketplace sample
  *
- * Counts are relative to the immutable stored sample. This operation makes no provider request.
+ * Counts are relative to the immutable stored sample. Signed-in active users need no organization for all-access templates. Selected templates require authorized organization access. This operation makes no provider request.
  */
 export const getMarketplaceSample = <ThrowOnError extends boolean = false>(options: Options<GetMarketplaceSampleData, ThrowOnError>): RequestResult<GetMarketplaceSampleResponses, GetMarketplaceSampleErrors, ThrowOnError> => (options.client ?? client).get<GetMarketplaceSampleResponses, GetMarketplaceSampleErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/catalog/templates/{slug}/sample',
     ...options
 });
@@ -192,18 +113,10 @@ export const getMarketplaceSample = <ThrowOnError extends boolean = false>(optio
 /**
  * Filter and project a governed stored Marketplace sample
  *
- * Filtering is local to Dhumi's immutable stored sample and makes no provider request.
+ * Filtering is local to Dhumi's immutable stored sample and makes no provider request. Signed-in active users need no organization for all-access templates; selected templates require authorized organization access. Session CSRF remains required.
  */
 export const queryMarketplaceSample = <ThrowOnError extends boolean = false>(options: Options<QueryMarketplaceSampleData, ThrowOnError>): RequestResult<QueryMarketplaceSampleResponses, QueryMarketplaceSampleErrors, ThrowOnError> => (options.client ?? client).post<QueryMarketplaceSampleResponses, QueryMarketplaceSampleErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/catalog/templates/{slug}/sample/query',
     ...options,
     headers: {
@@ -218,15 +131,7 @@ export const queryMarketplaceSample = <ThrowOnError extends boolean = false>(opt
  * Serializes the exact masked, filtered and selected projection of Dhumi's immutable stored sample as JSON or CSV. JSON preserves projected field values and types, but is not byte-identical source JSON. CSV is for spreadsheet viewing and prefixes formula-like cells with a tab inside quotes; it is not a lossless interchange format or a universal spreadsheet-security guarantee. This operation makes no provider request and does not create a Service, Run or outbox event.
  */
 export const authorizeMarketplaceSampleDownload = <ThrowOnError extends boolean = false>(options: Options<AuthorizeMarketplaceSampleDownloadData, ThrowOnError>): RequestResult<AuthorizeMarketplaceSampleDownloadResponses, AuthorizeMarketplaceSampleDownloadErrors, ThrowOnError> => (options.client ?? client).post<AuthorizeMarketplaceSampleDownloadResponses, AuthorizeMarketplaceSampleDownloadErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/catalog/templates/{slug}/sample/downloads',
     ...options,
     headers: {
@@ -241,15 +146,7 @@ export const authorizeMarketplaceSampleDownload = <ThrowOnError extends boolean 
  * Records one authenticated, Tenant-scoped enquiry against the exact Marketplace preview Template version. This operation creates no payment, entitlement, Service, Run, outbox event or provider request.
  */
 export const createMarketplaceExpertEnquiry = <ThrowOnError extends boolean = false>(options: Options<CreateMarketplaceExpertEnquiryData, ThrowOnError>): RequestResult<CreateMarketplaceExpertEnquiryResponses, CreateMarketplaceExpertEnquiryErrors, ThrowOnError> => (options.client ?? client).post<CreateMarketplaceExpertEnquiryResponses, CreateMarketplaceExpertEnquiryErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/catalog/templates/{slug}/expert-enquiries',
     ...options,
     headers: {
@@ -262,15 +159,7 @@ export const createMarketplaceExpertEnquiry = <ThrowOnError extends boolean = fa
  * List tenant-owned services
  */
 export const listServices = <ThrowOnError extends boolean = false>(options?: Options<ListServicesData, ThrowOnError>): RequestResult<ListServicesResponses, ListServicesErrors, ThrowOnError> => (options?.client ?? client).get<ListServicesResponses, ListServicesErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/services',
     ...options
 });
@@ -279,15 +168,7 @@ export const listServices = <ThrowOnError extends boolean = false>(options?: Opt
  * Create a tenant-owned service configuration
  */
 export const createService = <ThrowOnError extends boolean = false>(options: Options<CreateServiceData, ThrowOnError>): RequestResult<CreateServiceResponses, CreateServiceErrors, ThrowOnError> => (options.client ?? client).post<CreateServiceResponses, CreateServiceErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/services',
     ...options,
     headers: {
@@ -300,15 +181,7 @@ export const createService = <ThrowOnError extends boolean = false>(options: Opt
  * Get one tenant-owned service
  */
 export const getService = <ThrowOnError extends boolean = false>(options: Options<GetServiceData, ThrowOnError>): RequestResult<GetServiceResponses, GetServiceErrors, ThrowOnError> => (options.client ?? client).get<GetServiceResponses, GetServiceErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/services/{service_id}',
     ...options
 });
@@ -319,15 +192,7 @@ export const getService = <ThrowOnError extends boolean = false>(options: Option
  * Returns after durable local admission; provider work is asynchronous.
  */
 export const createRun = <ThrowOnError extends boolean = false>(options: Options<CreateRunData, ThrowOnError>): RequestResult<CreateRunResponses, CreateRunErrors, ThrowOnError> => (options.client ?? client).post<CreateRunResponses, CreateRunErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/services/{service_id}/runs',
     ...options,
     headers: {
@@ -340,15 +205,7 @@ export const createRun = <ThrowOnError extends boolean = false>(options: Options
  * List tenant runs
  */
 export const listRuns = <ThrowOnError extends boolean = false>(options?: Options<ListRunsData, ThrowOnError>): RequestResult<ListRunsResponses, ListRunsErrors, ThrowOnError> => (options?.client ?? client).get<ListRunsResponses, ListRunsErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/runs',
     ...options
 });
@@ -357,15 +214,7 @@ export const listRuns = <ThrowOnError extends boolean = false>(options?: Options
  * Get one tenant run
  */
 export const getRun = <ThrowOnError extends boolean = false>(options: Options<GetRunData, ThrowOnError>): RequestResult<GetRunResponses, GetRunErrors, ThrowOnError> => (options.client ?? client).get<GetRunResponses, GetRunErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/runs/{run_id}',
     ...options
 });
@@ -374,15 +223,7 @@ export const getRun = <ThrowOnError extends boolean = false>(options: Options<Ge
  * Request best-effort cancellation
  */
 export const cancelRun = <ThrowOnError extends boolean = false>(options: Options<CancelRunData, ThrowOnError>): RequestResult<CancelRunResponses, CancelRunErrors, ThrowOnError> => (options.client ?? client).post<CancelRunResponses, CancelRunErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/runs/{run_id}/cancel',
     ...options
 });
@@ -393,15 +234,7 @@ export const cancelRun = <ThrowOnError extends boolean = false>(options: Options
  * Never blindly repeats an unresolved provider attempt.
  */
 export const retryRun = <ThrowOnError extends boolean = false>(options: Options<RetryRunData, ThrowOnError>): RequestResult<RetryRunResponses, RetryRunErrors, ThrowOnError> => (options.client ?? client).post<RetryRunResponses, RetryRunErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/runs/{run_id}/retry',
     ...options
 });
@@ -410,15 +243,7 @@ export const retryRun = <ThrowOnError extends boolean = false>(options: Options<
  * List customer-safe run events
  */
 export const listRunEvents = <ThrowOnError extends boolean = false>(options: Options<ListRunEventsData, ThrowOnError>): RequestResult<ListRunEventsResponses, ListRunEventsErrors, ThrowOnError> => (options.client ?? client).get<ListRunEventsResponses, ListRunEventsErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/runs/{run_id}/events',
     ...options
 });
@@ -427,15 +252,7 @@ export const listRunEvents = <ThrowOnError extends boolean = false>(options: Opt
  * Get an authorized Dhumi result
  */
 export const getRunResult = <ThrowOnError extends boolean = false>(options: Options<GetRunResultData, ThrowOnError>): RequestResult<GetRunResultResponses, GetRunResultErrors, ThrowOnError> => (options.client ?? client).get<GetRunResultResponses, GetRunResultErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/runs/{run_id}/result',
     ...options
 });
@@ -444,15 +261,7 @@ export const getRunResult = <ThrowOnError extends boolean = false>(options: Opti
  * Get informational tenant usage summary
  */
 export const getUsageSummary = <ThrowOnError extends boolean = false>(options: Options<GetUsageSummaryData, ThrowOnError>): RequestResult<GetUsageSummaryResponses, GetUsageSummaryErrors, ThrowOnError> => (options.client ?? client).get<GetUsageSummaryResponses, GetUsageSummaryErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/usage/summary',
     ...options
 });
@@ -461,15 +270,7 @@ export const getUsageSummary = <ThrowOnError extends boolean = false>(options: O
  * List informational tenant usage events
  */
 export const listUsageEvents = <ThrowOnError extends boolean = false>(options: Options<ListUsageEventsData, ThrowOnError>): RequestResult<ListUsageEventsResponses, ListUsageEventsErrors, ThrowOnError> => (options.client ?? client).get<ListUsageEventsResponses, ListUsageEventsErrors, ThrowOnError>({
-    security: [{
-            key: 'BrowserBearer',
-            scheme: 'bearer',
-            type: 'http'
-        }, {
-            key: 'DhumiApiKey',
-            scheme: 'bearer',
-            type: 'http'
-        }],
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/usage/events',
     ...options
 });
@@ -478,3 +279,188 @@ export const listUsageEvents = <ThrowOnError extends boolean = false>(options: O
  * Get customer-safe Dhumi platform/product status
  */
 export const getPlatformStatus = <ThrowOnError extends boolean = false>(options?: Options<GetPlatformStatusData, ThrowOnError>): RequestResult<GetPlatformStatusResponses, GetPlatformStatusErrors, ThrowOnError> => (options?.client ?? client).get<GetPlatformStatusResponses, GetPlatformStatusErrors, ThrowOnError>({ url: '/v1/status', ...options });
+
+/**
+ * list Organizations
+ *
+ * Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+ */
+export const listOrganizations = <ThrowOnError extends boolean = false>(options?: Options<ListOrganizationsData, ThrowOnError>): RequestResult<ListOrganizationsResponses, ListOrganizationsErrors, ThrowOnError> => (options?.client ?? client).get<ListOrganizationsResponses, ListOrganizationsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organizations',
+    ...options
+});
+
+/**
+ * create Organization
+ *
+ * Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+ */
+export const createOrganization = <ThrowOnError extends boolean = false>(options: Options<CreateOrganizationData, ThrowOnError>): RequestResult<CreateOrganizationResponses, CreateOrganizationErrors, ThrowOnError> => (options.client ?? client).post<CreateOrganizationResponses, CreateOrganizationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organizations',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * accept Invite
+ *
+ * Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates the token. List responses never reveal token hashes or secrets.
+ */
+export const acceptInvite = <ThrowOnError extends boolean = false>(options: Options<AcceptInviteData, ThrowOnError>): RequestResult<AcceptInviteResponses, AcceptInviteErrors, ThrowOnError> => (options.client ?? client).post<AcceptInviteResponses, AcceptInviteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/invites/accept',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * request Password Reset
+ *
+ * Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+ */
+export const requestPasswordReset = <ThrowOnError extends boolean = false>(options: Options<RequestPasswordResetData, ThrowOnError>): RequestResult<RequestPasswordResetResponses, RequestPasswordResetErrors, ThrowOnError> => (options.client ?? client).post<RequestPasswordResetResponses, RequestPasswordResetErrors, ThrowOnError>({
+    url: '/v1/auth/password-reset',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * confirm Verification
+ *
+ * Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token. Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second cooldown and five issues per hour across purposes. GET never consumes a proof.
+ */
+export const confirmVerification = <ThrowOnError extends boolean = false>(options: Options<ConfirmVerificationData, ThrowOnError>): RequestResult<ConfirmVerificationResponses, ConfirmVerificationErrors, ThrowOnError> => (options.client ?? client).post<ConfirmVerificationResponses, ConfirmVerificationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/verifications/{verification_id}/confirm',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * resend Verification
+ *
+ * Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token. Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second cooldown and five issues per hour across purposes. GET never consumes a proof.
+ */
+export const resendVerification = <ThrowOnError extends boolean = false>(options: Options<ResendVerificationData, ThrowOnError>): RequestResult<ResendVerificationResponses, ResendVerificationErrors, ThrowOnError> => (options.client ?? client).post<ResendVerificationResponses, ResendVerificationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/verifications/{verification_id}/resend',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * list Organization Members
+ *
+ * Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+ */
+export const listMembers = <ThrowOnError extends boolean = false>(options?: Options<ListMembersData, ThrowOnError>): RequestResult<ListMembersResponses, ListMembersErrors, ThrowOnError> => (options?.client ?? client).get<ListMembersResponses, ListMembersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organization/members',
+    ...options
+});
+
+/**
+ * remove Organization Member
+ *
+ * Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+ */
+export const removeMember = <ThrowOnError extends boolean = false>(options: Options<RemoveMemberData, ThrowOnError>): RequestResult<RemoveMemberResponses, RemoveMemberErrors, ThrowOnError> => (options.client ?? client).delete<RemoveMemberResponses, RemoveMemberErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organization/members/{user_id}',
+    ...options
+});
+
+/**
+ * change Organization Member
+ *
+ * Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+ */
+export const updateMember = <ThrowOnError extends boolean = false>(options: Options<UpdateMemberData, ThrowOnError>): RequestResult<UpdateMemberResponses, UpdateMemberErrors, ThrowOnError> => (options.client ?? client).patch<UpdateMemberResponses, UpdateMemberErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organization/members/{user_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * list Organization Invites
+ *
+ * Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates the token. List responses never reveal token hashes or secrets.
+ */
+export const listInvites = <ThrowOnError extends boolean = false>(options?: Options<ListInvitesData, ThrowOnError>): RequestResult<ListInvitesResponses, ListInvitesErrors, ThrowOnError> => (options?.client ?? client).get<ListInvitesResponses, ListInvitesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organization/invites',
+    ...options
+});
+
+/**
+ * create Organization Invite
+ *
+ * Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates the token. List responses never reveal token hashes or secrets.
+ */
+export const createInvite = <ThrowOnError extends boolean = false>(options: Options<CreateInviteData, ThrowOnError>): RequestResult<CreateInviteResponses, CreateInviteErrors, ThrowOnError> => (options.client ?? client).post<CreateInviteResponses, CreateInviteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organization/invites',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * revoke Organization Invite
+ *
+ * Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates the token. List responses never reveal token hashes or secrets.
+ */
+export const revokeInvite = <ThrowOnError extends boolean = false>(options: Options<RevokeInviteData, ThrowOnError>): RequestResult<RevokeInviteResponses, RevokeInviteErrors, ThrowOnError> => (options.client ?? client).delete<RevokeInviteResponses, RevokeInviteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organization/invites/{invite_id}',
+    ...options
+});
+
+/**
+ * resend Organization Invite
+ *
+ * Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates the token and ensures at least the configured backend resend lifetime remains (seven days by default), without shortening a later expiry. Revoked, expired or exhausted invitations remain unavailable. List responses never reveal token hashes or secrets. Delivery is attempted after commit; a delivery failure still returns 202.
+ */
+export const resendInvite = <ThrowOnError extends boolean = false>(options: Options<ResendInviteData, ThrowOnError>): RequestResult<ResendInviteResponses, ResendInviteErrors, ThrowOnError> => (options.client ?? client).post<ResendInviteResponses, ResendInviteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organization/invites/{invite_id}/resend',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Read safe organization activity
+ *
+ * Every active member may read safe actions, Run starters, observed attempt timestamps and separately aggregated calls and usage. Supplier cost, provider identifiers and security data are excluded. Internal-organization traffic is excluded. Defaults to the last 30 days; ranges are at most 31 days. Results are bounded, with explicit truncation indicators; use time/member/action filters to narrow them.
+ */
+export const getActivity = <ThrowOnError extends boolean = false>(options?: Options<GetActivityData, ThrowOnError>): RequestResult<GetActivityResponses, GetActivityErrors, ThrowOnError> => (options?.client ?? client).get<GetActivityResponses, GetActivityErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/organization/activity',
+    ...options
+});

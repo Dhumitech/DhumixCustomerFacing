@@ -8,7 +8,6 @@ const csrf = createCsrfService("logout-unit-secret-at-least-32-characters");
 const identity = {
   userId: randomUUID(),
   sessionId: randomUUID(),
-  issuedTenantId: randomUUID(),
 };
 
 function repository(outcome: LogoutOutcome): LogoutRepository & { calls: LogoutInput[] } {
@@ -42,7 +41,6 @@ describe("logout service", () => {
       {
         userId: identity.userId,
         sessionId: identity.sessionId,
-        issuedTenantId: identity.issuedTenantId,
         requestId: input.requestId,
         ipFingerprint: input.ipFingerprint,
       },

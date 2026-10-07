@@ -1,5 +1,13 @@
 # LinkedIn Posts provider-sample activation
 
+**HISTORICAL — original migration chain through 0069.** The 0070 source cleanup
+removes the qualification/import/export/release operators used by this harness.
+Commands and database targets below are historical receipts, not current instructions.
+Do not run this harness against the refactoring checkout or use it to qualify 0070.
+Retained customer sample journeys require a separately reviewed 0070 proof.
+See [privileged test boundaries](../README.md).
+
+
 This activates migrations `0057`-`0059` and promotes the exact retained M9 five-record
 evidence into immutable Marketplace sample version 3. It performs no provider
 HTTP request and makes zero Bright Data calls.

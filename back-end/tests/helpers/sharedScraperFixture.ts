@@ -8,7 +8,7 @@ import { createScraperProcessing, scraperContractHash, type ScraperOperationCont
 import type { ScraperExecutionPlan, ScraperExecutionRepository } from "../../src/services/brightdata/scrapers/scraperExecutionRepository.js";
 import type { ControlledRunExecutionInput } from "../../src/services/jobs/controlledRunExecutor.js";
 import { SHARED_SCRAPER_ADAPTER_CODE, SHARED_SCRAPER_ADAPTER_VERSION, SHARED_SCRAPER_ARTIFACT_DIGEST } from "../../src/services/scrapers/sharedScraperVersion.js";
-import { providerMappingAad, providerSnapshotAad } from "../../src/services/brightdata/providerExecutionPlanRepository.js";
+import { providerDatasetAad, providerSnapshotAad } from "../../src/services/brightdata/providerExecutionPlanRepository.js";
 import { createLocalProviderReferenceProtector } from "../../src/services/brightdata/providerReferenceProtector.js";
 import type { ResultIngestionService } from "../../src/services/storage/resultIngestionService.js";
 import type { ResultObjectStore } from "../../src/services/storage/resultObjectStore.js";
@@ -28,15 +28,15 @@ export async function sharedScraperFixture(options: {
   const processing = createScraperProcessing();
   const protector = createLocalProviderReferenceProtector("test", randomBytes(32).toString("base64url"));
   const mappingId = "55555555-5555-4555-8555-555555555555";
-  const protectedMapping = await protector.protect("gd_targetfixture12345", providerMappingAad(mappingId));
+  const protectedMapping = await protector.protect("gd_targetfixture12345", providerDatasetAad(mappingId));
   const snapshotReference = "sd_fixture123456";
   const protectedSnapshot = await protector.protect(snapshotReference, providerSnapshotAad({ ...execution, attemptId: recoveryAttemptId }));
   const plan: ScraperExecutionPlan = {
     identity: { code: SHARED_SCRAPER_ADAPTER_CODE, version: SHARED_SCRAPER_ADAPTER_VERSION, digest: SHARED_SCRAPER_ARTIFACT_DIGEST },
     contract: fixture.contract, contractHash: scraperContractHash(fixture.contract), validatedInput: fixture.input,
-    providerEnvironment: "test", providerResourceAadMappingId: mappingId,
-    providerResourceCiphertext: protectedMapping.ciphertext, providerResourceFingerprint: protectedMapping.fingerprint,
-    vaultSecretReference: "BRIGHTDATA_API_KEY", sourceAttemptId: execution.attemptId,
+    providerEnvironment: "test", templateVersionId: mappingId,
+    datasetCiphertext: protectedMapping.ciphertext, datasetFingerprint: protectedMapping.fingerprint,
+    secretReference: "BRIGHTDATA_API_KEY", sourceAttemptId: execution.attemptId,
     sourceProviderReferenceCiphertext: null, sourceProviderReferenceFingerprint: null,
   };
   let clock = 0, failures = 0, nextPollAt = 0;

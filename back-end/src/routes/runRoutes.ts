@@ -108,6 +108,8 @@ const runResponseSchema = {
   properties: {
     id: { type: "string", format: "uuid" },
     service_id: { type: "string", format: "uuid" },
+    created_by_user_id:{anyOf:[{type:'string',format:'uuid'},{type:'null'}]},
+    retry_of_run_id:{anyOf:[{type:'string',format:'uuid'},{type:'null'}]},
     status: { type: "string", enum: RUN_PUBLIC_STATUSES },
     progress_message: {
       anyOf: [{ type: "string" }, { type: "null" }],
@@ -213,7 +215,7 @@ export async function registerRunRoutes(app: FastifyInstance): Promise<void> {
       querystring: listRunsQuerySchema,
       response: { 200: runPageResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("runs:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: listRuns,
   });
 
@@ -223,7 +225,7 @@ export async function registerRunRoutes(app: FastifyInstance): Promise<void> {
       params: getRunParamsSchema,
       response: { 200: runResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("runs:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: getRun,
   });
 
@@ -234,7 +236,7 @@ export async function registerRunRoutes(app: FastifyInstance): Promise<void> {
       querystring: listRunEventsQuerySchema,
       response: { 200: runEventPageResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("runs:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: listRunEvents,
   });
 
@@ -245,7 +247,7 @@ export async function registerRunRoutes(app: FastifyInstance): Promise<void> {
       querystring: getRunResultQuerySchema,
       response: { 200: runResultResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("results:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: getRunResult,
   });
 
@@ -257,7 +259,7 @@ export async function registerRunRoutes(app: FastifyInstance): Promise<void> {
       body: createRunBodySchema,
       response: { 202: runAcceptedResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("runs:write")],
+    preHandler: [requireTenantPrincipal()],
     handler: createRun,
   });
 
@@ -268,7 +270,7 @@ export async function registerRunRoutes(app: FastifyInstance): Promise<void> {
       headers: createRunHeadersSchema,
       response: { 202: runResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("runs:write")],
+    preHandler: [requireTenantPrincipal()],
     handler: cancelRun,
   });
 
@@ -279,7 +281,7 @@ export async function registerRunRoutes(app: FastifyInstance): Promise<void> {
       headers: createRunHeadersSchema,
       response: { 202: runAcceptedResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("runs:write")],
+    preHandler: [requireTenantPrincipal()],
     handler: retryRun,
   });
 }

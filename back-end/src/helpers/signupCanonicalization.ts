@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { canonicalJson } from "./canonicalJson.js";
 
 /**
- * Deterministic inputs for `app.create_signup`.
+ * Deterministic inputs for the user-only signup transaction.
  *
  * Every function here is pure. The password never reaches any value produced by
  * this module; see `docs/decisions/0002-argon2id-password-hashing.md`.
@@ -16,7 +16,8 @@ export interface CanonicalLegalAcceptance {
 
 export interface CanonicalSignupRequest {
   readonly emailNormalized: string;
-  readonly workspaceName: string;
+  /** Deprecated and ignored for new signup requests; used only for v1 replay. */
+  readonly workspaceName?: string;
   readonly legalAcceptances: readonly CanonicalLegalAcceptance[];
 }
 
@@ -46,6 +47,17 @@ function sha256(value: string): Buffer {
  * order is recognised as the same request.
  */
 export function canonicalRequestHash(request: CanonicalSignupRequest): Buffer {
+  return signupHash(request, false);
+}
+
+/** Reproduce the historical bytes only; never create a new v1 claim. */
+export function legacySignupRequestHash(
+  request: CanonicalSignupRequest & { readonly workspaceName: string },
+): Buffer {
+  return signupHash(request, true);
+}
+
+function signupHash(request: CanonicalSignupRequest, legacy: boolean): Buffer {
   const acceptances = [...request.legalAcceptances]
     .map((acceptance) => ({
       content_hash: acceptance.contentHash.toLowerCase(),
@@ -63,8 +75,8 @@ export function canonicalRequestHash(request: CanonicalSignupRequest): Buffer {
       email_normalized: request.emailNormalized,
       legal_acceptances: acceptances,
       operation: "auth.signup",
-      version: 1,
-      workspace_name: request.workspaceName,
+      version: legacy ? 1 : 2,
+      ...(legacy ? { workspace_name: request.workspaceName } : {}),
     }),
   );
 }
@@ -73,7 +85,7 @@ export function canonicalRequestHash(request: CanonicalSignupRequest): Buffer {
  * Scopes the signup idempotency claim.
  *
  * The unique index is
- * `(actor_fingerprint, operation_code, idempotency_key) WHERE scope_kind = 'signup'`,
+ * `(actor_fingerprint, operation_code, idempotency_key) WHERE organization_id IS NULL`,
  * and signup is unauthenticated, so the "actor" is the identity being claimed.
  * A digest is used rather than the address itself; this is not a privacy gain
  * over `users.email_normalized`, which is stored in clear, but it keeps the

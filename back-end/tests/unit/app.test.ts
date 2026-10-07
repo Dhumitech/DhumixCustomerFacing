@@ -10,12 +10,6 @@ import type { LogoutService } from "../../src/services/identity/logoutService.js
 import type { TenantAuthorizationService } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import {
-  stubApiKeyAuthenticationService,
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -88,10 +82,6 @@ const appDependencies = {
   logoutService: stubLogoutService,
   tenantAuthorizationService: stubTenantAuthorizationService,
   workspaceService: stubWorkspaceService,
-  createApiKeyService: stubCreateApiKeyService,
-  listApiKeysService: stubListApiKeysService,
-  revokeApiKeyService: stubRevokeApiKeyService,
-  apiKeyAuthenticationService: stubApiKeyAuthenticationService,
   listCatalogTemplatesService: stubListCatalogTemplatesService,
   getCatalogTemplateService: stubGetCatalogTemplateService,
   listServicesService: stubListServicesService,
@@ -122,9 +112,18 @@ describe("runtime application", () => {
       ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
       ACCESS_TOKEN_ISSUER: "https://dhumi.test",
       ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-      RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
     });
   }
+
+  it.each([
+    ["GET", "/v1/keys"], ["POST", "/v1/keys"],
+    ["DELETE", "/v1/keys/11111111-1111-4111-8111-111111111111"],
+  ] as const)("does not register the retired %s %s operation", async (method, url) => {
+    app = await buildApp(config(), appDependencies);
+    const response = await app.inject({ method, url });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: "RESOURCE_NOT_FOUND" });
+  });
 
   it("returns a safe Problem response and accepts a validated caller request ID", async () => {
     app = await buildApp(config(), appDependencies);
@@ -214,7 +213,7 @@ describe("runtime application", () => {
 
     const response = await app.inject({
       method: "POST",
-      url: "/v1/keys",
+      url: "/v1/services",
       headers: { "content-type": "application/json" },
       payload,
     });
@@ -259,7 +258,7 @@ describe("runtime application", () => {
 
     const response = await app.inject({
       method: "POST",
-      url: "/v1/keys",
+      url: "/v1/services",
       headers: { "content-type": "application/json" },
       payload: JSON.stringify({ name: "A".repeat(1_048_576) }),
     });
@@ -281,9 +280,9 @@ describe("runtime application", () => {
 
     const response = await app.inject({
       method: "POST",
-      url: "/v1/keys",
+      url: "/v1/services",
       headers: { "content-type": "application/xml" },
-      payload: "<key />",
+      payload: "<service />",
     });
 
     expect(response.statusCode).toBe(415);
@@ -335,7 +334,6 @@ describe("runtime application", () => {
     for (const operationId of [
       "signUp",
       "signIn",
-      "createApiKey",
       "createService",
       "createRun",
     ]) {

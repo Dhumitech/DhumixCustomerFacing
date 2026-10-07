@@ -16,12 +16,6 @@ import type { SignupService } from "../../src/services/identity/signupService.js
 import type { TenantAuthorizationService } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import {
-  stubApiKeyAuthenticationService,
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -32,7 +26,6 @@ const CSRF_TOKEN = "csrf-token-value-for-logout";
 const identity: TrustedSessionIdentity = {
   userId: "11111111-1111-4111-8111-111111111111",
   sessionId: "22222222-2222-4222-8222-222222222222",
-  issuedTenantId: "33333333-3333-4333-8333-333333333333",
 };
 
 const stubSignupService: SignupService = {
@@ -127,7 +120,6 @@ function testConfig(): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
   });
 }
 
@@ -154,10 +146,6 @@ async function build(): Promise<FastifyInstance> {
     logoutService,
     tenantAuthorizationService: stubTenantAuthorizationService,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: stubApiKeyAuthenticationService,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -209,8 +197,10 @@ describe("POST /v1/auth/logout contract", () => {
     expect(logoutService.calls[0]).toMatchObject({
       identity,
       csrfToken: CSRF_TOKEN,
-      requestId,
+      requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
+    expect(logoutService.calls[0]?.requestId).not.toBe(requestId);
+    expect(response.headers["x-request-id"]).toBe(requestId);
     expect(logoutService.calls[0]?.ipFingerprint).toBeInstanceOf(Buffer);
   });
 

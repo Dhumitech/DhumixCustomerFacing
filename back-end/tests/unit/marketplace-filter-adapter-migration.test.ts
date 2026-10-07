@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,14 +7,6 @@ const sql = readFileSync(
   "utf8",
 );
 const worker = readFileSync(resolve("src/worker/jobManager.ts"), "utf8");
-const implementationFiles = [
-  "src/services/brightdata/marketplace/marketplaceFilterRequest.ts",
-  "src/services/brightdata/marketplace/marketplaceFilterClient.ts",
-  "src/services/brightdata/marketplace/marketplaceResultNormalizer.ts",
-  "src/services/brightdata/marketplace/marketplaceRunExecutor.ts",
-  "src/services/brightdata/marketplace/marketplaceExecutionPlanRepository.ts",
-  "src/services/brightdata/providerRunExecutorRouter.ts",
-] as const;
 
 describe("M7 customer-disabled Marketplace Filter adapter migration", () => {
   it("registers one fixture-only disabled adapter without enabling customer execution", () => {
@@ -57,9 +48,7 @@ describe("M7 customer-disabled Marketplace Filter adapter migration", () => {
     expect(worker).not.toContain("createMarketplaceRunExecutor");
   });
 
-  it("pins the exact ordered M7 execution source bytes", () => {
-    const digest = createHash("sha256");
-    for (const file of implementationFiles) digest.update(readFileSync(resolve(file)));
-    expect(sql).toContain(`decode('${digest.digest("hex")}', 'hex')`);
+  it("retains the immutable historic M7 digest after its executor is archived", () => {
+    expect(sql).toContain("decode('a5545e0016e38071abf59bf01a3520ebb529d7e1f14f367f10dde9b9e534e2ab', 'hex')");
   });
 });

@@ -2,10 +2,7 @@ import { createHash } from "node:crypto";
 import { SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
 import type { AccessTokenConfig } from "../../src/config/environment.js";
-import {
-  ACCESS_TOKEN_PURPOSE,
-  createAccessTokenService,
-} from "../../src/helpers/accessToken.js";
+import { ACCESS_TOKEN_PURPOSE, createAccessTokenService } from "../../src/helpers/accessToken.js";
 import { createCsrfService } from "../../src/helpers/csrf.js";
 import { createRefreshTokenService } from "../../src/helpers/refreshToken.js";
 
@@ -20,7 +17,6 @@ const CONFIG: AccessTokenConfig = {
 const CLAIMS = {
   userId: "11111111-1111-4111-8111-111111111111",
   sessionId: "22222222-2222-4222-8222-222222222222",
-  tenantId: "33333333-3333-4333-8333-333333333333",
 } as const;
 
 function key(secret = SECRET): Uint8Array {
@@ -57,7 +53,7 @@ describe("access tokens", () => {
   it("rejects an expired token", async () => {
     const expired = await new SignJWT({
       sid: CLAIMS.sessionId,
-      tid: CLAIMS.tenantId,
+      tid: "33333333-3333-4333-8333-333333333333",
       pur: ACCESS_TOKEN_PURPOSE,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
@@ -74,7 +70,7 @@ describe("access tokens", () => {
   it("rejects a token minted for a different purpose", async () => {
     const wrongPurpose = await new SignJWT({
       sid: CLAIMS.sessionId,
-      tid: CLAIMS.tenantId,
+      tid: "33333333-3333-4333-8333-333333333333",
       pur: "password_reset",
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
@@ -96,7 +92,7 @@ describe("access tokens", () => {
       JSON.stringify({
         sub: CLAIMS.userId,
         sid: CLAIMS.sessionId,
-        tid: CLAIMS.tenantId,
+        tid: "33333333-3333-4333-8333-333333333333",
         pur: ACCESS_TOKEN_PURPOSE,
         iss: CONFIG.issuer,
         aud: CONFIG.audience,
@@ -107,7 +103,7 @@ describe("access tokens", () => {
     expect(await tokens.verify(`${header}.${payload}.`)).toBeUndefined();
   });
 
-  it("rejects a token missing the tenant claim", async () => {
+  it("accepts a user/session token without an organization claim", async () => {
     const noTenant = await new SignJWT({ sid: CLAIMS.sessionId, pur: ACCESS_TOKEN_PURPOSE })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setSubject(CLAIMS.userId)
@@ -117,12 +113,39 @@ describe("access tokens", () => {
       .setExpirationTime("15m")
       .sign(key());
 
-    expect(await tokens.verify(noTenant)).toBeUndefined();
+    expect(await tokens.verify(noTenant)).toEqual(CLAIMS);
   });
 
   it("returns undefined rather than throwing on rubbish input", async () => {
     expect(await tokens.verify("")).toBeUndefined();
     expect(await tokens.verify("not.a.token")).toBeUndefined();
+  });
+
+  it("ignores a signed historical organization claim", async () => {
+    const historical = await new SignJWT({
+      sid: CLAIMS.sessionId,
+      tid: "33333333-3333-4333-8333-333333333333",
+      pur: ACCESS_TOKEN_PURPOSE,
+    })
+      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setSubject(CLAIMS.userId)
+      .setIssuer(CONFIG.issuer)
+      .setAudience(CONFIG.audience)
+      .setIssuedAt()
+      .setExpirationTime("15m")
+      .sign(key());
+    expect(await tokens.verify(historical)).toEqual(CLAIMS);
+  });
+
+  it("rejects a signed token without an expiration", async () => {
+    const noExpiry = await new SignJWT({ sid: CLAIMS.sessionId, pur: ACCESS_TOKEN_PURPOSE })
+      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setSubject(CLAIMS.userId)
+      .setIssuer(CONFIG.issuer)
+      .setAudience(CONFIG.audience)
+      .setIssuedAt()
+      .sign(key());
+    expect(await tokens.verify(noExpiry)).toBeUndefined();
   });
 });
 

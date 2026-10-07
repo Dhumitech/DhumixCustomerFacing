@@ -119,7 +119,7 @@ export async function registerServiceRoutes(app: FastifyInstance): Promise<void>
       querystring: listServicesQuerySchema,
       response: { 200: servicePageResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("services:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: listServices,
   });
 
@@ -129,7 +129,7 @@ export async function registerServiceRoutes(app: FastifyInstance): Promise<void>
       params: getServiceParamsSchema,
       response: { 200: serviceDetailResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("services:read")],
+    preHandler: [requireTenantPrincipal()],
     handler: getService,
   });
 
@@ -140,7 +140,7 @@ export async function registerServiceRoutes(app: FastifyInstance): Promise<void>
       body: createServiceBodySchema,
       response: { 201: serviceDetailResponseSchema },
     },
-    preHandler: [requireTenantPrincipal("services:write")],
+    preHandler: [requireTenantPrincipal()],
     handler: createService,
   });
 }

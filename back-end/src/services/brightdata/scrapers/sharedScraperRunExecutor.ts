@@ -7,7 +7,7 @@ import { SecretUnavailableError } from "../../secrets/localEnvironmentSecretProv
 import type { ResultIngestionService } from "../../storage/resultIngestionService.js";
 import type { ResultObjectStore } from "../../storage/resultObjectStore.js";
 import { BrightDataBoundaryError, type BrightDataIntegrationClient, type BrightDataSubmissionResult } from "../brightDataIntegrationClient.js";
-import { providerMappingAad, providerSnapshotAad } from "../providerExecutionPlanRepository.js";
+import { providerDatasetAad, providerSnapshotAad } from "../providerExecutionPlanRepository.js";
 import { ProviderReferenceProtectionError, type ProviderReferenceProtector } from "../providerReferenceProtector.js";
 import type { ScraperExecutionPlan, ScraperExecutionRepository } from "./scraperExecutionRepository.js";
 import { createScraperProcessing, ScraperContractError, ScraperInputError, ScraperResultError, type ScraperProcessor } from "../../scrapers/scraperProcessing.js";
@@ -71,10 +71,10 @@ export function createSharedScraperRunExecutor(dependencies: {
     return dependencies.processing.prepare(plan.contract, plan.contractHash);
   }
   async function credentials(plan: ScraperExecutionPlan): Promise<{ readonly apiKey: string; readonly datasetId: string }> {
-    if (!Buffer.isBuffer(plan.providerResourceCiphertext) || !Buffer.isBuffer(plan.providerResourceFingerprint) || !plan.vaultSecretReference) throw new ScraperContractError();
-    const datasetId = await dependencies.protector.reveal(plan.providerResourceCiphertext, plan.providerResourceFingerprint,
-      providerMappingAad(plan.providerResourceAadMappingId));
-    const apiKey = await dependencies.secretProvider.getSecret(plan.vaultSecretReference);
+    if (!Buffer.isBuffer(plan.datasetCiphertext) || !Buffer.isBuffer(plan.datasetFingerprint) || !plan.secretReference) throw new ScraperContractError();
+    const datasetId = await dependencies.protector.reveal(plan.datasetCiphertext, plan.datasetFingerprint,
+      providerDatasetAad(plan.templateVersionId));
+    const apiKey = await dependencies.secretProvider.getSecret(plan.secretReference);
     return { apiKey, datasetId };
   }
   async function persistRaw(execution: ControlledRunExecutionInput, result: Inline, sourceAttemptId = execution.attemptId) {

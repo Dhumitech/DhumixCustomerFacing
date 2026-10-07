@@ -3,8 +3,7 @@ import type { GetRunRecord, GetRunRepository } from "./getRunRepository.js";
 import type { Run } from "./listRunsService.js";
 import { runQueryNotFound } from "./runQueryErrors.js";
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface GetRunRequest {
   readonly principal: TrustedTenantPrincipal;
@@ -34,12 +33,12 @@ function publicRun(record: GetRunRecord): Run {
     created_at: record.createdAt.toISOString(),
     updated_at: record.updatedAt.toISOString(),
     completed_at: record.completedAt?.toISOString() ?? null,
+    ...(record.createdByUserId===undefined?{}:{created_by_user_id:record.createdByUserId}),
+    ...(record.retryOfRunId===undefined?{}:{retry_of_run_id:record.retryOfRunId}),
   };
 }
 
-export function createGetRunService(
-  dependencies: GetRunServiceDependencies,
-): GetRunService {
+export function createGetRunService(dependencies: GetRunServiceDependencies): GetRunService {
   return {
     async get(request): Promise<Run> {
       if (request.schemaErrors.length > 0 || !isRunId(request.runId)) {
@@ -48,6 +47,7 @@ export function createGetRunService(
 
       const record = await dependencies.repository.findById({
         tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
         runId: request.runId,
       });
       if (record === undefined) throw runQueryNotFound();

@@ -50,7 +50,7 @@ export function createResultArtifactFinalizerRepository(
           const inserted = await database.query<{ id: string }>(
             `
               INSERT INTO app.artifacts (
-                tenant_id,
+                organization_id,
                 run_id,
                 attempt_id,
                 kind,
@@ -82,9 +82,9 @@ export function createResultArtifactFinalizerRepository(
                 $14
               FROM app.runs AS run
               JOIN app.run_attempts AS attempt
-                ON attempt.tenant_id = run.tenant_id
+                ON attempt.organization_id = run.organization_id
                AND attempt.run_id = run.id
-              WHERE run.tenant_id = $1
+              WHERE run.organization_id = $1
                 AND run.id = $2
                 AND attempt.id = $3
               ON CONFLICT (run_id, attempt_id, kind, artifact_version) DO NOTHING
@@ -122,7 +122,7 @@ export function createResultArtifactFinalizerRepository(
                 state,
                 expires_at
               FROM app.artifacts
-              WHERE tenant_id = $1
+              WHERE organization_id = $1
                 AND run_id = $2
                 AND attempt_id = $3
                 AND kind = $4

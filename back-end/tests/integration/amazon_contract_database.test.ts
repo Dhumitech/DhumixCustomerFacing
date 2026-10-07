@@ -31,12 +31,13 @@ function sha256(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
 }
 
+const fixtureUsers = new Map<string, string>();
 async function tenantFixture(): Promise<string> {
   const nonce = randomUUID();
   return withIdentityTransaction(must(pools).identity, async (database) => {
-    const result = await database.query<{ tenant_id: string }>(
+    const result = await database.query<{ tenant_id: string; user_id: string }>(
       `
-        SELECT tenant_id
+        SELECT tenant_id, user_id
         FROM app.create_signup($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
       `,
       [
@@ -60,6 +61,9 @@ async function tenantFixture(): Promise<string> {
     );
     const tenantId = result.rows[0]?.tenant_id;
     if (tenantId === undefined) throw new Error("Could not create Amazon contract fixture");
+    const userId = result.rows[0]?.user_id;
+    if (userId === undefined) throw new Error("Fixture user unavailable");
+    fixtureUsers.set(tenantId, userId);
     return tenantId;
   });
 }
@@ -156,7 +160,7 @@ describe.skipIf(!enabled)("Amazon public-contract migrations against PostgreSQL"
           table_insert: boolean;
           tenant_id: boolean;
           actor_user_id: boolean;
-          actor_api_key_id: boolean;
+          actor_api_key_exists: boolean;
           target_id: boolean;
           safe_diff: boolean;
           reason: boolean;
@@ -165,7 +169,12 @@ describe.skipIf(!enabled)("Amazon public-contract migrations against PostgreSQL"
             has_table_privilege(current_user, 'app.audit_events', 'INSERT') AS table_insert,
             has_column_privilege(current_user, 'app.audit_events', 'tenant_id', 'INSERT') AS tenant_id,
             has_column_privilege(current_user, 'app.audit_events', 'actor_user_id', 'INSERT') AS actor_user_id,
-            has_column_privilege(current_user, 'app.audit_events', 'actor_api_key_id', 'INSERT') AS actor_api_key_id,
+            EXISTS (
+              SELECT 1 FROM pg_attribute
+              WHERE attrelid = 'app.audit_events'::regclass
+                AND attname = 'actor_api_key_id'
+                AND attnum > 0 AND NOT attisdropped
+            ) AS actor_api_key_exists,
             has_column_privilege(current_user, 'app.audit_events', 'target_id', 'INSERT') AS target_id,
             has_column_privilege(current_user, 'app.audit_events', 'safe_diff', 'INSERT') AS safe_diff,
             has_column_privilege(current_user, 'app.audit_events', 'reason', 'INSERT') AS reason
@@ -196,7 +205,7 @@ describe.skipIf(!enabled)("Amazon public-contract migrations against PostgreSQL"
       table_insert: false,
       tenant_id: true,
       actor_user_id: true,
-      actor_api_key_id: true,
+      actor_api_key_exists: false,
       target_id: true,
       safe_diff: true,
       reason: false,
@@ -212,6 +221,7 @@ describe.skipIf(!enabled)("Amazon public-contract migrations against PostgreSQL"
     await expect(
       repository.findResult({
         tenantId: firstTenant,
+        userId: must(fixtureUsers.get(firstTenant)),
         runId: unknownRunId,
         representation: "normalized",
       }),
@@ -219,6 +229,7 @@ describe.skipIf(!enabled)("Amazon public-contract migrations against PostgreSQL"
     await expect(
       repository.findResult({
         tenantId: secondTenant,
+        userId: must(fixtureUsers.get(secondTenant)),
         runId: unknownRunId,
         representation: "normalized",
       }),

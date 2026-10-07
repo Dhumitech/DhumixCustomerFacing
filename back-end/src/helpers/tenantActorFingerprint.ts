@@ -16,9 +16,6 @@ export function tenantActorFingerprint(
     namespace === "legacy-service"
       ? "dhumi:service-actor:v1"
       : "dhumi:tenant-actor:v1";
-  const identity =
-    principal.kind === "browser"
-      ? `${prefix}:browser:${principal.userId}`
-      : `${prefix}:api_key:${principal.apiKeyId}`;
+  const identity = `${prefix}:browser:${principal.userId}`;
   return createHash("sha256").update(identity, "utf8").digest();
 }

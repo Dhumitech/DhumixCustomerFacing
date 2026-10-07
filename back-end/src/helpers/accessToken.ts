@@ -7,13 +7,10 @@ import type { AccessTokenConfig } from "../config/environment.js";
  * `05_Security\01_Authentication_and_Keys.md` requires that a token validate
  * issuer, audience, algorithm, signature, expiry **and purpose** — five checks.
  * `purpose` exists so a token minted for one job cannot be replayed as another
- * when refresh or API-key tokens are added.
+ * when other token purposes are used.
  *
- * The tenant claim is carried here because `dhumi_customer_api` cannot discover
- * a user's Tenant: its RLS policy is `tenant_id = app.current_tenant_id()`, so
- * it can only confirm access to a Tenant already named. The value is
- * backend-resolved and signed, never customer-supplied, and every consumer must
- * still re-verify it against an active `tenant_user_access` row.
+ * Organization selection belongs to each request, never to the session token.
+ * Signed pre-0071 tokens may carry tid; verification ignores that claim.
  */
 export const ACCESS_TOKEN_PURPOSE = "browser_access" as const;
 
@@ -22,7 +19,6 @@ const ALGORITHM = "HS256" as const;
 export interface AccessTokenClaims {
   readonly userId: string;
   readonly sessionId: string;
-  readonly tenantId: string;
 }
 
 export interface IssuedAccessToken {
@@ -37,7 +33,6 @@ export interface AccessTokenService {
 
 interface TokenPayload {
   readonly sid?: unknown;
-  readonly tid?: unknown;
   readonly pur?: unknown;
 }
 
@@ -52,7 +47,6 @@ export function createAccessTokenService(config: AccessTokenConfig): AccessToken
     async issue(claims: AccessTokenClaims): Promise<IssuedAccessToken> {
       const token = await new SignJWT({
         sid: claims.sessionId,
-        tid: claims.tenantId,
         pur: ACCESS_TOKEN_PURPOSE,
       })
         .setProtectedHeader({ alg: ALGORITHM, typ: "JWT" })
@@ -75,6 +69,7 @@ export function createAccessTokenService(config: AccessTokenConfig): AccessToken
           algorithms: [ALGORITHM],
           issuer: config.issuer,
           audience: config.audience,
+          requiredClaims: ["sub", "iat", "exp"],
         });
 
         const claims = payload as TokenPayload;
@@ -84,12 +79,11 @@ export function createAccessTokenService(config: AccessTokenConfig): AccessToken
 
         const userId = readString(payload.sub);
         const sessionId = readString(claims.sid);
-        const tenantId = readString(claims.tid);
-        if (userId === undefined || sessionId === undefined || tenantId === undefined) {
+        if (userId === undefined || sessionId === undefined) {
           return undefined;
         }
 
-        return { userId, sessionId, tenantId };
+        return { userId, sessionId };
       } catch {
         // A malformed, expired, wrongly signed or foreign token is simply not a
         // valid token. It must never be distinguishable from any other failure.

@@ -9,6 +9,7 @@ import { withIdentityTransaction } from "../../src/services/database/transaction
 import { createSignupRepository } from "../../src/services/identity/signupRepository.js";
 import { createSignupService } from "../../src/services/identity/signupService.js";
 import type { SignupService } from "../../src/services/identity/signupService.js";
+import { actorFingerprint } from "../../src/helpers/signupCanonicalization.js";
 import { ApplicationError } from "../../src/utils/applicationError.js";
 
 const databaseTestsEnabled = process.env.RUN_DATABASE_INTEGRATION_TESTS === "true";
@@ -55,6 +56,12 @@ interface Counts {
 
 async function countsFor(identityPool: Pool, emailNormalized: string): Promise<Counts> {
   return withIdentityTransaction(identityPool, async (database) => {
+    const identity = await database.query<{ id: string }>(
+      "SELECT id FROM app.users WHERE email_normalized = $1", [emailNormalized],
+    );
+    if (identity.rows[0] !== undefined) {
+      await database.query("SELECT set_config('app.user_id', $1, true)", [identity.rows[0].id]);
+    }
     const result = await database.query<{
       users: string;
       tenants: string;
@@ -87,7 +94,7 @@ function uniqueEmail(): string {
 }
 
 describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
-  it("creates exactly one User, Tenant and owner access", async () => {
+  it("creates exactly one User and no organization or membership", async () => {
     const email = uniqueEmail();
     await service().submit({
       email,
@@ -100,12 +107,12 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
 
     expect(await countsFor(pools!.identity, email)).toEqual({
       users: 1,
-      tenants: 1,
-      access: 1,
+      tenants: 0,
+      access: 0,
     });
   });
 
-  it("replays an identical request without creating a second Tenant", async () => {
+  it("replays an identical user request without creating another user", async () => {
     const email = uniqueEmail();
     const key = `signup-int-${randomUUID()}`;
     const request = {
@@ -122,8 +129,8 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
 
     expect(await countsFor(pools!.identity, email)).toEqual({
       users: 1,
-      tenants: 1,
-      access: 1,
+      tenants: 0,
+      access: 0,
     });
   });
 
@@ -141,16 +148,18 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
     await service().submit(first);
 
     // Same actor fingerprint, different canonical body.
-    const conflicting = { ...first, workspaceName: "Conflict Two" };
+    const conflicting = { emailNormalized: first.email, passwordHash: "unused-on-replay",
+      legalAcceptances: [], idempotencyKey: key, requestHash: Buffer.alloc(32, 255),
+      actorFingerprint: actorFingerprint(first.email), requestId: randomUUID() };
 
-    await expect(service().submit(conflicting)).rejects.toMatchObject({
+    await expect(createSignupRepository(pools!.identity).createSignup(conflicting)).rejects.toMatchObject({
       status: 409,
       code: "IDEMPOTENCY_CONFLICT",
     });
-    await expect(service().submit(conflicting)).rejects.toBeInstanceOf(ApplicationError);
+    await expect(createSignupRepository(pools!.identity).createSignup(conflicting)).rejects.toBeInstanceOf(ApplicationError);
   });
 
-  it("accepts an already registered email without creating a second Tenant", async () => {
+  it("accepts an existing email without creating organization access", async () => {
     const email = uniqueEmail();
     await service().submit({
       email,
@@ -173,12 +182,12 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
 
     expect(await countsFor(pools!.identity, email)).toEqual({
       users: 1,
-      tenants: 1,
-      access: 1,
+      tenants: 0,
+      access: 0,
     });
   });
 
-  it("creates exactly one Tenant under concurrent identical submissions", async () => {
+  it("creates exactly one User under concurrent identical submissions", async () => {
     const email = uniqueEmail();
     const request = {
       email,
@@ -202,8 +211,8 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
 
     expect(await countsFor(pools!.identity, email)).toEqual({
       users: 1,
-      tenants: 1,
-      access: 1,
+      tenants: 0,
+      access: 0,
     });
   });
 
@@ -227,40 +236,17 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
 
     expect(await countsFor(pools!.identity, email)).toEqual({
       users: 1,
-      tenants: 1,
-      access: 1,
+      tenants: 0,
+      access: 0,
     });
   });
 
-  it("rejects a workspace whose trimmed name is shorter than two characters", async () => {
-    for (const workspaceName of ["  ", " a "]) {
-      const email = uniqueEmail();
-
-      await expect(
-        service().submit({
-          email,
-          password: "a-sufficiently-long-password",
-          workspaceName,
-          legalAcceptances: acceptances(),
-          idempotencyKey: `signup-int-${randomUUID()}`,
-          requestId: randomUUID(),
-        }),
-      ).rejects.toMatchObject({
-        status: 422,
-        code: "VALIDATION_ERROR",
-        errors: [
-          {
-            field: "workspace_name",
-          },
-        ],
-      });
-
-      expect(await countsFor(pools!.identity, email)).toEqual({
-        users: 0,
-        tenants: 0,
-        access: 0,
-      });
-    }
+  it("ignores an empty deprecated workspace value", async () => {
+    const email = uniqueEmail();
+    await service().submit({ email, password: "a-sufficiently-long-password",
+      workspaceName: "", legalAcceptances: acceptances(),
+      idempotencyKey: 'signup-int-'+randomUUID(), requestId: randomUUID() });
+    expect(await countsFor(pools!.identity, email)).toEqual({ users: 1, tenants: 0, access: 0 });
   });
 
   it("normalises the email so a differently cased address is the same identity", async () => {
@@ -276,8 +262,8 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
 
     expect(await countsFor(pools!.identity, email.toLowerCase())).toEqual({
       users: 1,
-      tenants: 1,
-      access: 1,
+      tenants: 0,
+      access: 0,
     });
   });
 });

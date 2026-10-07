@@ -1,7 +1,8 @@
+import { requireExecutableTemplateFacts, TemplateExecutionDefinitionError } from "../catalogue/templateExecutionDefinition.js";
 import type { Pool } from "pg";
 import type { DatabaseExecutor } from "../../types/database.js";
 import { ApplicationError } from "../../utils/applicationError.js";
-import { withAdmissionTenantTransaction } from "../database/transactions.js";
+import { withAdmissionOrganizationTransaction } from "../database/transactions.js";
 import type { Service } from "./listServicesService.js";
 import type { ServiceProductFamily } from "./listServicesRepository.js";
 
@@ -27,11 +28,8 @@ export type ConfigurationValidationOutcome =
 export interface CreateServicePersistenceInput {
   readonly idempotencyRecordId: string;
   readonly serviceId: string;
-  readonly serviceVersionId: string;
   readonly tenantId: string;
-  readonly actor:
-    | { readonly kind: "browser"; readonly userId: string }
-    | { readonly kind: "api_key"; readonly apiKeyId: string };
+  readonly actor: { readonly kind: "browser"; readonly userId: string };
   readonly idempotencyKey: string;
   readonly actorFingerprint: Buffer;
   readonly requestHash: Buffer;
@@ -102,23 +100,21 @@ interface ExistingClaimRow {
 
 interface EligibilityRow {
   readonly template_id: string;
-  readonly template_state: "draft" | "published" | "disabled" | "retired";
-  readonly current_public_version_id: string | null;
+  readonly template_state: string;
   readonly product_family: ServiceProductFamily;
   readonly template_version_id: string | null;
   readonly template_version: number | null;
   readonly configuration_schema: unknown;
-  readonly availability_state:
-    | "available"
-    | "temporarily_unavailable"
-    | "coming_soon"
-    | null;
-  readonly version_current: boolean | null;
-  readonly template_evidence_current: boolean | null;
-  readonly adapter_enabled: boolean | null;
-  readonly mapping_id: string | null;
-  readonly mapping_adapter_matches: boolean | null;
-  readonly mapping_evidence_current: boolean | null;
+  readonly availability_state: string | null;
+  readonly published_at: Date | null;
+  readonly publication_approved: boolean;
+  readonly published_by: string | null;
+  readonly evidence_ref: string | null;
+  readonly engine: string | null;
+  readonly execution_definition: unknown;
+  readonly definition_sha256: Buffer | null;
+  readonly dataset_bound: boolean;
+  readonly is_internal: boolean;
 }
 
 interface CreatedAtRow {
@@ -170,8 +166,7 @@ async function insertClaim(
     `
       INSERT INTO app.idempotency_records (
         id,
-        tenant_id,
-        scope_kind,
+        organization_id,
         actor_fingerprint,
         operation_code,
         idempotency_key,
@@ -179,7 +174,7 @@ async function insertClaim(
         state,
         expires_at
       ) VALUES (
-        $1, $2, 'tenant', $3, 'services.create', $4, $5, 'in_progress',
+        $1, $2, $3, 'services.create', $4, $5, 'in_progress',
         clock_timestamp() + interval '24 hours'
       )
       ON CONFLICT DO NOTHING
@@ -211,7 +206,7 @@ async function replayExistingClaim(
         response_body_reference,
         response_body
       FROM app.idempotency_records
-      WHERE tenant_id = $1
+      WHERE organization_id = $1
         AND operation_code = 'services.create'
         AND idempotency_key = $2
       FOR UPDATE
@@ -249,83 +244,33 @@ async function selectEligibleTemplate(
   database: DatabaseExecutor,
   input: CreateServicePersistenceInput,
 ): Promise<EligibilityRow> {
-  const result = await database.query<EligibilityRow>(
-    `
-      SELECT
-        template.id AS template_id,
-        template.state AS template_state,
-        template.current_public_version_id,
-        template.product_family,
-        template_version.id AS template_version_id,
-        template_version.version AS template_version,
-        template_version.configuration_schema,
-        template_version.availability_state,
-        (
-          template_version.published_at IS NOT NULL
-          AND template_version.published_at <= statement_timestamp()
-          AND template_version.effective_at IS NOT NULL
-          AND template_version.effective_at <= statement_timestamp()
-        ) AS version_current,
-        (
-          template_evidence.state = 'approved'
-          AND template_evidence.effective_at IS NOT NULL
-          AND template_evidence.effective_at <= statement_timestamp()
-          AND (
-            template_evidence.expires_at IS NULL
-            OR template_evidence.expires_at > statement_timestamp()
-          )
-        ) AS template_evidence_current,
-        (adapter_version.state = 'enabled') AS adapter_enabled,
-        mapping.id AS mapping_id,
-        (mapping.adapter_version_id = template_version.adapter_version_id)
-          AS mapping_adapter_matches,
-        (
-          mapping_evidence.state = 'approved'
-          AND mapping_evidence.effective_at IS NOT NULL
-          AND mapping_evidence.effective_at <= statement_timestamp()
-          AND (
-            mapping_evidence.expires_at IS NULL
-            OR mapping_evidence.expires_at > statement_timestamp()
-          )
-        ) AS mapping_evidence_current
-      FROM app.service_templates AS template
-      LEFT JOIN app.service_template_versions AS template_version
-        ON template_version.id = template.current_public_version_id
-       AND template_version.service_template_id = template.id
-      LEFT JOIN app.launch_evidence AS template_evidence
-        ON template_evidence.id = template_version.launch_evidence_id
-      LEFT JOIN app.adapter_versions AS adapter_version
-        ON adapter_version.id = template_version.adapter_version_id
-      LEFT JOIN app.provider_mappings AS mapping
-        ON mapping.service_template_version_id = template_version.id
-       AND mapping.environment = $2
-       AND mapping.state = 'enabled'
-      LEFT JOIN app.launch_evidence AS mapping_evidence
-        ON mapping_evidence.id = mapping.launch_evidence_id
-      WHERE template.slug = $1
-    `,
-    [input.templateSlug, input.providerEnvironment],
-  );
-  const row = result.rows[0];
-  if (row === undefined || (row.template_state !== "published" && row.template_state !== "disabled")) {
-    throw new ServiceTemplateNotCreatableError();
-  }
-  if (
-    row.template_state !== "published" ||
-    row.current_public_version_id === null ||
-    row.template_version_id === null ||
-    row.template_version === null ||
-    row.configuration_schema === null ||
-    row.availability_state !== "available" ||
-    row.version_current !== true ||
-    row.template_evidence_current !== true ||
-    row.adapter_enabled !== true ||
-    row.mapping_id === null ||
-    row.mapping_adapter_matches !== true ||
-    row.mapping_evidence_current !== true
-  ) {
-    throw new ServiceAdmissionUnavailableError();
-  }
+  const result = await database.query<EligibilityRow>(`
+    SELECT template.id AS template_id, template.state AS template_state,template.product_family,
+      version.id AS template_version_id,version.version AS template_version,version.configuration_schema,
+      version.availability_state,version.published_at,version.published_by,version.evidence_ref,
+      (version.published_at IS NOT NULL AND version.published_at<=statement_timestamp() AND version.published_by IS NOT NULL AND version.evidence_ref IS NOT NULL) publication_approved,
+      version.engine,version.execution_definition,version.definition_sha256,
+      (version.provider_dataset_ciphertext IS NOT NULL AND version.provider_dataset_fingerprint IS NOT NULL) AS dataset_bound,
+      organization.is_internal
+    FROM app.service_templates template
+    JOIN app.organizations organization ON organization.id=app.current_organization_id()
+    LEFT JOIN LATERAL(SELECT draft.id,draft.version,draft.configuration_schema,draft.availability_state,draft.published_at,draft.published_by,draft.evidence_ref,
+      draft.engine,draft.execution_definition,draft.definition_sha256,draft.provider_dataset_ciphertext,draft.provider_dataset_fingerprint
+      FROM app.service_template_versions draft WHERE draft.service_template_id=template.id
+      AND (draft.id=template.current_public_version_id OR template.state='draft' AND organization.is_internal)
+      ORDER BY draft.version DESC LIMIT 1) version ON true
+    WHERE template.slug=$1 AND (template.access='all' OR EXISTS (
+      SELECT 1 FROM app.organization_templates allowed WHERE allowed.organization_id=app.current_organization_id() AND allowed.service_template_id=template.id))
+    FOR SHARE OF template`, [input.templateSlug]);
+  const row=result.rows[0];
+  if (!row || !['published','disabled','draft'].includes(row.template_state) || row.template_state==='draft'&&!row.is_internal) throw new ServiceTemplateNotCreatableError();
+  const internalDraft=row.template_state==='draft'&&row.is_internal;
+  if ((!internalDraft&&row.template_state !== 'published') || row.template_version_id === null || row.template_version === null ||
+    row.configuration_schema === null || (!internalDraft&&row.availability_state !== 'available') ||
+    (!internalDraft&&!row.publication_approved)) throw new ServiceAdmissionUnavailableError();
+  try { requireExecutableTemplateFacts({productFamily:row.product_family,engine:row.engine,definition:row.execution_definition,
+    definitionSha256:row.definition_sha256,datasetBound:row.dataset_bound}); }
+  catch (error) { if(error instanceof TemplateExecutionDefinitionError)throw new ServiceAdmissionUnavailableError(error);throw error; }
   return row;
 }
 
@@ -344,42 +289,16 @@ async function createAndComplete(
   const serviceInsert = await database.query<CreatedAtRow>(
     `
       INSERT INTO app.services (
-        id, tenant_id, service_template_id, name, state, current_version
-      ) VALUES ($1, $2, $3, $4, 'active', 1)
+        id, organization_id, template_version_id, name, state, configuration, created_by_user_id
+      ) VALUES ($1, $2, $3, $4, 'active', $5::jsonb, $6)
       RETURNING created_at
     `,
-    [input.serviceId, input.tenantId, eligible.template_id, input.name],
+    [input.serviceId, input.tenantId, eligible.template_version_id, input.name, input.configuration, input.actor.userId],
   );
   const createdAt = serviceInsert.rows[0]?.created_at;
   if (createdAt === undefined) {
     throw new Error("The Service insert returned no creation timestamp");
   }
-
-  await database.query(
-    `
-      INSERT INTO app.service_versions (
-        id,
-        tenant_id,
-        service_id,
-        version,
-        service_template_version_id,
-        validated_configuration,
-        schema_hash,
-        created_by_user_id,
-        created_by_api_key_id
-      ) VALUES ($1, $2, $3, 1, $4, $5::jsonb, $6, $7, $8)
-    `,
-    [
-      input.serviceVersionId,
-      input.tenantId,
-      input.serviceId,
-      eligible.template_version_id,
-      input.configuration,
-      validation.schemaHash,
-      input.actor.kind === "browser" ? input.actor.userId : null,
-      input.actor.kind === "api_key" ? input.actor.apiKeyId : null,
-    ],
-  );
 
   const response: CreatedService = {
     id: input.serviceId,
@@ -396,31 +315,29 @@ async function createAndComplete(
   await database.query(
     `
       INSERT INTO app.audit_events (
-        tenant_id,
+        organization_id,
         actor_user_id,
-        actor_api_key_id,
         action,
         target_type,
         target_id,
         outcome,
-        request_id,
+        trace_id,
         ip_fingerprint,
         safe_diff
       ) VALUES (
-        $1, $2, $3, 'services.create', 'service', $4, 'created', $5, $6,
+        $1, $2, 'services.create', 'service', $3, 'created', $4::uuid, $5,
         jsonb_build_object(
-          'name', $7::text,
-          'template_slug', $8::text,
-          'template_version', $9::integer,
-          'family', $10::text,
+          'name', $6::text,
+          'template_slug', $7::text,
+          'template_version', $8::integer,
+          'family', $9::text,
           'service_version', 1
         )
       )
     `,
     [
       input.tenantId,
-      input.actor.kind === "browser" ? input.actor.userId : null,
-      input.actor.kind === "api_key" ? input.actor.apiKeyId : null,
+      input.actor.userId,
       input.serviceId,
       input.requestId,
       input.ipFingerprint,
@@ -441,8 +358,7 @@ async function createAndComplete(
         resource_id = $2,
         response_body_reference = 'inline_json_v1',
         response_body = $3::jsonb,
-        completed_at = clock_timestamp(),
-        updated_at = clock_timestamp()
+        completed_at = clock_timestamp()
       WHERE id = $1
       RETURNING response_body
     `,
@@ -459,13 +375,17 @@ export function createServiceRepository(pool: Pool): CreateServiceRepository {
   return {
     async persist(input): Promise<CreateServicePersistenceOutcome> {
       try {
-        return await withAdmissionTenantTransaction(pool, input.tenantId, async (database) => {
-          if (!(await insertClaim(database, input))) {
-            return replayExistingClaim(database, input);
-          }
-          const service = await createAndComplete(database, input);
-          return { kind: "created", service };
-        });
+        return await withAdmissionOrganizationTransaction(
+          pool,
+          { tenantId: input.tenantId, userId: input.actor.userId },
+          async (database) => {
+            if (!(await insertClaim(database, input))) {
+              return replayExistingClaim(database, input);
+            }
+            const service = await createAndComplete(database, input);
+            return { kind: "created", service };
+          },
+        );
       } catch (error) {
         if (
           error instanceof ApplicationError ||

@@ -36,8 +36,6 @@ function roleStatement(role: CapabilityRole): string {
       return "SET LOCAL ROLE dhumi_identity";
     case "dhumi_customer_api":
       return "SET LOCAL ROLE dhumi_customer_api";
-    case "dhumi_envelope_janitor":
-      return "SET LOCAL ROLE dhumi_envelope_janitor";
     case "dhumi_admission":
       return "SET LOCAL ROLE dhumi_admission";
     case "dhumi_result_recorder":
@@ -59,7 +57,6 @@ export async function verifyPoolRole(
   expectedCapabilityRole:
     | "dhumi_identity"
     | "dhumi_customer_api"
-      | "dhumi_envelope_janitor"
       | "dhumi_admission"
       | "dhumi_result_recorder"
       | "dhumi_outbox_dispatcher"
@@ -138,13 +135,6 @@ export async function verifyPoolRole(
   } finally {
     client.release(destroyConnection);
   }
-}
-
-export async function verifyEnvelopeJanitorPool(
-  pool: Pool,
-  expectedLoginRole: string,
-): Promise<void> {
-  await verifyPoolRole(pool, expectedLoginRole, "dhumi_envelope_janitor");
 }
 
 export async function verifyResultRecorderPool(

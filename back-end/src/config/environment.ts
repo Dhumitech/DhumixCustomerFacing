@@ -19,10 +19,6 @@ const admissionLoginRole = roleName.regex(
   /^dhumi_[a-z0-9_]+_admission_login$/,
   "must follow the approved dhumi_<environment>_admission_login pattern",
 );
-const envelopeJanitorLoginRole = roleName.regex(
-  /^dhumi_[a-z0-9_]+_envelope_janitor_login$/,
-  "must follow the approved dhumi_<environment>_envelope_janitor_login pattern",
-);
 const resultRecorderLoginRole = roleName.regex(
   /^dhumi_[a-z0-9_]+_result_recorder_login$/,
   "must follow the approved dhumi_<environment>_result_recorder_login pattern",
@@ -136,16 +132,6 @@ const environmentSchema = z
       .min(60)
       .max(ACCESS_TOKEN_NON_PRODUCTION_MAX_TTL_SECONDS)
       .default(900),
-    // Demo/test response-envelope root. It is deliberately independent from
-    // browser-token signing material and forbidden in production.
-    RESPONSE_ENVELOPE_LOCAL_KEY: z
-      .string()
-      .regex(/^[A-Za-z0-9_-]{43}$/, "must be 32 bytes encoded as unpadded base64url")
-      .refine(
-        (value) => Buffer.from(value, "base64url").toString("base64url") === value,
-        "must use canonical unpadded base64url encoding",
-      )
-      .optional(),
     // auth_sessions carries CHECK (expires_at > issued_at), so a refresh
     // lifetime of zero or less fails at insert. The floor here prevents that
     // reaching the database at all.
@@ -286,14 +272,6 @@ const environmentSchema = z
       });
     }
 
-    if (value.NODE_ENV !== "production" && value.RESPONSE_ENVELOPE_LOCAL_KEY === undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["RESPONSE_ENVELOPE_LOCAL_KEY"],
-        message: "is required for the local/test response-envelope adapter",
-      });
-    }
-
     if (value.NODE_ENV === "production" && value.BRIGHTDATA_API_KEY !== undefined) {
       context.addIssue({
         code: "custom",
@@ -335,76 +313,6 @@ const environmentSchema = z
         message: "Azurite is forbidden in production",
       });
     }
-  });
-
-const envelopeJanitorEnvironmentSchema = z
-  .object({
-    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-    LOG_LEVEL: z
-      .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
-      .default("info"),
-    DATABASE_HOST: z.string().trim().min(1),
-    DATABASE_PORT: z.coerce.number().int().min(1).max(65_535).default(5432),
-    DATABASE_NAME: z.string().trim().regex(/^[a-z_][a-z0-9_]{2,62}$/),
-    DATABASE_ENVELOPE_JANITOR_USER: envelopeJanitorLoginRole,
-    DATABASE_ENVELOPE_JANITOR_PASSWORD: z
-      .string()
-      .min(20, "must contain at least 20 characters"),
-    DATABASE_POOL_MIN: z.coerce.number().int().min(0).max(10).default(0),
-    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(10).default(2),
-    DATABASE_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(5_000),
-    DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
-    DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(15_000),
-    DATABASE_QUERY_TIMEOUT_MS: z.coerce.number().int().min(100).max(180_000).default(20_000),
-    DATABASE_IDLE_TRANSACTION_TIMEOUT_MS: z.coerce
-      .number()
-      .int()
-      .min(1_000)
-      .max(600_000)
-      .default(30_000),
-    DATABASE_SSL_MODE: z.enum(["disable", "verify-full"]).default("disable"),
-    DATABASE_SSL_CA_FILE: z.string().trim().optional(),
-    ENVELOPE_JANITOR_INTERVAL_MS: z.coerce
-      .number()
-      .int()
-      .min(100)
-      .max(60_000)
-      .default(5_000),
-    ENVELOPE_JANITOR_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
-  })
-  .superRefine((value, context) => {
-    if (forbiddenRuntimeLoginRoles.has(value.DATABASE_ENVELOPE_JANITOR_USER)) {
-      context.addIssue({
-        code: "custom",
-        path: ["DATABASE_ENVELOPE_JANITOR_USER"],
-        message: "must be a restricted runtime LOGIN role",
-      });
-    }
-
-    if (value.DATABASE_POOL_MIN > value.DATABASE_POOL_MAX) {
-      context.addIssue({
-        code: "custom",
-        path: ["DATABASE_POOL_MIN"],
-        message: "must not exceed DATABASE_POOL_MAX",
-      });
-    }
-
-    if (value.NODE_ENV === "production" && value.DATABASE_SSL_MODE !== "verify-full") {
-      context.addIssue({
-        code: "custom",
-        path: ["DATABASE_SSL_MODE"],
-        message: "must be verify-full in production",
-      });
-    }
-
-    if (value.DATABASE_SSL_MODE === "verify-full" && !value.DATABASE_SSL_CA_FILE) {
-      context.addIssue({
-        code: "custom",
-        path: ["DATABASE_SSL_CA_FILE"],
-        message: "is required when DATABASE_SSL_MODE is verify-full",
-      });
-    }
-
   });
 
 const resultRecorderEnvironmentSchema = z
@@ -521,21 +429,6 @@ export interface DatabaseRuntimeConfig {
   readonly ssl: false | { readonly ca: string; readonly rejectUnauthorized: true };
 }
 
-export interface EnvelopeJanitorDatabaseRuntimeConfig {
-  readonly host: string;
-  readonly port: number;
-  readonly database: string;
-  readonly credential: DatabaseCredentialConfig;
-  readonly poolMin: number;
-  readonly poolMax: number;
-  readonly connectionTimeoutMs: number;
-  readonly idleTimeoutMs: number;
-  readonly statementTimeoutMs: number;
-  readonly queryTimeoutMs: number;
-  readonly idleTransactionTimeoutMs: number;
-  readonly ssl: false | { readonly ca: string; readonly rejectUnauthorized: true };
-}
-
 export interface ResultRecorderDatabaseRuntimeConfig {
   readonly host: string;
   readonly port: number;
@@ -606,11 +499,6 @@ export interface LockoutConfig {
   readonly windowMs: number;
 }
 
-export interface ResponseEnvelopeRuntimeConfig {
-  /** Local/test only. The local adapter independently refuses production. */
-  readonly localKeyBase64Url: string | null;
-}
-
 export interface ResultStorageRuntimeConfig {
   readonly driver: "unavailable" | "azurite";
   readonly connectionString: string | null;
@@ -642,17 +530,8 @@ export interface RuntimeConfig {
   readonly refreshRateLimit: RateLimitConfig;
   readonly session: SessionConfig;
   readonly lockout: LockoutConfig;
-  readonly responseEnvelope: ResponseEnvelopeRuntimeConfig;
   readonly resultStorage: ResultStorageRuntimeConfig;
   readonly marketplaceSampleDownload: MarketplaceSampleDownloadRuntimeConfig;
-}
-
-export interface EnvelopeJanitorRuntimeConfig {
-  readonly nodeEnv: "development" | "test" | "production";
-  readonly logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
-  readonly intervalMs: number;
-  readonly batchSize: number;
-  readonly database: EnvelopeJanitorDatabaseRuntimeConfig;
 }
 
 export interface ResultRecorderRuntimeConfig {
@@ -819,9 +698,6 @@ export function loadRuntimeConfig(source: NodeJS.ProcessEnv = process.env): Runt
       threshold: value.SIGNIN_LOCKOUT_THRESHOLD,
       windowMs: value.SIGNIN_LOCKOUT_WINDOW_MS,
     }),
-    responseEnvelope: Object.freeze({
-      localKeyBase64Url: value.RESPONSE_ENVELOPE_LOCAL_KEY ?? null,
-    }),
     resultStorage: Object.freeze({
       driver: value.RESULT_STORAGE_DRIVER,
       connectionString: value.RESULT_STORAGE_CONNECTION_STRING ?? null,
@@ -851,50 +727,6 @@ export function loadRuntimeConfig(source: NodeJS.ProcessEnv = process.env): Runt
       admission: Object.freeze({
         user: value.DATABASE_ADMISSION_USER,
         password: value.DATABASE_ADMISSION_PASSWORD,
-      }),
-      poolMin: value.DATABASE_POOL_MIN,
-      poolMax: value.DATABASE_POOL_MAX,
-      connectionTimeoutMs: value.DATABASE_CONNECTION_TIMEOUT_MS,
-      idleTimeoutMs: value.DATABASE_IDLE_TIMEOUT_MS,
-      statementTimeoutMs: value.DATABASE_STATEMENT_TIMEOUT_MS,
-      queryTimeoutMs: value.DATABASE_QUERY_TIMEOUT_MS,
-      idleTransactionTimeoutMs: value.DATABASE_IDLE_TRANSACTION_TIMEOUT_MS,
-      ssl,
-    }),
-  });
-}
-
-export function loadEnvelopeJanitorConfig(
-  source: NodeJS.ProcessEnv = process.env,
-): EnvelopeJanitorRuntimeConfig {
-  const parsed = envelopeJanitorEnvironmentSchema.safeParse(source);
-
-  if (!parsed.success) {
-    throw new ConfigurationError(formatConfigurationIssues(parsed.error));
-  }
-
-  const value = parsed.data;
-
-  const ssl =
-    value.DATABASE_SSL_MODE === "verify-full"
-      ? {
-          ca: readCertificateAuthority(value.DATABASE_SSL_CA_FILE as string),
-          rejectUnauthorized: true as const,
-        }
-      : false;
-
-  return Object.freeze({
-    nodeEnv: value.NODE_ENV,
-    logLevel: value.LOG_LEVEL,
-    intervalMs: value.ENVELOPE_JANITOR_INTERVAL_MS,
-    batchSize: value.ENVELOPE_JANITOR_BATCH_SIZE,
-    database: Object.freeze({
-      host: value.DATABASE_HOST,
-      port: value.DATABASE_PORT,
-      database: value.DATABASE_NAME,
-      credential: Object.freeze({
-        user: value.DATABASE_ENVELOPE_JANITOR_USER,
-        password: value.DATABASE_ENVELOPE_JANITOR_PASSWORD,
       }),
       poolMin: value.DATABASE_POOL_MIN,
       poolMax: value.DATABASE_POOL_MAX,

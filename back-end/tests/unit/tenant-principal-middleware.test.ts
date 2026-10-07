@@ -1,44 +1,37 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyRequest } from "fastify";
 import { describe, expect, it } from "vitest";
-import { requireTenantPrincipal } from "../../src/middleware/tenantPrincipal.js";
-import type { ApiKeyAuthenticationService } from "../../src/services/apiKeys/apiKeyAuthenticationService.js";
+import { requireEstablishedTenantPrincipal, requireTenantPrincipal } from "../../src/middleware/tenantPrincipal.js";
+import { authenticationRequired } from "../../src/services/identity/sessionErrors.js";
+import { accessDenied } from "../../src/services/tenantAccess/tenantAccessErrors.js";
 import type { BrowserAuthenticationService } from "../../src/services/identity/browserAuthenticationService.js";
 import type { TenantAuthorizationService } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 
 function request(options: {
-  readonly authorization: string;
-  readonly scopes: readonly ("catalog:read" | "runs:read")[];
+  readonly authorization?: string;
   readonly resourceCalls: string[];
+  readonly denyTenant?: boolean;
 }): FastifyRequest {
   const tenantId = randomUUID();
-  const apiKeyAuthenticationService: ApiKeyAuthenticationService = {
-    async authenticate() {
-      options.resourceCalls.push("api-key-auth");
-      return {
-        kind: "api_key",
-        apiKeyId: randomUUID(),
-        tenantId,
-        scopes: options.scopes,
-      };
-    },
-  };
+  const session = { userId: randomUUID(), sessionId: randomUUID(), issuedTenantId: tenantId };
   const browserAuthenticationService: BrowserAuthenticationService = {
-    async authenticate() {
+    async authenticate(authorization) {
       options.resourceCalls.push("browser-auth");
-      throw new Error("browser authentication was not expected");
+      if (authorization !== "Bearer valid-browser-token") throw authenticationRequired();
+      return session;
     },
   };
   const tenantAuthorizationService: TenantAuthorizationService = {
-    async authorizeBrowserTenant() {
+    async authorizeBrowserTenant(identity) {
       options.resourceCalls.push("browser-tenant");
-      throw new Error("browser Tenant authorization was not expected");
+      expect(identity).toEqual(session);
+      if (options.denyTenant) throw accessDenied();
+      return { userId: identity.userId, sessionId: identity.sessionId, tenantId };
     },
   };
   return {
     headers: { authorization: options.authorization },
     server: {
-      apiKeyAuthenticationService,
       browserAuthenticationService,
       tenantAuthorizationService,
     },
@@ -49,35 +42,55 @@ function request(options: {
 }
 
 describe("Tenant principal middleware", () => {
-  it("accepts a key with the route-required scope", async () => {
+  it("establishes the session user only after active Tenant authorization", async () => {
     const calls: string[] = [];
     const current = request({
-      authorization: "Bearer dhk_v1_example",
-      scopes: ["catalog:read", "runs:read"],
+      authorization: "Bearer valid-browser-token",
       resourceCalls: calls,
     });
 
-    await expect(requireTenantPrincipal("runs:read")(current)).resolves.toBeUndefined();
+    await expect(requireTenantPrincipal()(current)).resolves.toBeUndefined();
     expect(current.trustedTenantPrincipal).toMatchObject({
-      kind: "api_key",
-      scopes: ["catalog:read", "runs:read"],
+      kind: "browser",
+      userId: current.trustedSessionIdentity?.userId,
+      sessionId: current.trustedSessionIdentity?.sessionId,
+      tenantId: current.trustedTenantIdentity?.tenantId,
     });
-    expect(calls).toEqual(["api-key-auth"]);
+    expect(requireEstablishedTenantPrincipal(current)).toEqual(current.trustedTenantPrincipal);
+    expect(calls).toEqual(["browser-auth", "browser-tenant"]);
   });
 
-  it("denies a missing scope before trusted request context is established", async () => {
+  it.each([undefined, "Bearer dhk_v1_example", "Bearer dhk_v1_malformed", "Bearer invalid-session"])(
+    "rejects %s before Tenant authorization", async (authorization) => {
+      const calls: string[] = [];
+      const current = request({ resourceCalls: calls, ...(authorization === undefined ? {} : { authorization }) });
+      await expect(requireTenantPrincipal()(current)).rejects.toMatchObject({ status: 401, code: "AUTHENTICATION_REQUIRED" });
+      expect(current.trustedTenantPrincipal).toBeNull();
+      expect(current.trustedSessionIdentity).toBeNull();
+      expect(current.trustedTenantIdentity).toBeNull();
+      expect(calls).toEqual(["browser-auth"]);
+    },
+  );
+
+  it("does not establish a principal for revoked or unavailable Tenant access", async () => {
     const calls: string[] = [];
     const current = request({
-      authorization: "Bearer dhk_v1_example",
-      scopes: ["catalog:read"],
+      authorization: "Bearer valid-browser-token",
+      denyTenant: true,
       resourceCalls: calls,
     });
 
-    await expect(requireTenantPrincipal("runs:read")(current)).rejects.toMatchObject({
+    await expect(requireTenantPrincipal()(current)).rejects.toMatchObject({
       status: 403,
       code: "ACCESS_DENIED",
     });
     expect(current.trustedTenantPrincipal).toBeNull();
-    expect(calls).toEqual(["api-key-auth"]);
+    expect(current.trustedTenantIdentity).toBeNull();
+    expect(calls).toEqual(["browser-auth", "browser-tenant"]);
+  });
+
+  it("refuses a controller lookup before middleware establishes its principal", () => {
+    const current = request({ resourceCalls: [] });
+    expect(() => requireEstablishedTenantPrincipal(current)).toThrowError(expect.objectContaining({ status: 401 }));
   });
 });

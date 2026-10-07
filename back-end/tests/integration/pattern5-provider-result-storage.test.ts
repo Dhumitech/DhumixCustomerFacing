@@ -7,7 +7,7 @@ import {
 } from "../../src/services/brightdata/brightDataIntegrationClient.js";
 import { createBrightDataRunExecutor } from "../../src/services/brightdata/brightDataRunExecutor.js";
 import {
-  providerMappingAad,
+  providerDatasetAad,
   providerSnapshotAad,
   type ProviderExecutionPlan,
   type ProviderExecutionPlanRepository,
@@ -49,19 +49,17 @@ async function fixture(providerFetch: BrightDataFetch) {
   const runId = randomUUID();
   const attemptId = randomUUID();
   const fenceToken = randomUUID();
-  const mappingId = randomUUID();
-  const providerResourceAadMappingId = randomUUID();
+  const templateVersionId = randomUUID();
   const protector = createLocalProviderReferenceProtector(
     "test",
     randomBytes(32).toString("base64url"),
   );
   const protectedMapping = await protector.protect(
     "gd_l7q7dkf244hwjntr0",
-    providerMappingAad(providerResourceAadMappingId),
+    providerDatasetAad(templateVersionId),
   );
   const plan: ProviderExecutionPlan = {
-    mappingId,
-    providerResourceAadMappingId,
+    templateVersionId,
     validatedInput: {
       targets: [
         {
@@ -73,8 +71,8 @@ async function fixture(providerFetch: BrightDataFetch) {
       ],
     },
     operationCode: "amazon.products.collect_by_url",
-    providerResourceCiphertext: protectedMapping.ciphertext,
-    providerResourceFingerprint: protectedMapping.fingerprint,
+    datasetCiphertext: protectedMapping.ciphertext,
+    datasetFingerprint: protectedMapping.fingerprint,
     outputPolicy: {
       provider_request: { mode: "collect", limit_per_input: null },
       snapshot: {
@@ -87,10 +85,10 @@ async function fixture(providerFetch: BrightDataFetch) {
       normalizer_version: 2,
       normalized_schema_version: "amazon.products.collect-by-url.output.v1",
     },
-    mappingConfigVersion: "amazon-v1",
+    definitionConfigVersion: "amazon-v1",
     providerCode: "bright_data",
     providerEnvironment: "test",
-    vaultSecretReference: "BRIGHTDATA_API_KEY",
+    secretReference: "BRIGHTDATA_API_KEY",
   };
   const recordedReferences: Array<{
     readonly ciphertext: Buffer;
@@ -163,7 +161,6 @@ async function fixture(providerFetch: BrightDataFetch) {
     executor,
     execution,
     protector,
-    mappingId,
     recordedReferences,
     finalized,
     store,

@@ -13,6 +13,7 @@ $stateDirectory = Join-Path $backendRoot '.runtime\sample-download-cleanup-maint
 $runnerPath = Join-Path $PSScriptRoot 'Invoke-SampleDownloadCleanupMaintenance.ps1'
 $nodePath = ''
 $powerShellPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$conhostPath = Join-Path $env:SystemRoot 'System32\conhost.exe'
 $taskNames = @('Dhumi-SampleDownloadCleanup', 'Dhumi-SampleDownloadCleanup-Watchdog')
 $description = 'Dhumi generated sample-download retention v1; no provider execution.'
 
@@ -91,8 +92,9 @@ try {
     for ($index = 0; $index -lt $taskNames.Count; $index++) {
         $mode = 'Cleanup'; $intervalMinutes = 15
         if ($index -eq 1) { $mode = 'Watchdog'; $intervalMinutes = 5 }
-        $arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -File "' + $runnerPath + '" -Mode ' + $mode + ' -ExpectedDatabase ' + $ExpectedDatabase + ' -NodePath "' + $nodePath + '"'
-        $taskAction = New-ScheduledTaskAction -Execute $powerShellPath -Argument $arguments -WorkingDirectory $backendRoot
+        # conhost --headless: -WindowStyle Hidden alone still flashes a console window on every run.
+        $arguments = '--headless "' + $powerShellPath + '" -NoProfile -NonInteractive -WindowStyle Hidden -File "' + $runnerPath + '" -Mode ' + $mode + ' -ExpectedDatabase ' + $ExpectedDatabase + ' -NodePath "' + $nodePath + '"'
+        $taskAction = New-ScheduledTaskAction -Execute $conhostPath -Argument $arguments -WorkingDirectory $backendRoot
         $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $intervalMinutes)
         $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 12)
         $task = New-ScheduledTask -Action $taskAction -Trigger $trigger -Settings $settings -Principal $principal -Description $description

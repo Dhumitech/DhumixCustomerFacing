@@ -1,11 +1,20 @@
 # ADR 0006 - Dedicated response-envelope destruction worker
 
-- **Status:** Accepted
+- **Status:** Superseded / archived by the 0070 refactor (6 October 2026)
 - **Date:** 23 August 2026
 - **Applies to:** API-key response-envelope destruction
 - **Numbering note:** This repository decision is unrelated to
   `Project Specs/docs/adr/0006-idempotent-one-time-dhumi-api-key.md`; the two
   decision directories have independent numbering.
+
+## Refactor status
+
+This is a historical decision. Customer API keys and their encrypted secret-response
+recovery are removed from the application in the 0070 compatibility batch. Browser
+sessions remain the customer authentication path; the Bright Data provider key is
+unchanged. Database application and cluster role retirement remain pending. See
+[the archive record](../archive/README.md). The original decision below is retained
+for recovery and migration-history review, not active implementation.
 
 ## Context
 

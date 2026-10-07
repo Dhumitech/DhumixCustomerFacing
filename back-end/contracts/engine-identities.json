@@ -1,0 +1,99 @@
+{
+  "format": 1,
+  "phase": "0075 naming; qualification pending",
+  "scraper": {
+    "engine": "scraper.v1",
+    "version": "1.3.0-organization-naming",
+    "digest": "f999a4908fd9b7345cdf939f74a61177e32d37faeb46611e20ada4b0e6ee1e74",
+    "normalization": "ordered LF-normalized UTF-8 content",
+    "sources": [
+      {
+        "path": "src/services/scrapers/scraperProcessing.ts",
+        "lfSha256": "51fea9162d99a7581694ed8accb0e0e870c4108f0cffbea0908831f0c3e06006"
+      },
+      {
+        "path": "src/services/brightdata/scrapers/sharedScraperRunExecutor.ts",
+        "lfSha256": "fc8e073e39fe3e15ba8226f9742cd7f9b63684e56a7ea5d7beb89fc59c4c6afb"
+      },
+      {
+        "path": "src/services/brightdata/scrapers/scraperExecutionRepository.ts",
+        "lfSha256": "447a5d83e01e364d72a7d7e06eb85c72d89056219a3d18c94b8e4e56ec11b4d2"
+      },
+      {
+        "path": "src/services/brightdata/versionedProviderRunExecutor.ts",
+        "lfSha256": "2781cb6d0db041d57fffc326ae888ecef5377f4ff38bb965381af73938608b0c"
+      },
+      {
+        "path": "src/services/brightdata/brightDataIntegrationClient.ts",
+        "lfSha256": "b44bb23ed32b90d89e79516109cbe027cc30bf94be9de8946a228580509c94d3"
+      },
+      {
+        "path": "src/services/admission/sharedScraperAdmission.ts",
+        "lfSha256": "8bdcc924c75c197db720d5865872ba34f11841a45c9dd97c63c75614c98c5627"
+      },
+      {
+        "path": "src/services/admission/runCapacity.ts",
+        "lfSha256": "6145b9c2916a71f1dececaaf50cfbf3e6919eca06936311923cf50ac56da1e2c"
+      },
+      {
+        "path": "src/services/brightdata/providerCallRepository.ts",
+        "lfSha256": "4739fa01def2a07f89de8f3ab85197d46c030568796a902a2e6109419c1be48a"
+      },
+      {
+        "path": "src/services/brightdata/providerCallContext.ts",
+        "lfSha256": "1a0d4070c3f0366fae7705641da4beed2eb778f286fe29f844cfe9161e7814b3"
+      },
+      {
+        "path": "src/services/brightdata/fencedTemplateExecution.ts",
+        "lfSha256": "9fb999b8ccc4cf040f79fa803abdc6bb23929dcb6b9340106d8bd46995621c3f"
+      },
+      {
+        "path": "src/services/brightdata/providerExecutionPlanRepository.ts",
+        "lfSha256": "b4cc9a8b19d81d8ae8d1f66a84ac3f17fc377c1496459f40da3dbb31f3bb2d82"
+      },
+      {
+        "path": "src/services/brightdata/providerReferenceContexts.ts",
+        "lfSha256": "40b956e3adc2c80517c47fe902873cd89f61dacc2c316ab8fab604ba81b27c41"
+      },
+      {
+        "path": "src/services/jobs/runExecutionRepository.ts",
+        "lfSha256": "cae246ea404ff0612ad236da60c18e5385248a66bd53de85fc812460f8dee0ac"
+      },
+      {
+        "path": "src/services/jobs/runLifecycle.ts",
+        "lfSha256": "18645dbf74b319ebcca6e47135fe625ac0f9d817eac745d5b197333d622668c1"
+      },
+      {
+        "path": "src/services/jobs/jobManagerService.ts",
+        "lfSha256": "ddff34f05eb0128c89a0ec2b4e6dedca2ac6e9337db752f34eab53026c621542"
+      },
+      {
+        "path": "src/services/catalogue/templateExecutionDefinition.ts",
+        "lfSha256": "2f8b0c4b4eb105f97edbd7343de8d6635e2db68196f6886998d2d963f73204a5"
+      },
+      {
+        "path": "src/services/brightdata/engines.ts",
+        "lfSha256": "465818b92e879d6daeece797e91d57f4c82fc44b17281843b9dc4d7b1562bf4b"
+      },
+      {
+        "path": "src/helpers/canonicalJson.ts",
+        "lfSha256": "8821d43df0c7c1a49d06459c0b4342f901d5e29427d96d242d70dcd0b5daa01e"
+      },
+      {
+        "path": "src/worker/jobManager.ts",
+        "lfSha256": "d82558b99a0f4c605e2ce896e58d82cae4b0a764dfe2a0719bd952a24313b618"
+      }
+    ]
+  },
+  "amazon": {
+    "engine": "amazon.v1",
+    "digest": "742d4035fcad32f5b78151d2dee0c8fbf2ca2b8bc0a42e1995a70ef6eca9cb14",
+    "normalization": "ordered original bytes",
+    "sources": [
+      "src/services/brightdata/amazon/amazonOperationDefinitions.ts",
+      "src/services/brightdata/amazon/amazonOperationSerializer.ts",
+      "src/services/brightdata/amazon/amazonResultNormalizer.ts",
+      "src/services/brightdata/amazon/amazonOutputContracts.ts"
+    ]
+  }
+}

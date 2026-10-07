@@ -16,12 +16,6 @@ import type { LogoutService } from "../../src/services/identity/logoutService.js
 import type { TenantAuthorizationService } from "../../src/services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "../../src/services/workspace/workspaceService.js";
 import {
-  stubApiKeyAuthenticationService,
-  stubCreateApiKeyService,
-  stubListApiKeysService,
-  stubRevokeApiKeyService,
-} from "../support/apiKeyStub.js";
-import {
   stubGetCatalogTemplateService,
   stubListCatalogTemplatesService,
 } from "../support/catalogueStub.js";
@@ -107,7 +101,6 @@ function testConfig(overrides: NodeJS.ProcessEnv = {}): RuntimeConfig {
     ACCESS_TOKEN_SECRET: "test-access-token-secret-at-least-32-chars",
     ACCESS_TOKEN_ISSUER: "https://dhumi.test",
     ACCESS_TOKEN_AUDIENCE: "dhumi-browser",
-    RESPONSE_ENVELOPE_LOCAL_KEY: "A".repeat(43),
     ...overrides,
   });
 }
@@ -153,10 +146,6 @@ function appDependencies() {
     logoutService: stubLogoutService,
     tenantAuthorizationService: stubTenantAuthorizationService,
     workspaceService: stubWorkspaceService,
-    createApiKeyService: stubCreateApiKeyService,
-    listApiKeysService: stubListApiKeysService,
-    revokeApiKeyService: stubRevokeApiKeyService,
-    apiKeyAuthenticationService: stubApiKeyAuthenticationService,
     listCatalogTemplatesService: stubListCatalogTemplatesService,
     getCatalogTemplateService: stubGetCatalogTemplateService,
     listServicesService: stubListServicesService,
@@ -285,15 +274,24 @@ describe("POST /v1/auth/signup contract", () => {
     expect(JSON.stringify(body)).not.toMatch(/app\.users|42P01|relation/i);
   });
 
-  it("passes a UUID request ID through and drops a non-UUID one", async () => {
+  it("records a server-generated trace while echoing caller correlation IDs", async () => {
     app = await buildApp(testConfig(), appDependencies());
+    for (const correlation of ["customer-request-001", "11111111-1111-4111-8111-111111111111"]) {
+      const response = await post(app, validBody(), { "x-request-id": correlation });
+      const trace = service.calls.at(-1)?.requestId;
+      expect(response.headers["x-request-id"]).toBe(correlation);
+      expect(trace).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(trace).not.toBe(correlation);
+    }
+    expect(service.calls[0]?.requestId).not.toBe(service.calls[1]?.requestId);
+  });
 
-    await post(app, validBody(), { "x-request-id": "customer-request-001" });
-    expect(service.calls[0]?.requestId).toBeNull();
-
-    const uuid = "11111111-1111-4111-8111-111111111111";
-    await post(app, validBody(), { "x-request-id": uuid });
-    expect(service.calls[1]?.requestId).toBe(uuid);
+  it("accepts signup without a workspace and accepts its deprecated empty value", async () => {
+    app = await buildApp(testConfig(), appDependencies());
+    const { workspace_name: _ignored, ...userOnly } = validBody();
+    expect((await post(app, userOnly)).statusCode).toBe(202);
+    expect(service.calls[0]).not.toHaveProperty("workspaceName");
+    expect((await post(app, { ...userOnly, workspace_name: "" })).statusCode).toBe(202);
   });
 
   it("limits one identity even when the source address changes", async () => {

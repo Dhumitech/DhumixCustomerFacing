@@ -22,7 +22,7 @@ import {
   type BrightDataSubmissionResult,
 } from "./brightDataIntegrationClient.js";
 import {
-  providerMappingAad,
+  providerDatasetAad,
   providerSnapshotAad,
   type ProviderExecutionPlanRepository,
 } from "./providerExecutionPlanRepository.js";
@@ -386,11 +386,11 @@ export function createBrightDataRunExecutor(dependencies: Dependencies): Control
           providerRequest: providerRequestPolicy(policy),
         });
         const datasetId = await dependencies.protector.reveal(
-          plan.providerResourceCiphertext,
-          plan.providerResourceFingerprint,
-          providerMappingAad(plan.providerResourceAadMappingId),
+          plan.datasetCiphertext,
+          plan.datasetFingerprint,
+          providerDatasetAad(plan.templateVersionId),
         );
-        const apiKey = await dependencies.secretProvider.getSecret(plan.vaultSecretReference);
+        const apiKey = await dependencies.secretProvider.getSecret(plan.secretReference);
         const providerInput = {
           apiKey,
           datasetId,
@@ -543,9 +543,9 @@ export function createBrightDataRunExecutor(dependencies: Dependencies): Control
         const policy = parsePolicy(plan);
         requireNormalizerPolicy(plan.operationCode, policy);
         await dependencies.protector.reveal(
-          plan.providerResourceCiphertext,
-          plan.providerResourceFingerprint,
-          providerMappingAad(plan.providerResourceAadMappingId),
+          plan.datasetCiphertext,
+          plan.datasetFingerprint,
+          providerDatasetAad(plan.templateVersionId),
         );
         const snapshotReference = await dependencies.protector.reveal(
           plan.sourceProviderReferenceCiphertext,
@@ -556,7 +556,7 @@ export function createBrightDataRunExecutor(dependencies: Dependencies): Control
             attemptId: plan.sourceAttemptId,
           }),
         );
-        const apiKey = await dependencies.secretProvider.getSecret(plan.vaultSecretReference);
+        const apiKey = await dependencies.secretProvider.getSecret(plan.secretReference);
         const downloaded = await collectSnapshot({
           execution: input,
           apiKey,

@@ -42,15 +42,6 @@ export function sessionRefreshFailed(): ApplicationError {
   });
 }
 
-function workspaceUnavailable(): ApplicationError {
-  return new ApplicationError({
-    status: 403,
-    code: "ACCESS_DENIED",
-    title: "Workspace unavailable",
-    detail: "This account has no active workspace.",
-  });
-}
-
 export function createRefreshService(
   dependencies: RefreshServiceDependencies,
 ): RefreshService {
@@ -87,9 +78,6 @@ export function createRefreshService(
         ipFingerprint: request.ipFingerprint,
       });
 
-      if (outcome.kind === "workspace_unavailable") {
-        throw workspaceUnavailable();
-      }
       if (outcome.kind !== "rotated") {
         throw sessionRefreshFailed();
       }
@@ -97,7 +85,6 @@ export function createRefreshService(
       const accessToken = await accessTokens.issue({
         userId: outcome.userId,
         sessionId: outcome.sessionId,
-        tenantId: outcome.tenantId,
       });
       return {
         accessToken: accessToken.token,

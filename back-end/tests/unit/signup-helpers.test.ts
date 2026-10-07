@@ -83,9 +83,9 @@ describe("canonicalRequestHash", () => {
     expect(canonicalRequestHash(reordered)).toEqual(canonicalRequestHash(base));
   });
 
-  it("changes when the workspace name changes", () => {
+  it("ignores the deprecated workspace name", () => {
     const changed = { ...base, workspaceName: "Acme Two" };
-    expect(canonicalRequestHash(changed)).not.toEqual(canonicalRequestHash(base));
+    expect(canonicalRequestHash(changed)).toEqual(canonicalRequestHash(base));
   });
 
   it("changes when an accepted document version changes", () => {

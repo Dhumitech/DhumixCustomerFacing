@@ -11,7 +11,7 @@ export async function revokeSessionFamily(
       UPDATE app.auth_sessions
       SET state = 'revoked',
           revoked_at = COALESCE(revoked_at, clock_timestamp()),
-          security_metadata = security_metadata || jsonb_build_object('revoked_by', $2::text)
+          revoked_reason = $2::text
       WHERE id = $1
         AND state = 'active'
     `,
@@ -21,7 +21,7 @@ export async function revokeSessionFamily(
     `
       UPDATE app.auth_refresh_tokens
       SET state = 'revoked',
-          revoked_at = COALESCE(revoked_at, clock_timestamp())
+          ended_at = COALESCE(ended_at, clock_timestamp())
       WHERE session_id = $1
         AND state = 'active'
     `,
@@ -47,7 +47,7 @@ export async function expireSessionFamily(
     `
       UPDATE app.auth_refresh_tokens
       SET state = 'expired',
-          expired_at = COALESCE(expired_at, clock_timestamp())
+          ended_at = COALESCE(ended_at, clock_timestamp())
       WHERE session_id = $1
         AND state = 'active'
     `,

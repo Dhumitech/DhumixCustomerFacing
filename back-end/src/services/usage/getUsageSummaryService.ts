@@ -1,9 +1,6 @@
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
 import type { GetUsageSummaryRepository } from "./getUsageSummaryRepository.js";
-import {
-  usageProjectionUnavailable,
-  usageReadValidationFailed,
-} from "./usageReadErrors.js";
+import { usageProjectionUnavailable, usageReadValidationFailed } from "./usageReadErrors.js";
 import { parseUsageTimeRange } from "./usageTimeRange.js";
 
 export const USAGE_RECONCILIATION_STATES = [
@@ -11,8 +8,7 @@ export const USAGE_RECONCILIATION_STATES = [
   "partially_reconciled",
   "reconciled",
 ] as const;
-export type UsageReconciliationState =
-  (typeof USAGE_RECONCILIATION_STATES)[number];
+export type UsageReconciliationState = (typeof USAGE_RECONCILIATION_STATES)[number];
 
 export interface UsageSummary {
   readonly from: string;
@@ -63,6 +59,7 @@ export function createGetUsageSummaryService(dependencies: {
       const range = parseUsageTimeRange(request.from, request.to);
       const record = await dependencies.repository.get({
         tenantId: request.principal.tenantId,
+        userId: request.principal.userId,
         from: range.from,
         to: range.to,
       });

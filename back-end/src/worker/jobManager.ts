@@ -13,6 +13,8 @@ import {
 } from "../services/database/roleVerification.js";
 import { createSyntheticControlledRunExecutor } from "../services/jobs/controlledRunExecutor.js";
 import { createBrightDataIntegrationClient } from "../services/brightdata/brightDataIntegrationClient.js";
+import { currentProviderCallRecorder,createRecordedRunExecutor } from '../services/brightdata/providerCallContext.js';
+import { requireExecutionContraction } from '../services/database/refactorSchemaGate.js';
 import { createBrightDataRunExecutor } from "../services/brightdata/brightDataRunExecutor.js";
 import { createProviderExecutionPlanRepository } from "../services/brightdata/providerExecutionPlanRepository.js";
 import { createProviderRunExecutorRouter } from "../services/brightdata/providerRunExecutorRouter.js";
@@ -59,6 +61,7 @@ export async function startJobManager(): Promise<void> {
   process.once("SIGTERM", onSigterm);
 
   try {
+    await requireExecutionContraction(jobPool,'dhumi_job_manager');
     await Promise.all([
       verifyJobManagerPool(jobPool, config.database.credential.user),
       verifyResultRecorderPool(resultPool, config.resultRecorderDatabase.credential.user),
@@ -76,7 +79,8 @@ export async function startJobManager(): Promise<void> {
       finalizer: createResultArtifactFinalizerRepository(resultPool),
       maxBytes: config.resultStorage.maxBytes,
     });
-    const providerRepository = createProviderExecutionPlanRepository(jobPool);
+    const providerEnvironment=config.nodeEnv==='development'?'local' as const:config.nodeEnv;
+    const providerRepository = createProviderExecutionPlanRepository(jobPool,providerEnvironment);
     let executor: ControlledRunExecutor;
     if (config.executor.driver === "controlled") {
       executor = createSyntheticControlledRunExecutor(ingestion);
@@ -85,6 +89,7 @@ export async function startJobManager(): Promise<void> {
         secretProvider: createLocalEnvironmentSecretProvider(config.nodeEnv),
         protector: createLocalProviderReferenceProtector(config.nodeEnv, config.executor.providerReferenceLocalKey),
         client: createBrightDataIntegrationClient({
+          recorder:currentProviderCallRecorder,
           requestTimeoutMs: config.executor.requestTimeoutMs,
           controlResponseMaxBytes: config.executor.controlResponseMaxBytes,
           catalogueResponseMaxBytes: config.executor.controlResponseMaxBytes,
@@ -102,21 +107,15 @@ export async function startJobManager(): Promise<void> {
         // explicit worker opt-in. No env file is modified by this refactor.
         executor = createProviderRunExecutorRouter({ repository: providerRepository, amazon });
       } else {
-        const ready = await jobPool.query<{ ready: boolean }>(`
-          SELECT to_regprocedure('app.resolve_provider_executor_identity(uuid,uuid,uuid)') IS NOT NULL
-            AND to_regprocedure('app.resolve_shared_scraper_execution_plan(uuid,uuid,uuid,text,uuid)') IS NOT NULL AS ready
-        `);
-        if (ready.rows[0]?.ready !== true) throw new Error("Shared scraper migration 0066 is required before worker opt-in");
-        const sharedRepository = createScraperExecutionRepository(jobPool, providerRepository);
+        const sharedRepository = createScraperExecutionRepository(jobPool, providerRepository,providerEnvironment);
         executor = createVersionedProviderRunExecutor({ repository: sharedRepository, bindings: [
           ...AMAZON_EXECUTOR_IDENTITIES.map((identity) => ({ ...identity, executor: amazon })),
           { code: SHARED_SCRAPER_ADAPTER_CODE, version: SHARED_SCRAPER_ADAPTER_VERSION, digest: SHARED_SCRAPER_ARTIFACT_DIGEST,
             executor: createSharedScraperRunExecutor({ ...common, repository: sharedRepository, processing: createScraperProcessing() }) },
         ] });
       }
-      // M7 implements the Marketplace executor with fixture transport.
-      // A live Marketplace client is deliberately not composed here until
-      // MPayment, bounded qualification, and protected mapping release.
+      // Marketplace Filter execution is retired; only retained scraper engines are composed.
+      executor=createRecordedRunExecutor(jobPool,executor);
     }
     const service = createJobManagerService({
       repository: createRunExecutionRepository(jobPool),

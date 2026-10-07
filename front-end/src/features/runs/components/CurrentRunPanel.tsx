@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { organizationPath } from "../../../api/organizationScope";
 import { DhumiApiError } from "../../../api/errors";
 import type { RunEvent, RunStatus } from "../../../api/generated";
 import {
@@ -216,7 +217,7 @@ export function CurrentRunPanel({
             )}
             <Link
               className="current-run__all-runs"
-              to={`/workspace/runs?run=${encodeURIComponent(runId)}`}
+              to={organizationPath(`/workspace/runs?run=${encodeURIComponent(runId)}`)}
             >
               View all runs
             </Link>

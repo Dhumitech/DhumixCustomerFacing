@@ -1,0 +1,36 @@
+{
+  "status": "APPLIED_AND_VERIFIED",
+  "sqlSha256": "5cb4f72bd46d8f6f6b68d0780e7f5ba189ad3c24b85c26fb85a4ca0217b13923",
+  "canonical": "back-end/scripts/migrations/0073_catalogue_execution_contract.sql",
+  "draft": "back-end/scripts/refactor-review/0073_catalogue_execution_contract.draft.sql",
+  "mainApplied": true,
+  "target": "127.0.0.1:5432/dhumi_test",
+  "postgresQualification": {
+    "path": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0072-0073-Backend/0073-Contraction/Verification.json",
+    "sha256": "4242dd1c54749dc12c61995c2a44449bf06acb3f4e1af302810e8101d218b34b"
+  },
+  "before": {
+    "tables": 36,
+    "columns": 450,
+    "migrations": 72
+  },
+  "qualifiedAfter": {
+    "tables": 26,
+    "columns": 306,
+    "viewColumns": 2,
+    "migrations": 73
+  },
+  "ownerApplicationApproved": true,
+  "appliedAtUtc": "2026-10-07T16:30:45.997Z",
+  "postgresApplication": {
+    "path": "API-Design-Skill/NewRefactor/Context/After Refactor Context/Last touched Folders and apth/7-10/0072-0073-Backend/0073-Application/Verification.json",
+    "sha256": "f82cdc1056108be98e97e7de8968cf2778d84be6e61e981593a5a146666d8ff4"
+  },
+  "main": {
+    "tables": 26,
+    "columns": 306,
+    "migrations": 73
+  },
+  "applicationCompletedByUtc": "2026-10-07T16:30:46.229Z",
+  "recordsUpdatedAtUtc": "2026-10-07T17:05:00.647Z"
+}

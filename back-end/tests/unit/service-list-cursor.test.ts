@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { encodeApiKeyListCursor } from "../../src/helpers/apiKeyListCursor.js";
 import {
   decodeServiceListCursor,
   encodeServiceListCursor,
@@ -31,8 +30,10 @@ describe("Service list cursor", () => {
   it("rejects malformed, non-canonical, oversized, and operation-mismatched cursors", () => {
     const encoded = (value: unknown) =>
       Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
-    const apiKeyCursor = encodeApiKeyListCursor({
-      createdAt: "2026-08-24T12:00:00.000Z",
+    const unrelatedCursor = encoded({
+      version: 1,
+      kind: "unrelated_operation",
+      created_at: "2026-08-24T12:00:00.000Z",
       id: "55555555-5555-4555-8555-555555555555",
     });
     const invalid = [
@@ -47,9 +48,9 @@ describe("Service list cursor", () => {
       encoded({ version: 1, kind: "services", created_at: "not-a-date", id: "55555555-5555-4555-8555-555555555555" }),
       encoded({ version: 1, kind: "services", created_at: "2026-08-24T12:00:00Z", id: "55555555-5555-4555-8555-555555555555" }),
       encoded({ version: 1, kind: "services", created_at: "2026-08-24T12:00:00.000Z", id: "not-a-uuid" }),
-      encoded({ version: 1, kind: "services", created_at: "2026-08-24T12:00:00.000Z", id: "55555555-5555-4555-8555-555555555555", tenant_id: "secret" }),
+      encoded({ version: 1, kind: "services", created_at: "2026-08-24T12:00:00.000Z", id: "55555555-5555-4555-8555-555555555555", organization_id: "secret" }),
       encoded({ kind: "services", version: 1, created_at: "2026-08-24T12:00:00.000Z", id: "55555555-5555-4555-8555-555555555555" }),
-      apiKeyCursor,
+      unrelatedCursor,
     ];
 
     for (const cursor of invalid) {

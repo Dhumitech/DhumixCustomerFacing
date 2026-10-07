@@ -1,0 +1,11 @@
+{
+  "purpose": "Historical offline declaration fixture; not a database application receipt",
+  "originalReceiptSha256": "7d4aee75c06e5c888ddd7e2af4404e72353e47fa396f37dde0ba7ef0567b0df7",
+  "qualification": {
+    "status": "PASSED",
+    "writePathQualified": true,
+    "mainUnchanged": true,
+    "migrationApplied": false,
+    "draftSha256": "af85bea48d8bb0e4c77ba9d301a23977ecfc33b5fe77ded0469c207e13e17bd9"
+  }
+}

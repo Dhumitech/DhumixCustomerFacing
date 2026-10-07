@@ -61,10 +61,7 @@ describe("AuthDialog", () => {
     const session = sessionValue();
     const { onModeChange } = renderDialog("sign-up", session);
 
-    await user.type(
-      screen.getByLabelText("Company website or company name"),
-      "Acme Research",
-    );
+    expect(screen.queryByLabelText("Company website or company name")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("Email address"), "owner@acme.test");
     await user.type(
       screen.getByLabelText("Password"),
@@ -79,7 +76,6 @@ describe("AuthDialog", () => {
 
     await waitFor(() =>
       expect(session.signUp).toHaveBeenCalledWith({
-        companyNameOrWebsite: "Acme Research",
         email: "owner@acme.test",
         password: "a-sufficiently-long-password",
       }),

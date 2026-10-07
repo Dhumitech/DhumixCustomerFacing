@@ -5,7 +5,7 @@ import { z } from "zod";
 import { canonicalJson, canonicalSha256 } from "../../helpers/canonicalJson.js";
 
 const field = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,127}$/)
-  .refine((value) => !["constructor", "prototype", "__proto__", "dataset_id", "snapshot_id", "api_key", "authorization", "tenant_id"].includes(value));
+  .refine((value) => !["constructor", "prototype", "__proto__", "dataset_id", "snapshot_id", "api_key", "authorization", "organization_id"].includes(value));
 const processingSchema = z.object({
   version: z.literal(1), revision: z.number().int().positive(),
   urls: z.array(z.object({

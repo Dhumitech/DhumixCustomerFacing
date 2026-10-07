@@ -4,6 +4,7 @@ import { canonicalSha256 } from "../../helpers/canonicalJson.js";
 import { tenantActorFingerprint } from "../../helpers/tenantActorFingerprint.js";
 import { ApplicationError } from "../../utils/applicationError.js";
 import { csrfValidationFailed } from "../identity/sessionErrors.js";
+import { accessDenied } from "../tenantAccess/tenantAccessErrors.js";
 import type { TrustedTenantPrincipal } from "../tenantAccess/trustedTenantPrincipal.js";
 import {
   MarketplaceExpertEnquiryNotFoundError,
@@ -72,9 +73,11 @@ export function createMarketplaceExpertEnquiryService(
     async submit(
       input: Parameters<MarketplaceExpertEnquiryService["submit"]>[0],
     ) {
-      if (input.principal.kind === "browser" &&
-          (input.csrfToken === undefined ||
-            !dependencies.csrf.verify(input.principal.sessionId, input.csrfToken))) {
+      if (input.principal.kind !== "browser") {
+        throw accessDenied();
+      }
+      if (input.csrfToken === undefined ||
+          !dependencies.csrf.verify(input.principal.sessionId, input.csrfToken)) {
         throw csrfValidationFailed();
       }
 
@@ -117,9 +120,7 @@ export function createMarketplaceExpertEnquiryService(
         const outcome = await dependencies.repository.create({
           enquiryId: createId(),
           tenantId: input.principal.tenantId,
-          actor: input.principal.kind === "browser"
-            ? { kind: "browser", userId: input.principal.userId }
-            : { kind: "api_key", apiKeyId: input.principal.apiKeyId },
+          actor: { kind: "browser", userId: input.principal.userId },
           actorFingerprint: tenantActorFingerprint(input.principal),
           idempotencyKey: input.idempotencyKey as string,
           requestHash,

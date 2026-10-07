@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { tokenStore } from "../session/tokenStore";
-import { runsApi } from "./customerRuns";
+import { runsApi, serviceExecutionApi } from "./customerRuns";
 
 const session = {
   access_token: "browser-access-token",
@@ -34,6 +34,66 @@ afterEach(() => {
 });
 
 describe("customer Run mutation idempotency", () => {
+  it("supplies required browser CSRF and idempotency when saving a Service", async () => {
+    tokenStore.set(session);
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("{}", {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await serviceExecutionApi.create({
+      templateSlug: "fixture-scraper",
+      name: "Saved scraper",
+      configuration: {},
+    });
+    const request = requestAt(fetchMock, 0);
+    expect(request.headers.get("Authorization")).toBe(
+      `Bearer ${session.access_token}`,
+    );
+    expect(request.headers.get("X-CSRF-Token")).toBe(session.csrf_token);
+    expect(request.headers.get("Idempotency-Key")).toMatch(
+      /^frontend\.service\.create\./,
+    );
+  });
+  it.each(["create", "cancel", "retry"] as const)(
+    "sends browser authentication and CSRF for %s",
+    async (operation) => {
+      tokenStore.set(session);
+      const response =
+        operation === "cancel"
+          ? new Response(
+              JSON.stringify({
+                id: "run-1",
+                service_id: "service-1",
+                status: "queued",
+                error_code: null,
+                retryable: false,
+                created_at: "2026-10-06T00:00:00.000Z",
+                updated_at: "2026-10-06T00:00:00.000Z",
+                completed_at: null,
+              }),
+              { status: 202, headers: { "Content-Type": "application/json" } },
+            )
+          : accepted("run-1");
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response);
+      vi.stubGlobal("fetch", fetchMock);
+      if (operation === "create")
+        await runsApi.create("service-1", { query: "laptop" });
+      else if (operation === "cancel") await runsApi.cancel("run-1");
+      else await runsApi.retry("run-1");
+      const request = requestAt(fetchMock, 0);
+      expect(request.headers.get("Authorization")).toBe(
+        `Bearer ${session.access_token}`,
+      );
+      expect(request.headers.get("X-CSRF-Token")).toBe(session.csrf_token);
+      expect(request.headers.get("Idempotency-Key")).toMatch(
+        new RegExp(`^frontend\\.run\\.${operation}\\.`),
+      );
+    },
+  );
+
   it("reuses one key after an ambiguous network failure and rotates it after success", async () => {
     tokenStore.set(session);
     const fetchMock = vi

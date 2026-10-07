@@ -12,7 +12,7 @@ const input = {
   },
   receipt: {
     objectKey:
-      "tenants/11111111-1111-4111-8111-111111111111/" +
+      "organizations/11111111-1111-4111-8111-111111111111/" +
       "runs/22222222-2222-4222-8222-222222222222/" +
       "attempts/33333333-3333-4333-8333-333333333333/normalized/v1/result",
     contentType: "application/json",
@@ -48,7 +48,7 @@ function pool(inserted: boolean, row = artifactRow()) {
     .fn()
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-    .mockResolvedValueOnce({ rows: [{ tenant_id: input.identity.tenantId }], rowCount: 1 })
+    .mockResolvedValueOnce({ rows: [{ organization_id: input.identity.tenantId }], rowCount: 1 })
     .mockResolvedValueOnce({
       rows: inserted ? [{ id: row.id }] : [],
       rowCount: inserted ? 1 : 0,
@@ -77,7 +77,7 @@ describe("ResultArtifactFinalizerRepository", () => {
     expect(fake.query.mock.calls.map((call) => String(call[0]).trim().split(/\s+/).slice(0, 4).join(" "))).toEqual([
       "BEGIN",
       "SET LOCAL ROLE dhumi_result_recorder",
-      "SELECT set_config('app.tenant_id', $1, true)",
+      "SELECT set_config('app.organization_id', $1, true)",
       "INSERT INTO app.artifacts (",
       "SELECT id, object_key, content_type,",
       "COMMIT",
