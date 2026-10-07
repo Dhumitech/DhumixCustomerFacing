@@ -99,7 +99,7 @@ formal closure matrix proves:
 - restricted operator DLQ recovery.
 
 The matrix passed on 29 August 2026. Its durable record is
-[`evidence/2026-08-29_P4-RESILIENCE-001.md`](<evidence/2026-08-29_P4-RESILIENCE-001.md>).
+the private local record `evidence/2026-08-29_P4-RESILIENCE-001.md` (excluded from Git).
 This evidence is not permission to replace the worker boundary with a mock or
 to call Bright Data from the public API route.
 

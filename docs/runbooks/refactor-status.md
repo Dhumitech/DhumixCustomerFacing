@@ -43,6 +43,14 @@ Use the existing lockfiles and Node.js 24. In each root package, run
 `.env` or enable the optional database/emulator suites for an offline run.
 PowerShell-specific migration launcher tests require `pwsh` on Windows.
 
+For the 8 October branch publication, a checkout containing only tracked files
+passed both packages' typecheck/build and default tests: **1,153 backend tests
+and 80 frontend tests**, with 101 optional backend database/emulator tests
+skipped. It reused the installed locked dependencies and contained no private
+environment or evidence files. The upstream price-analysis page and the
+organization routes are both preserved. Unit signup requests now use explicit
+dummy legal metadata, and dependency hashes use canonical LF line endings.
+
 The unit-test qualification summary is a historical declaration fixture,
 not a database execution receipt. Review launchers still require the full local
 qualification/evidence/backup pins before application. Do not replay applied SQL,

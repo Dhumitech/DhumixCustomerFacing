@@ -2,6 +2,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { tokenStore } from "../session/tokenStore";
 import { authApi } from "./auth";
 
+// Unit requests use fixed public metadata and never depend on a local .env.
+vi.mock("../config/runtime", () => ({
+  runtimeConfig: {
+    apiOrigin: "http://localhost:3000",
+    signupLegalAcceptances: [
+      {
+        document_type: "terms_of_service",
+        document_version: "2026-09-01",
+        content_hash: "a".repeat(64),
+        accepted: true,
+      },
+    ],
+  },
+}));
+
 const session = {
   access_token: "browser-access-token",
   token_type: "Bearer" as const,

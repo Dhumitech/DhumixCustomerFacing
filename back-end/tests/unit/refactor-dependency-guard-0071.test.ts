@@ -12,6 +12,9 @@ describe("0071 no-new-dependencies baseline", () => {
       // dependencies, versions, existing scripts and other bytes stay pinned.
       bytes=Buffer.from(text.replace(/^    "operator:template": "node --env-file-if-exists=\.env --import tsx src\/worker\/template\.ts",\r?\n/m,''));
     }
-    expect(createHash("sha256").update(bytes).digest("hex")).toBe(expected);
+    // Git stores these text files with LF. Compare the same bytes on a clean
+    // checkout and on Windows; content, dependency versions and scripts stay pinned.
+    const canonical = bytes.toString("utf8").replace(/\r\n/g, "\n");
+    expect(createHash("sha256").update(canonical).digest("hex")).toBe(expected);
   });
 });

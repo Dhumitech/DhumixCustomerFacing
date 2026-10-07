@@ -50,7 +50,7 @@ Usage:                1 record
 ```
 
 See
-[`evidence/2026-09-02_POSTMAN-CUSTOMER-LIVE-ONE-CALL-001.md`](evidence/2026-09-02_POSTMAN-CUSTOMER-LIVE-ONE-CALL-001.md)
+the private local record `evidence/2026-09-02_POSTMAN-CUSTOMER-LIVE-ONE-CALL-001.md` (excluded from Git)
 for the redacted evidence. The raw Postman JSON report remains under the
 Git-ignored `.runtime` directory because it contains session material and a
 short-lived signed URL.
