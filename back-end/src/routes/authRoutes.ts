@@ -205,6 +205,25 @@ export async function registerAuthRoutes(
     },
   });
 
+  app.get("/v1/auth/session", {
+    onRequest: async (_request, reply) => {
+      reply.header("Cache-Control", "no-store").header("Pragma", "no-cache");
+    },
+    schema: { response: { 200: { ...authSessionResponseSchema, required: [...authSessionResponseSchema.required, "identity_email"], properties: { ...authSessionResponseSchema.properties, identity_email: { type: "string", format: "email" } } } } },
+    config: { rateLimit: { max: config.refreshRateLimit.max, timeWindow: config.refreshRateLimit.windowMs } },
+    preHandler: async request => {
+      const origin = request.headers.origin;
+      if (origin ? origin !== config.frontendOrigin : request.headers["sec-fetch-site"] !== "same-origin")
+        throw new ApplicationError({ status: 403, code: "ACCESS_DENIED", title: "Session restoration origin denied" });
+      const result = await refreshFamilyRateLimit(request);
+      if (!result.isAllowed && result.isExceeded) throw new ApplicationError({ status: 429, code: "PLATFORM_CAPACITY_LIMIT", title: "Too many session requests" });
+    },
+    handler: async (request, reply) => {
+      const result = await app.restoreSessionService.restore(request.cookies[config.session.cookie.name]);
+      await reply.send({ access_token: result.accessToken, token_type: "Bearer", expires_in: result.expiresInSeconds, csrf_token: result.csrfToken, identity_email: result.identityEmail });
+    },
+  });
+
   app.post("/v1/auth/refresh", {
     schema: {
       response: { 200: authSessionResponseSchema },

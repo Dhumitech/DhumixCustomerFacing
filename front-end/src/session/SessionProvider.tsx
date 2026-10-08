@@ -3,6 +3,7 @@ import {
   type PropsWithChildren,
   useEffect,
   useMemo,
+  useState,
   useSyncExternalStore,
 } from "react";
 import {
@@ -18,6 +19,7 @@ export interface SessionContextValue {
   readonly session: AuthSession | null;
   readonly identityEmail: string | null;
   readonly isAuthenticated: boolean;
+  readonly isRestoring?: boolean;
   signUp(input: SignUpRequest): Promise<AuthAccepted>;
   signIn(input: SignInRequest): Promise<AuthSession>;
   refresh(): Promise<AuthSession>;
@@ -39,6 +41,25 @@ export function sessionRefreshDelayMs(expiresInSeconds: number): number {
 }
 
 export function SessionProvider({ children }: PropsWithChildren) {
+  const [isRestoring, setIsRestoring] = useState(
+    tokenStore.getSnapshot() === null,
+  );
+  useEffect(() => {
+    let active = true;
+    if (tokenStore.getSnapshot() !== null) {
+      setIsRestoring(false);
+      return;
+    }
+    void authApi
+      .restore()
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setIsRestoring(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const session = useSyncExternalStore(
     tokenStore.subscribe,
     tokenStore.getSnapshot,
@@ -124,12 +145,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
       session,
       identityEmail,
       isAuthenticated: session !== null,
+      isRestoring,
       signUp: authApi.signUp,
       signIn: authApi.signIn,
       refresh: authApi.refresh,
       logout: authApi.logout,
     }),
-    [identityEmail, session],
+    [identityEmail, session, isRestoring],
   );
 
   return (

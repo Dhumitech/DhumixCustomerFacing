@@ -37,7 +37,7 @@ describe("0071 route access surface", () => {
     const declarations = [
       ...openapi.matchAll(/      operationId: (\w+)\r?\n      x-dhumi-access: (\w+)/g),
     ].map((match) => ({ operationId: match[1], access: match[2] }));
-    expect(declarations).toHaveLength(38);
+    expect(declarations).toHaveLength(39);
     expect(declarations).toEqual(
       manifest.routes.map(({ operationId, access }) => ({ operationId, access })),
     );

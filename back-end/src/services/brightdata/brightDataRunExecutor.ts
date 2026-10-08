@@ -32,6 +32,7 @@ import {
   getAmazonOperationDefinition,
 } from "./amazon/amazonOperationDefinitions.js";
 import { getAmazonPreciseOutputContract } from "./amazon/amazonOutputContracts.js";
+import { AMAZON_PRODUCTS_RESULT_V2, normalizeAmazonProductsResultV2 } from './amazon/amazonProductsResultV2.js';
 import {
   AmazonOperationContractError,
   serializeAmazonProviderRequest,
@@ -139,7 +140,8 @@ function providerRequestPolicy(policy: OutputPolicy):
 }
 
 function requireNormalizerPolicy(operationCode: string, policy: OutputPolicy): void {
-  const contract = getAmazonPreciseOutputContract(operationCode);
+  const contract = operationCode === AMAZON_PRODUCTS_RESULT_V2.operationCode && policy.normalizer_version === AMAZON_PRODUCTS_RESULT_V2.normalizerVersion
+    ? AMAZON_PRODUCTS_RESULT_V2 : getAmazonPreciseOutputContract(operationCode);
   if (
     contract === undefined ||
     policy.normalizer_code !== contract.normalizerCode ||
@@ -460,7 +462,8 @@ export function createBrightDataRunExecutor(dependencies: Dependencies): Control
         );
         let transformed;
         try {
-          transformed = await normalizeAmazonProviderResult({
+          transformed = await (policy.normalizer_version === AMAZON_PRODUCTS_RESULT_V2.normalizerVersion
+            ? normalizeAmazonProductsResultV2 : normalizeAmazonProviderResult)({
             operationCode: plan.operationCode,
             bytes: raw.bytes,
             contentType: raw.receipt.contentType,

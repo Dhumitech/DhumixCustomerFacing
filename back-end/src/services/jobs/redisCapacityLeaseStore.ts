@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient, type RedisClientType } from "redis";
 import type { CapacityLease, CapacityLeaseStore } from "./capacityLease.js";
+import { redisConnectionKind } from "../../config/redisEnvironment.js";
 
 const RESOURCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -29,10 +30,12 @@ export async function createRedisCapacityLeaseStore(input: {
   readonly keyPrefix: string;
   readonly onError?: (error: Error) => void;
 }): Promise<CapacityLeaseStore> {
+  const secure = redisConnectionKind(input.url) === "azure";
   const client: RedisClientType = createClient({
     url: input.url,
     disableOfflineQueue: true,
     socket: {
+      ...(secure ? { tls: true as const, minVersion: "TLSv1.2" as const, rejectUnauthorized: true } : {}),
       connectTimeout: 5_000,
       reconnectStrategy(retries) {
         if (retries >= 5) return false;
@@ -41,7 +44,7 @@ export async function createRedisCapacityLeaseStore(input: {
     },
   });
   client.on("error", (error) => input.onError?.(error));
-  await client.connect();
+  try { await client.connect(); } catch (error) { if (client.isOpen) client.destroy(); throw error; }
   const keyFor = (resourceId: string): string => `${input.keyPrefix}:${resourceId.toLowerCase()}`;
 
   return {

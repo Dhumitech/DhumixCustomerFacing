@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcceptInviteData, AcceptInviteErrors, AcceptInviteResponses, AuthorizeMarketplaceSampleDownloadData, AuthorizeMarketplaceSampleDownloadErrors, AuthorizeMarketplaceSampleDownloadResponses, CancelRunData, CancelRunErrors, CancelRunResponses, ConfirmVerificationData, ConfirmVerificationErrors, ConfirmVerificationResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMarketplaceExpertEnquiryData, CreateMarketplaceExpertEnquiryErrors, CreateMarketplaceExpertEnquiryResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, CreateRunData, CreateRunErrors, CreateRunResponses, CreateServiceData, CreateServiceErrors, CreateServiceResponses, GetActivityData, GetActivityErrors, GetActivityResponses, GetMarketplaceSampleData, GetMarketplaceSampleErrors, GetMarketplaceSampleResponses, GetPlatformStatusData, GetPlatformStatusErrors, GetPlatformStatusResponses, GetRunData, GetRunErrors, GetRunResponses, GetRunResultData, GetRunResultErrors, GetRunResultResponses, GetServiceData, GetServiceErrors, GetServiceResponses, GetTemplateData, GetTemplateErrors, GetTemplateResponses, GetUsageSummaryData, GetUsageSummaryErrors, GetUsageSummaryResponses, GetWorkspaceData, GetWorkspaceErrors, GetWorkspaceResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListOrganizationsData, ListOrganizationsErrors, ListOrganizationsResponses, ListRunEventsData, ListRunEventsErrors, ListRunEventsResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListServicesData, ListServicesErrors, ListServicesResponses, ListTemplatesData, ListTemplatesErrors, ListTemplatesResponses, ListUsageEventsData, ListUsageEventsErrors, ListUsageEventsResponses, LogoutData, LogoutErrors, LogoutResponses, QueryMarketplaceSampleData, QueryMarketplaceSampleErrors, QueryMarketplaceSampleResponses, RefreshSessionData, RefreshSessionErrors, RefreshSessionResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResendInviteData, ResendInviteErrors, ResendInviteResponses, ResendVerificationData, ResendVerificationErrors, ResendVerificationResponses, RetryRunData, RetryRunErrors, RetryRunResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, SignInData, SignInErrors, SignInResponses, SignUpData, SignUpErrors, SignUpResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses } from './types.gen';
+import type { AcceptInviteData, AcceptInviteErrors, AcceptInviteResponses, AuthorizeMarketplaceSampleDownloadData, AuthorizeMarketplaceSampleDownloadErrors, AuthorizeMarketplaceSampleDownloadResponses, CancelRunData, CancelRunErrors, CancelRunResponses, ConfirmVerificationData, ConfirmVerificationErrors, ConfirmVerificationResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMarketplaceExpertEnquiryData, CreateMarketplaceExpertEnquiryErrors, CreateMarketplaceExpertEnquiryResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, CreateRunData, CreateRunErrors, CreateRunResponses, CreateServiceData, CreateServiceErrors, CreateServiceResponses, GetActivityData, GetActivityErrors, GetActivityResponses, GetMarketplaceSampleData, GetMarketplaceSampleErrors, GetMarketplaceSampleResponses, GetPlatformStatusData, GetPlatformStatusErrors, GetPlatformStatusResponses, GetRunData, GetRunErrors, GetRunResponses, GetRunResultData, GetRunResultErrors, GetRunResultResponses, GetServiceData, GetServiceErrors, GetServiceResponses, GetTemplateData, GetTemplateErrors, GetTemplateResponses, GetUsageSummaryData, GetUsageSummaryErrors, GetUsageSummaryResponses, GetWorkspaceData, GetWorkspaceErrors, GetWorkspaceResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListOrganizationsData, ListOrganizationsErrors, ListOrganizationsResponses, ListRunEventsData, ListRunEventsErrors, ListRunEventsResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListServicesData, ListServicesErrors, ListServicesResponses, ListTemplatesData, ListTemplatesErrors, ListTemplatesResponses, ListUsageEventsData, ListUsageEventsErrors, ListUsageEventsResponses, LogoutData, LogoutErrors, LogoutResponses, QueryMarketplaceSampleData, QueryMarketplaceSampleErrors, QueryMarketplaceSampleResponses, RefreshSessionData, RefreshSessionErrors, RefreshSessionResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResendInviteData, ResendInviteErrors, ResendInviteResponses, ResendVerificationData, ResendVerificationErrors, ResendVerificationResponses, RestoreSessionData, RestoreSessionErrors, RestoreSessionResponses, RetryRunData, RetryRunErrors, RetryRunResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, SignInData, SignInErrors, SignInResponses, SignUpData, SignUpErrors, SignUpResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -24,9 +24,10 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  * Creates only the local User, legal evidence and audit atomically.
  * Creates no organization, membership, OTP or notification outbox.
  * workspace_name is optional, deprecated and ignored. Makes no Bright Data request.
- * Response is deliberately generic. An existing email follows the same
- * accepted flow; 409 is reserved for the same Idempotency-Key used with a
- * different canonical request body.
+ * A fresh request for an existing email returns 409 ACCOUNT_ALREADY_EXISTS
+ * without changing the existing password or legal evidence. Successful
+ * same-key retries and historical accepted receipts retain 202. A reused
+ * key with a different canonical request returns 409 IDEMPOTENCY_CONFLICT.
  *
  */
 export const signUp = <ThrowOnError extends boolean = false>(options: Options<SignUpData, ThrowOnError>): RequestResult<SignUpResponses, SignUpErrors, ThrowOnError> => (options.client ?? client).post<SignUpResponses, SignUpErrors, ThrowOnError>({
@@ -51,6 +52,13 @@ export const signIn = <ThrowOnError extends boolean = false>(options: Options<Si
         ...options.headers
     }
 });
+
+/**
+ * Restore a signed-in browser after a reload
+ *
+ * Reads the existing active HttpOnly refresh cookie without rotating it. Requires the trusted frontend Origin or same-origin Fetch Metadata. Returns memory-only access and CSRF tokens plus the authenticated email; never returns a refresh secret or changes account/session state.
+ */
+export const restoreSession = <ThrowOnError extends boolean = false>(options?: Options<RestoreSessionData, ThrowOnError>): RequestResult<RestoreSessionResponses, RestoreSessionErrors, ThrowOnError> => (options?.client ?? client).get<RestoreSessionResponses, RestoreSessionErrors, ThrowOnError>({ url: '/v1/auth/session', ...options });
 
 /**
  * Rotate the browser session token family
@@ -294,7 +302,7 @@ export const listOrganizations = <ThrowOnError extends boolean = false>(options?
 /**
  * create Organization
  *
- * Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+ * Signed-in organization creation normally requires fresh email verification. Explicit non-production DEMO_DISABLE_OTP mode completes immediately without OTP. Authentication, CSRF, idempotency and invitation authorization remain required.
  */
 export const createOrganization = <ThrowOnError extends boolean = false>(options: Options<CreateOrganizationData, ThrowOnError>): RequestResult<CreateOrganizationResponses, CreateOrganizationErrors, ThrowOnError> => (options.client ?? client).post<CreateOrganizationResponses, CreateOrganizationErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -309,7 +317,7 @@ export const createOrganization = <ThrowOnError extends boolean = false>(options
 /**
  * accept Invite
  *
- * Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates the token. List responses never reveal token hashes or secrets.
+ * Signed-in organization joining normally requires fresh email verification. Explicit non-production DEMO_DISABLE_OTP mode completes immediately without OTP. Authentication, CSRF, idempotency and invitation authorization remain required.
  */
 export const acceptInvite = <ThrowOnError extends boolean = false>(options: Options<AcceptInviteData, ThrowOnError>): RequestResult<AcceptInviteResponses, AcceptInviteErrors, ThrowOnError> => (options.client ?? client).post<AcceptInviteResponses, AcceptInviteErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -324,7 +332,7 @@ export const acceptInvite = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * request Password Reset
  *
- * Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+ * Normal mode requests email proof before changing a password. Explicit non-production DEMO_DISABLE_OTP mode makes recovery unavailable with 403.
  */
 export const requestPasswordReset = <ThrowOnError extends boolean = false>(options: Options<RequestPasswordResetData, ThrowOnError>): RequestResult<RequestPasswordResetResponses, RequestPasswordResetErrors, ThrowOnError> => (options.client ?? client).post<RequestPasswordResetResponses, RequestPasswordResetErrors, ThrowOnError>({
     url: '/v1/auth/password-reset',
@@ -338,7 +346,7 @@ export const requestPasswordReset = <ThrowOnError extends boolean = false>(optio
 /**
  * confirm Verification
  *
- * Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token. Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second cooldown and five issues per hour across purposes. GET never consumes a proof.
+ * Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token. Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second cooldown and five issues per hour across purposes. GET never consumes a proof. Explicit non-production DEMO_DISABLE_OTP mode disables this endpoint with 403.
  */
 export const confirmVerification = <ThrowOnError extends boolean = false>(options: Options<ConfirmVerificationData, ThrowOnError>): RequestResult<ConfirmVerificationResponses, ConfirmVerificationErrors, ThrowOnError> => (options.client ?? client).post<ConfirmVerificationResponses, ConfirmVerificationErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -353,7 +361,7 @@ export const confirmVerification = <ThrowOnError extends boolean = false>(option
 /**
  * resend Verification
  *
- * Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token. Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second cooldown and five issues per hour across purposes. GET never consumes a proof.
+ * Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token. Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second cooldown and five issues per hour across purposes. GET never consumes a proof. Explicit non-production DEMO_DISABLE_OTP mode disables this endpoint with 403.
  */
 export const resendVerification = <ThrowOnError extends boolean = false>(options: Options<ResendVerificationData, ThrowOnError>): RequestResult<ResendVerificationResponses, ResendVerificationErrors, ThrowOnError> => (options.client ?? client).post<ResendVerificationResponses, ResendVerificationErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

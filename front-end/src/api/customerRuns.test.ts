@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tokenStore } from "../session/tokenStore";
 import { runsApi, serviceExecutionApi } from "./customerRuns";
 
@@ -27,7 +27,10 @@ function requestAt(mock: ReturnType<typeof vi.fn>, index: number): Request {
   return mock.mock.calls[index]?.[0] as Request;
 }
 
+beforeEach(() => { window.history.replaceState(null, "", "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers"); });
+
 afterEach(() => {
+  window.history.replaceState(null, "", "/");
   tokenStore.clear();
   sessionStorage.clear();
   vi.unstubAllGlobals();

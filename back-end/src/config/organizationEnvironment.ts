@@ -1,4 +1,10 @@
 /** Resend uses one backend lifetime; creating an invite keeps its explicit expiry. */
+export function loadOrganizationCollaborationEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const flag = env.ORGANIZATION_COLLABORATION_ENABLED ?? "false";
+  if (flag !== "true" && flag !== "false") throw new Error("ORGANIZATION_COLLABORATION_ENABLED must be true or false");
+  return flag === "true";
+}
+
 export function loadOrganizationInviteResendLifetimeDays(env: NodeJS.ProcessEnv = process.env): number {
   const raw = (env.ORGANIZATION_INVITE_RESEND_LIFETIME_DAYS ?? "7").trim();
   const days = Number(raw);
@@ -15,6 +21,27 @@ export interface OrganizationEmailConfig {
   readonly acsEndpoint?: string;
   readonly acsAccessKey?: string;
 }
+export type OrganizationWorkflowConfig =
+  | { readonly demoDisableOtp: true; readonly publicUrl: string }
+  | { readonly demoDisableOtp: false; readonly publicUrl: string; readonly email: OrganizationEmailConfig };
+
+export function loadOrganizationWorkflowConfig(env: NodeJS.ProcessEnv = process.env): OrganizationWorkflowConfig {
+  const flag = env.DEMO_DISABLE_OTP ?? "false";
+  if (flag !== "true" && flag !== "false") throw new Error("DEMO_DISABLE_OTP must be true or false");
+  if (flag === "false") {
+    const email = loadOrganizationEmailConfig(env);
+    return { demoDisableOtp: false, publicUrl: email.publicUrl, email };
+  }
+  if (env.NODE_ENV === "production" || env.APP_ENVIRONMENT === "production")
+    throw new Error("DEMO_DISABLE_OTP is restricted to non-production demos");
+  const url = new URL(env.APP_PUBLIC_URL ?? env.FRONTEND_ORIGIN ?? "http://localhost:5173");
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.username || url.password || url.search || url.hash || url.pathname !== "/" ||
+      (url.protocol !== "https:" && !(local && url.protocol === "http:")))
+    throw new Error("The demo public URL must be a trusted frontend origin");
+  return { demoDisableOtp: true, publicUrl: url.origin };
+}
+
 export function loadOrganizationEmailConfig(env: NodeJS.ProcessEnv = process.env): OrganizationEmailConfig {
   const otpSecret = env.OTP_SECRET ?? "";
   if (Buffer.byteLength(otpSecret) < 32) throw new Error("OTP_SECRET must contain at least 32 bytes");

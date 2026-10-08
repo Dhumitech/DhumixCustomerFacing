@@ -77,6 +77,7 @@ playwright-report/
 
 # Local runtime evidence can contain transient sessions and signed URLs.
 /back-end/.runtime/
+.runtime/
 /back-end/scripts/audit/output/
 /back-end/tests/privileged/**/evidence/
 /back-end/*-proof.txt
@@ -105,12 +106,36 @@ Desktop.ini
 *.swo
 *~
 
+# Browser/network/security captures may contain cookies, bearer tokens or data.
+# Keep source, regression tests and reviewed runbooks; exclude raw captures.
+*.har
+*.network-request
+*.network-response
+*.heapsnapshot
+*.heapprofile
+*.cpuprofile
+*.trace.json
+*.trace.json.gz
+
+# Per-machine cloud/database authentication; never share these through Git.
+.azure/
+.ssh/
+.pgpass
+pgpass.conf
+pg_service.conf
+
+# Derived Azure compilation/preview output. Bicep and blank examples stay eligible.
+/deploy/azure/*.template.json
+/deploy/azure/*.what-if.json
+
 # Local review exports are derived copies, never the runtime system of record.
 **/Outputs/*
 !/Outputs/README.md
 
 # Local database and emulator state. Keep migrations and bootstrap SQL tracked.
 *.dump
+*.dmp
+*.sql.gz
 *.backup
 *.bak
 *.pgerd

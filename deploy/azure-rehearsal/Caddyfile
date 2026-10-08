@@ -1,0 +1,22 @@
+{
+  auto_https off
+  admin off
+}
+
+:8080 {
+  header {
+    defer
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  }
+  handle /v1/* {
+    reverse_proxy {$DHUMI_API_UPSTREAM:api:3000}
+  }
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+}

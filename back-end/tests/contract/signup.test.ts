@@ -164,6 +164,20 @@ afterEach(async () => {
 });
 
 describe("POST /v1/auth/signup contract", () => {
+  it("returns a distinct duplicate-account Problem with support information", async () => {
+    service.failWith = new ApplicationError({
+      status: 409, code: "ACCOUNT_ALREADY_EXISTS", title: "Account already exists",
+      detail: "An account with this email already exists. Sign in to continue. If you forgot your password, contact dhumitechnologies@gmail.com.",
+    });
+    app = await buildApp(testConfig(), appDependencies());
+    const response = await post(app, validBody());
+    expect(response.statusCode).toBe(409);
+    expect(response.headers["content-type"]).toContain("application/problem+json");
+    expect(response.json()).toMatchObject({ code: "ACCOUNT_ALREADY_EXISTS", status: 409,
+      detail: expect.stringContaining("dhumitechnologies@gmail.com") });
+    expect(response.json()).not.toHaveProperty("accepted");
+    expect(JSON.stringify(response.json())).not.toContain("customer@example.test");
+  });
   it("returns the fixed 202 accepted body", async () => {
     app = await buildApp(testConfig(), appDependencies());
 

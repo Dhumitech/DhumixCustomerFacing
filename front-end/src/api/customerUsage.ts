@@ -1,4 +1,4 @@
-import { organizationHeaders } from "./organizationScope";
+import { organizationHeaders, selectedOrganization } from "./organizationScope";
 import { dhumiClient } from "./client";
 import { asDhumiRequest } from "./errors";
 import {
@@ -20,11 +20,15 @@ export interface UsageEventRequest extends UsageTimeRange {
 }
 
 export const usageApi = Object.freeze({
-  async summary(range: UsageTimeRange): Promise<UsageSummary> {
-    const scope = organizationHeaders();
+  async summary(
+    range: UsageTimeRange,
+    organizationId = selectedOrganization(),
+  ): Promise<UsageSummary> {
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedGetUsageSummary({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         query: range,
         throwOnError: true,
       }),
@@ -32,11 +36,15 @@ export const usageApi = Object.freeze({
     return response.data;
   },
 
-  async events(request: UsageEventRequest): Promise<UsageEventPage> {
-    const scope = organizationHeaders();
+  async events(
+    request: UsageEventRequest,
+    organizationId = selectedOrganization(),
+  ): Promise<UsageEventPage> {
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedListUsageEvents({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         query: {
           from: request.from,
           to: request.to,

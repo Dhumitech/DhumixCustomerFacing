@@ -12,6 +12,7 @@ describeRedis("Redis capacity lease adapter", () => {
       keyPrefix: `dhumi:test:${randomUUID()}`,
     });
     const resourceId = randomUUID();
+    let finalLease: Awaited<ReturnType<typeof store.acquire>> = null;
     try {
       const first = await store.acquire(resourceId, 5_000);
       expect(first).not.toBeNull();
@@ -21,8 +22,10 @@ describeRedis("Redis capacity lease adapter", () => {
       await expect(store.release({ ...lease, token: randomUUID() })).resolves.toBe(false);
       await expect(store.renew(lease, 5_000)).resolves.toBe(true);
       await expect(store.release(lease)).resolves.toBe(true);
-      await expect(store.acquire(resourceId, 5_000)).resolves.not.toBeNull();
+      finalLease = await store.acquire(resourceId, 5_000);
+      expect(finalLease).not.toBeNull();
     } finally {
+      if (finalLease) await store.release(finalLease);
       await store.close();
     }
   });

@@ -1,6 +1,9 @@
-import { readFileSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { addResultStorageChecks, resultStorageConfiguration, resultStorageEnvironmentShape } from "./resultStorageEnvironment.js";
+import { addDatabaseTlsChecks, databaseTlsConfiguration, databaseTlsEnvironmentShape } from "./databaseTlsEnvironment.js";
 import { z } from "zod";
+import { serviceBusEnvironmentShape, addServiceBusChecks, serviceBusConfiguration, type ServiceBusRuntimeConfig } from "./serviceBusEnvironment.js";
+import { redisConnectionKind } from "./redisEnvironment.js";
+export type { ServiceBusEmulatorRuntimeConfig } from "./serviceBusEnvironment.js";
 import {
   ConfigurationError,
   type DatabaseCredentialConfig,
@@ -44,19 +47,10 @@ const databaseShape = {
     .min(1_000)
     .max(600_000)
     .default(30_000),
-  DATABASE_SSL_MODE: z.enum(["disable", "verify-full"]).default("disable"),
-  DATABASE_SSL_CA_FILE: z.string().trim().optional(),
+  ...databaseTlsEnvironmentShape,
 };
 
-const serviceBusShape = {
-  SERVICE_BUS_DRIVER: z.literal("emulator"),
-  SERVICE_BUS_CONNECTION_STRING: z.string().trim().min(1).max(2_048),
-  SERVICE_BUS_RUN_COMMAND_QUEUE: z
-    .string()
-    .trim()
-    .regex(/^[a-z0-9](?:[a-z0-9._-]{0,48}[a-z0-9])?$/)
-    .default("dhumi-run-commands"),
-};
+const serviceBusShape = serviceBusEnvironmentShape;
 
 function addSharedWorkerChecks(
   value: {
@@ -65,7 +59,7 @@ function addSharedWorkerChecks(
     readonly DATABASE_POOL_MAX: number;
     readonly DATABASE_SSL_MODE: "disable" | "verify-full";
     readonly DATABASE_SSL_CA_FILE?: string | undefined;
-    readonly SERVICE_BUS_CONNECTION_STRING: string;
+    readonly DATABASE_SSL_CA_BASE64?: string | undefined;
   },
   context: z.RefinementCtx,
 ): void {
@@ -76,26 +70,9 @@ function addSharedWorkerChecks(
       message: "must not exceed DATABASE_POOL_MAX",
     });
   }
-  if (value.DATABASE_SSL_MODE === "verify-full" && !value.DATABASE_SSL_CA_FILE) {
-    context.addIssue({
-      code: "custom",
-      path: ["DATABASE_SSL_CA_FILE"],
-      message: "is required when DATABASE_SSL_MODE is verify-full",
-    });
-  }
-  if (value.NODE_ENV === "production") {
-    context.addIssue({
-      code: "custom",
-      path: ["SERVICE_BUS_DRIVER"],
-      message: "the local Service Bus emulator is forbidden in production",
-    });
-  }
-  if (!/(?:^|;)UseDevelopmentEmulator=true(?:;|$)/i.test(value.SERVICE_BUS_CONNECTION_STRING)) {
-    context.addIssue({
-      code: "custom",
-      path: ["SERVICE_BUS_CONNECTION_STRING"],
-      message: "must be an emulator connection string",
-    });
+  addDatabaseTlsChecks(value, context);
+  if (value.NODE_ENV === "production" && value.DATABASE_SSL_MODE !== "verify-full") {
+    context.addIssue({ code: "custom", path: ["DATABASE_SSL_MODE"], message: "must be verify-full in production" });
   }
 }
 
@@ -120,7 +97,7 @@ const outboxDispatcherSchema = z
       .max(600_000)
       .default(60_000),
   })
-  .superRefine((value, context) => addSharedWorkerChecks(value, context));
+  .superRefine((value, context) => { addSharedWorkerChecks(value, context); addServiceBusChecks(value, context, "sender"); });
 
 const deadLetterRecoverySchema = z
   .object({
@@ -131,7 +108,7 @@ const deadLetterRecoverySchema = z
     DATABASE_OPERATOR_PASSWORD: z.string().min(20),
     ...serviceBusShape,
   })
-  .superRefine((value, context) => addSharedWorkerChecks(value, context));
+  .superRefine((value, context) => { addSharedWorkerChecks(value, context); addServiceBusChecks(value, context, "receiver"); });
 
 const jobManagerSchema = z
   .object({
@@ -171,19 +148,8 @@ const jobManagerSchema = z
       .min(5_000)
       .max(300_000)
       .default(60_000),
-    RESULT_STORAGE_DRIVER: z.literal("azurite"),
-    RESULT_STORAGE_CONNECTION_STRING: z.string().trim().min(1).max(2_048),
-    RESULT_STORAGE_CONTAINER: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/)
-      .default("dhumi-results"),
-    RESULT_MAX_BYTES: z.coerce
-      .number()
-      .int()
-      .min(1_024)
-      .max(1_073_741_824)
-      .default(104_857_600),
+    ...resultStorageEnvironmentShape,
+    RESULT_STORAGE_DRIVER: z.enum(["azurite", "azure_blob"]),
     RUN_EXECUTOR_DRIVER: z.enum(["controlled", "bright_data"]).default("controlled"),
     SHARED_SCRAPER_PIPELINE_ENABLED: z.enum(["true", "false"]).default("false"),
     PROVIDER_SECRET_DRIVER: z.literal("environment").default("environment"),
@@ -216,6 +182,7 @@ const jobManagerSchema = z
   })
   .superRefine((value, context) => {
     addSharedWorkerChecks(value, context);
+    addServiceBusChecks(value, context, "receiver");
     if (value.JOB_MANAGER_RENEW_INTERVAL_MS * 2 >= value.JOB_MANAGER_ATTEMPT_LEASE_MS) {
       context.addIssue({
         code: "custom",
@@ -223,31 +190,14 @@ const jobManagerSchema = z
         message: "must be less than half of JOB_MANAGER_ATTEMPT_LEASE_MS",
       });
     }
-    const redis = new URL(value.REDIS_URL);
-    if (
-      redis.protocol !== "redis:" ||
-      !["127.0.0.1", "localhost"].includes(redis.hostname) ||
-      redis.username !== "" ||
-      redis.password !== ""
-    ) {
+    try { redisConnectionKind(value.REDIS_URL, value.NODE_ENV); } catch (error) {
       context.addIssue({
         code: "custom",
         path: ["REDIS_URL"],
-        message: "must target unauthenticated loopback Redis for local Pattern 4",
+        message: error instanceof Error ? error.message : "Invalid Redis connection",
       });
     }
-    if (
-      value.RESULT_STORAGE_CONNECTION_STRING !== "UseDevelopmentStorage=true" &&
-      !/(?:^|;)BlobEndpoint=http:\/\/(?:127\.0\.0\.1|localhost)(?::[0-9]{1,5})?\//i.test(
-        value.RESULT_STORAGE_CONNECTION_STRING,
-      )
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["RESULT_STORAGE_CONNECTION_STRING"],
-        message: "must target loopback Azurite",
-      });
-    }
+    addResultStorageChecks(value, context);
     if (value.RUN_EXECUTOR_DRIVER === "bright_data" && value.PROVIDER_REFERENCE_LOCAL_KEY === undefined) {
       context.addIssue({
         code: "custom",
@@ -279,17 +229,11 @@ export interface Pattern4DatabaseRuntimeConfig {
   readonly ssl: false | { readonly ca: string; readonly rejectUnauthorized: true };
 }
 
-export interface ServiceBusEmulatorRuntimeConfig {
-  readonly driver: "emulator";
-  readonly connectionString: string;
-  readonly queueName: string;
-}
-
 export interface OutboxDispatcherRuntimeConfig {
   readonly nodeEnv: "development" | "test" | "production";
   readonly logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   readonly database: Pattern4DatabaseRuntimeConfig;
-  readonly serviceBus: ServiceBusEmulatorRuntimeConfig;
+  readonly serviceBus: ServiceBusRuntimeConfig;
   readonly dispatcherId: string;
   readonly batchSize: number;
   readonly intervalMs: number;
@@ -301,14 +245,14 @@ export interface JobManagerRuntimeConfig {
   readonly logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   readonly database: Pattern4DatabaseRuntimeConfig;
   readonly resultRecorderDatabase: Pattern4DatabaseRuntimeConfig;
-  readonly serviceBus: ServiceBusEmulatorRuntimeConfig;
+  readonly serviceBus: ServiceBusRuntimeConfig;
   readonly concurrency: number;
   readonly attemptLeaseMs: number;
   readonly renewIntervalMs: number;
   readonly redisUrl: string;
   readonly redisLeasePrefix: string;
   readonly redisCapacityLeaseMs: number;
-  readonly resultStorage: ResultStorageRuntimeConfig & { readonly driver: "azurite" };
+  readonly resultStorage: ResultStorageRuntimeConfig & { readonly driver: "azurite" | "azure_blob" };
   readonly executor:
     | { readonly driver: "controlled" }
     | {
@@ -328,7 +272,7 @@ export interface DeadLetterRecoveryRuntimeConfig {
   readonly nodeEnv: "development" | "test" | "production";
   readonly logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   readonly database: Pattern4DatabaseRuntimeConfig;
-  readonly serviceBus: ServiceBusEmulatorRuntimeConfig;
+  readonly serviceBus: ServiceBusRuntimeConfig;
 }
 
 function configurationIssues(error: z.ZodError): string {
@@ -337,22 +281,6 @@ function configurationIssues(error: z.ZodError): string {
       error.issues.map((issue) => `${issue.path.join(".") || "environment"} (${issue.message})`),
     ),
   ].join("; ");
-}
-
-function sslConfiguration(value: {
-  readonly DATABASE_SSL_MODE: "disable" | "verify-full";
-  readonly DATABASE_SSL_CA_FILE?: string | undefined;
-}): false | { readonly ca: string; readonly rejectUnauthorized: true } {
-  if (value.DATABASE_SSL_MODE === "disable") return false;
-  const path = value.DATABASE_SSL_CA_FILE as string;
-  if (!isAbsolute(path)) throw new ConfigurationError("DATABASE_SSL_CA_FILE must be absolute");
-  try {
-    return { ca: readFileSync(path, "utf8"), rejectUnauthorized: true };
-  } catch (error) {
-    throw new ConfigurationError(
-      `DATABASE_SSL_CA_FILE could not be read: ${error instanceof Error ? error.name : "Error"}`,
-    );
-  }
 }
 
 function databaseConfiguration(
@@ -374,18 +302,7 @@ function databaseConfiguration(
     statementTimeoutMs: value.DATABASE_STATEMENT_TIMEOUT_MS,
     queryTimeoutMs: value.DATABASE_QUERY_TIMEOUT_MS,
     idleTransactionTimeoutMs: value.DATABASE_IDLE_TRANSACTION_TIMEOUT_MS,
-    ssl: sslConfiguration(value),
-  });
-}
-
-function serviceBusConfiguration(value: {
-  readonly SERVICE_BUS_CONNECTION_STRING: string;
-  readonly SERVICE_BUS_RUN_COMMAND_QUEUE: string;
-}): ServiceBusEmulatorRuntimeConfig {
-  return Object.freeze({
-    driver: "emulator" as const,
-    connectionString: value.SERVICE_BUS_CONNECTION_STRING,
-    queueName: value.SERVICE_BUS_RUN_COMMAND_QUEUE,
+    ssl: databaseTlsConfiguration(value, ConfigurationError),
   });
 }
 
@@ -402,7 +319,7 @@ export function loadOutboxDispatcherConfig(
       user: value.DATABASE_OUTBOX_DISPATCHER_USER,
       password: value.DATABASE_OUTBOX_DISPATCHER_PASSWORD,
     }),
-    serviceBus: serviceBusConfiguration(value),
+    serviceBus: serviceBusConfiguration(value, "sender"),
     dispatcherId: value.OUTBOX_DISPATCHER_ID,
     batchSize: value.OUTBOX_DISPATCHER_BATCH_SIZE,
     intervalMs: value.OUTBOX_DISPATCHER_INTERVAL_MS,
@@ -441,20 +358,14 @@ export function loadJobManagerConfig(
       user: value.DATABASE_RESULT_RECORDER_USER,
       password: value.DATABASE_RESULT_RECORDER_PASSWORD,
     }),
-    serviceBus: serviceBusConfiguration(value),
+    serviceBus: serviceBusConfiguration(value, "receiver"),
     concurrency: value.JOB_MANAGER_CONCURRENCY,
     attemptLeaseMs: value.JOB_MANAGER_ATTEMPT_LEASE_MS,
     renewIntervalMs: value.JOB_MANAGER_RENEW_INTERVAL_MS,
     redisUrl: value.REDIS_URL,
     redisLeasePrefix: value.REDIS_LEASE_PREFIX,
     redisCapacityLeaseMs: value.REDIS_CAPACITY_LEASE_MS,
-    resultStorage: Object.freeze({
-      driver: value.RESULT_STORAGE_DRIVER,
-      connectionString: value.RESULT_STORAGE_CONNECTION_STRING,
-      containerName: value.RESULT_STORAGE_CONTAINER,
-      downloadTtlSeconds: 300,
-      maxBytes: value.RESULT_MAX_BYTES,
-    }),
+    resultStorage: resultStorageConfiguration(value) as JobManagerRuntimeConfig["resultStorage"],
     executor,
   });
 }
@@ -472,6 +383,6 @@ export function loadDeadLetterRecoveryConfig(
       user: value.DATABASE_OPERATOR_USER,
       password: value.DATABASE_OPERATOR_PASSWORD,
     }),
-    serviceBus: serviceBusConfiguration(value),
+    serviceBus: serviceBusConfiguration(value, "receiver"),
   });
 }

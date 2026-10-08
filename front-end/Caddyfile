@@ -1,0 +1,25 @@
+{$DHUMI_SITE_ADDRESS} {
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  }
+  handle /v1/* {
+    reverse_proxy azurite:3000
+  }
+  handle_path /blob/* {
+    @read method GET HEAD
+    handle @read {
+      reverse_proxy azurite:10000 {
+        header_up Host localhost:10000
+      }
+    }
+    respond "Method not allowed" 405
+  }
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+}

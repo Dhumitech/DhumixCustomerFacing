@@ -10,6 +10,10 @@ export interface WorkflowMail { recipient: string; subject: string; text: string
 export type MailOutcome = "accepted" | "configuration_error" | "rate_limited" | "uncertain";
 export interface MailReceipt { outcome: MailOutcome; operationId: string; operationLocation?: string; retryAfterSeconds?: number }
 export interface WorkflowEmailSender { send(mail: WorkflowMail): Promise<MailOutcome | MailReceipt>; close(): void }
+/** Demo operations never deliver mail; an unexpected send fails explicitly. */
+export function createDisabledEmailSender(): WorkflowEmailSender {
+  return { async send() { return "configuration_error"; }, close() {} };
+}
 export function verificationMail(input: {
   recipient: string; id: string; code: string; token?: string; purpose: VerificationPurpose; publicUrl: string; traceId: string;
 }): WorkflowMail {

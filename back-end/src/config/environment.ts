@@ -1,5 +1,6 @@
-import { isAbsolute } from "node:path";
-import { readFileSync } from "node:fs";
+import { addResultStorageChecks, resultStorageConfiguration, resultStorageEnvironmentShape, type ResultStorageRuntimeConfig } from "./resultStorageEnvironment.js";
+export type { ResultStorageRuntimeConfig } from "./resultStorageEnvironment.js";
+import { addDatabaseTlsChecks, databaseTlsConfiguration, databaseTlsEnvironmentShape } from "./databaseTlsEnvironment.js";
 import { z } from "zod";
 
 const roleName = z
@@ -72,6 +73,7 @@ const environmentSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     HOST: z.string().trim().min(1).default("127.0.0.1"),
     PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(1).default(0),
     LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
       .default("info"),
@@ -98,8 +100,7 @@ const environmentSchema = z
       .min(1_000)
       .max(600_000)
       .default(30_000),
-    DATABASE_SSL_MODE: z.enum(["disable", "verify-full"]).default("disable"),
-    DATABASE_SSL_CA_FILE: z.string().trim().optional(),
+    ...databaseTlsEnvironmentShape,
 
     // Approved legal documents as a JSON array. Deliberately empty by default:
     // real document versions and content hashes come from approved legal text
@@ -171,22 +172,8 @@ const environmentSchema = z
     // it; production must use a managed secret provider.
     BRIGHTDATA_API_KEY: z.string().trim().min(20).max(512).optional(),
 
-    // Pattern 3 local result boundary. Production remains fail-closed until
-    // the managed-identity Azure Blob adapter is deployed and verified.
-    RESULT_STORAGE_DRIVER: z.enum(["unavailable", "azurite"]).default("unavailable"),
-    RESULT_STORAGE_CONNECTION_STRING: z.string().trim().min(1).max(2_048).optional(),
-    RESULT_STORAGE_CONTAINER: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/)
-      .default("dhumi-results"),
-    RESULT_DOWNLOAD_TTL_SECONDS: z.coerce.number().int().min(30).max(900).default(300),
-    RESULT_MAX_BYTES: z.coerce
-      .number()
-      .int()
-      .min(1_024)
-      .max(1_073_741_824)
-      .default(104_857_600),
+    ...resultStorageEnvironmentShape,
+    RESULT_DOWNLOAD_PROXY_URL: z.preprocess(value => value === "" ? undefined : value, z.url().optional()),
     // Dhumi-owned stored-sample safety controls. These are deliberately not
     // derived from provider purchase/export limits.
     MARKETPLACE_SAMPLE_DOWNLOAD_MAX_RECORDS: z.coerce.number().int().min(1).max(100).default(100),
@@ -195,6 +182,8 @@ const environmentSchema = z
     MARKETPLACE_SAMPLE_DOWNLOAD_RATE_WINDOW_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3_600),
   })
   .superRefine((value, context) => {
+    if (value.RESULT_DOWNLOAD_PROXY_URL && value.RESULT_DOWNLOAD_PROXY_URL !== `${value.FRONTEND_ORIGIN}/blob`)
+      context.addIssue({ code: "custom", path: ["RESULT_DOWNLOAD_PROXY_URL"], message: "must match FRONTEND_ORIGIN plus /blob" });
     if (forbiddenRuntimeLoginRoles.has(value.DATABASE_IDENTITY_USER)) {
       context.addIssue({
         code: "custom",
@@ -264,13 +253,7 @@ const environmentSchema = z
       });
     }
 
-    if (value.DATABASE_SSL_MODE === "verify-full" && !value.DATABASE_SSL_CA_FILE) {
-      context.addIssue({
-        code: "custom",
-        path: ["DATABASE_SSL_CA_FILE"],
-        message: "is required when DATABASE_SSL_MODE is verify-full",
-      });
-    }
+    addDatabaseTlsChecks(value, context);
 
     if (value.NODE_ENV === "production" && value.BRIGHTDATA_API_KEY !== undefined) {
       context.addIssue({
@@ -280,39 +263,7 @@ const environmentSchema = z
       });
     }
 
-    if (
-      value.RESULT_STORAGE_DRIVER === "azurite" &&
-      value.RESULT_STORAGE_CONNECTION_STRING === undefined
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["RESULT_STORAGE_CONNECTION_STRING"],
-        message: "is required when RESULT_STORAGE_DRIVER is azurite",
-      });
-    }
-
-    if (
-      value.RESULT_STORAGE_DRIVER === "azurite" &&
-      value.RESULT_STORAGE_CONNECTION_STRING !== undefined &&
-      value.RESULT_STORAGE_CONNECTION_STRING !== "UseDevelopmentStorage=true" &&
-      !/(?:^|;)BlobEndpoint=http:\/\/(?:127\.0\.0\.1|localhost)(?::[0-9]{1,5})?\//i.test(
-        value.RESULT_STORAGE_CONNECTION_STRING,
-      )
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["RESULT_STORAGE_CONNECTION_STRING"],
-        message: "must target loopback Azurite",
-      });
-    }
-
-    if (value.NODE_ENV === "production" && value.RESULT_STORAGE_DRIVER !== "unavailable") {
-      context.addIssue({
-        code: "custom",
-        path: ["RESULT_STORAGE_DRIVER"],
-        message: "Azurite is forbidden in production",
-      });
-    }
+    addResultStorageChecks(value, context);
   });
 
 const resultRecorderEnvironmentSchema = z
@@ -340,22 +291,9 @@ const resultRecorderEnvironmentSchema = z
       .min(1_000)
       .max(600_000)
       .default(30_000),
-    DATABASE_SSL_MODE: z.enum(["disable", "verify-full"]).default("disable"),
-    DATABASE_SSL_CA_FILE: z.string().trim().optional(),
-    RESULT_STORAGE_DRIVER: z.literal("azurite"),
-    RESULT_STORAGE_CONNECTION_STRING: z.string().trim().min(1).max(2_048),
-    RESULT_STORAGE_CONTAINER: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/)
-      .default("dhumi-results"),
-    RESULT_DOWNLOAD_TTL_SECONDS: z.coerce.number().int().min(30).max(900).default(300),
-    RESULT_MAX_BYTES: z.coerce
-      .number()
-      .int()
-      .min(1_024)
-      .max(1_073_741_824)
-      .default(104_857_600),
+    ...databaseTlsEnvironmentShape,
+    ...resultStorageEnvironmentShape,
+    RESULT_STORAGE_DRIVER: z.enum(["azurite", "azure_blob"]),
   })
   .superRefine((value, context) => {
     if (forbiddenRuntimeLoginRoles.has(value.DATABASE_RESULT_RECORDER_USER)) {
@@ -372,32 +310,8 @@ const resultRecorderEnvironmentSchema = z
         message: "must not exceed DATABASE_POOL_MAX",
       });
     }
-    if (
-      value.RESULT_STORAGE_CONNECTION_STRING !== "UseDevelopmentStorage=true" &&
-      !/(?:^|;)BlobEndpoint=http:\/\/(?:127\.0\.0\.1|localhost)(?::[0-9]{1,5})?\//i.test(
-        value.RESULT_STORAGE_CONNECTION_STRING,
-      )
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["RESULT_STORAGE_CONNECTION_STRING"],
-        message: "must target loopback Azurite",
-      });
-    }
-    if (value.NODE_ENV === "production") {
-      context.addIssue({
-        code: "custom",
-        path: ["RESULT_STORAGE_DRIVER"],
-        message: "Azurite is forbidden in production",
-      });
-    }
-    if (value.DATABASE_SSL_MODE === "verify-full" && !value.DATABASE_SSL_CA_FILE) {
-      context.addIssue({
-        code: "custom",
-        path: ["DATABASE_SSL_CA_FILE"],
-        message: "is required when DATABASE_SSL_MODE is verify-full",
-      });
-    }
+    addResultStorageChecks(value, context);
+    addDatabaseTlsChecks(value, context);
   });
 
 export class ConfigurationError extends Error {
@@ -499,14 +413,6 @@ export interface LockoutConfig {
   readonly windowMs: number;
 }
 
-export interface ResultStorageRuntimeConfig {
-  readonly driver: "unavailable" | "azurite";
-  readonly connectionString: string | null;
-  readonly containerName: string;
-  readonly downloadTtlSeconds: number;
-  readonly maxBytes: number;
-}
-
 export interface MarketplaceSampleDownloadRuntimeConfig {
   readonly maxRecords: number;
   readonly maxBytes: number;
@@ -516,6 +422,8 @@ export interface MarketplaceSampleDownloadRuntimeConfig {
 }
 
 export interface RuntimeConfig {
+  /** One private edge proxy only; direct runtime rejects forwarded identity. */
+  readonly trustedProxyHops?: number;
   readonly nodeEnv: "development" | "test" | "production";
   readonly host: string;
   readonly port: number;
@@ -538,7 +446,7 @@ export interface ResultRecorderRuntimeConfig {
   readonly nodeEnv: "development" | "test" | "production";
   readonly logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   readonly database: ResultRecorderDatabaseRuntimeConfig;
-  readonly resultStorage: ResultStorageRuntimeConfig & { readonly driver: "azurite" };
+  readonly resultStorage: ResultStorageRuntimeConfig & { readonly driver: "azurite" | "azure_blob" };
 }
 
 function formatConfigurationIssues(error: z.ZodError): string {
@@ -550,18 +458,6 @@ function formatConfigurationIssues(error: z.ZodError): string {
     ),
   ];
   return `Invalid environment configuration: ${issues.sort().join(", ")}`;
-}
-
-function readCertificateAuthority(path: string): string {
-  if (!isAbsolute(path)) {
-    throw new ConfigurationError("DATABASE_SSL_CA_FILE must be an absolute path");
-  }
-
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    throw new ConfigurationError("DATABASE_SSL_CA_FILE could not be read");
-  }
 }
 
 function parseLegalCatalogue(raw: string, nodeEnv: string): LegalRuntimeConfig["documents"] {
@@ -638,17 +534,12 @@ export function loadRuntimeConfig(source: NodeJS.ProcessEnv = process.env): Runt
     ...new Set(legalDocuments.map((document) => document.documentType)),
   ].sort();
 
-  const ssl =
-    value.DATABASE_SSL_MODE === "verify-full"
-      ? {
-          ca: readCertificateAuthority(value.DATABASE_SSL_CA_FILE as string),
-          rejectUnauthorized: true as const,
-        }
-      : false;
+  const ssl = databaseTlsConfiguration(value, ConfigurationError);
 
   return Object.freeze({
     nodeEnv: value.NODE_ENV,
     host: value.HOST,
+    trustedProxyHops: value.TRUST_PROXY_HOPS,
     port: value.PORT,
     logLevel: value.LOG_LEVEL,
     frontendOrigin: value.FRONTEND_ORIGIN,
@@ -691,20 +582,14 @@ export function loadRuntimeConfig(source: NodeJS.ProcessEnv = process.env): Runt
         domain: value.SESSION_COOKIE_DOMAIN,
         // Never negotiable in production. A refresh cookie sent over plaintext
         // is a session handed to anyone on the path.
-        secure: value.NODE_ENV === "production",
+        secure: value.NODE_ENV === "production" || new URL(value.FRONTEND_ORIGIN).protocol === "https:",
       }),
     }),
     lockout: Object.freeze({
       threshold: value.SIGNIN_LOCKOUT_THRESHOLD,
       windowMs: value.SIGNIN_LOCKOUT_WINDOW_MS,
     }),
-    resultStorage: Object.freeze({
-      driver: value.RESULT_STORAGE_DRIVER,
-      connectionString: value.RESULT_STORAGE_CONNECTION_STRING ?? null,
-      containerName: value.RESULT_STORAGE_CONTAINER,
-      downloadTtlSeconds: value.RESULT_DOWNLOAD_TTL_SECONDS,
-      maxBytes: value.RESULT_MAX_BYTES,
-    }),
+    resultStorage: resultStorageConfiguration(value),
     marketplaceSampleDownload: Object.freeze({
       maxRecords: value.MARKETPLACE_SAMPLE_DOWNLOAD_MAX_RECORDS,
       maxBytes: value.MARKETPLACE_SAMPLE_DOWNLOAD_MAX_BYTES,
@@ -748,13 +633,7 @@ export function loadResultRecorderConfig(
     throw new ConfigurationError(formatConfigurationIssues(parsed.error));
   }
   const value = parsed.data;
-  const ssl =
-    value.DATABASE_SSL_MODE === "verify-full"
-      ? {
-          ca: readCertificateAuthority(value.DATABASE_SSL_CA_FILE as string),
-          rejectUnauthorized: true as const,
-        }
-      : false;
+  const ssl = databaseTlsConfiguration(value, ConfigurationError);
 
   return Object.freeze({
     nodeEnv: value.NODE_ENV,
@@ -776,12 +655,6 @@ export function loadResultRecorderConfig(
       idleTransactionTimeoutMs: value.DATABASE_IDLE_TRANSACTION_TIMEOUT_MS,
       ssl,
     }),
-    resultStorage: Object.freeze({
-      driver: value.RESULT_STORAGE_DRIVER,
-      connectionString: value.RESULT_STORAGE_CONNECTION_STRING,
-      containerName: value.RESULT_STORAGE_CONTAINER,
-      downloadTtlSeconds: value.RESULT_DOWNLOAD_TTL_SECONDS,
-      maxBytes: value.RESULT_MAX_BYTES,
-    }),
+    resultStorage: resultStorageConfiguration(value) as ResultRecorderRuntimeConfig["resultStorage"],
   });
 }

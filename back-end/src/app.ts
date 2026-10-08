@@ -13,6 +13,7 @@ import type { BrowserAuthenticationService } from "./services/identity/browserAu
 import type { LogoutService } from "./services/identity/logoutService.js";
 import type { SignInService } from "./services/identity/signInService.js";
 import type { RefreshService } from "./services/identity/refreshService.js";
+import type { RestoreSessionService } from "./services/identity/restoreSessionService.js";
 import type { SignupService } from "./services/identity/signupService.js";
 import type { TenantAuthorizationService } from "./services/tenantAccess/tenantAuthorizationService.js";
 import type { WorkspaceService } from "./services/workspace/workspaceService.js";
@@ -42,6 +43,7 @@ export interface AppDependencies {
   readonly signupService: SignupService;
   readonly signInService: SignInService;
   readonly refreshService: RefreshService;
+  readonly restoreSessionService?: RestoreSessionService;
   readonly browserAuthenticationService: BrowserAuthenticationService;
   readonly logoutService: LogoutService;
   readonly tenantAuthorizationService: TenantAuthorizationService;
@@ -208,7 +210,7 @@ export async function buildApp(
     connectionTimeout: 10_000,
     requestTimeout: 30_000,
     keepAliveTimeout: 72_000,
-    trustProxy: false,
+    trustProxy: config.trustedProxyHops === 1 ? (_address, hop) => hop === 0 : false,
     ajv: {
       customOptions: {
         // Fastify defaults to removeAdditional: true, which silently strips a
@@ -228,6 +230,7 @@ export async function buildApp(
   });
   app.decorate("signInService", dependencies.signInService);
   app.decorate("refreshService", dependencies.refreshService);
+  app.decorate("restoreSessionService", dependencies.restoreSessionService ?? { async restore() { throw new Error("Session restoration is not composed in this test"); } });
   app.decorate("browserAuthenticationService", dependencies.browserAuthenticationService);
   app.decorate("logoutService", dependencies.logoutService);
   app.decorate("tenantAuthorizationService", dependencies.tenantAuthorizationService);

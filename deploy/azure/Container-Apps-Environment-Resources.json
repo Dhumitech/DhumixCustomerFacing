@@ -1,0 +1,59 @@
+{
+  "recordDateIndia": "2026-10-09",
+  "recordedAtUtc": "2026-10-08T20:41:11.8442108Z",
+  "subscriptionId": "373d10ba-f7db-4db1-938b-14a73655bb0a",
+  "resourceGroup": "rg-dhumcustomerfacing-centralindia",
+  "status": "Succeeded",
+  "environment": {
+    "defaultDomain": "bluerock-9b30fd6a.centralindia.azurecontainerapps.io",
+    "id": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.App/managedEnvironments/cae-dhumi-ci-01",
+    "infrastructureResourceGroup": "rg-dhumi-aca-managed-ci-01",
+    "internal": false,
+    "location": "Central India",
+    "logsDestination": "log-analytics",
+    "name": "cae-dhumi-ci-01",
+    "profiles": [
+      {
+        "enableFips": false,
+        "name": "Consumption",
+        "workloadProfileType": "Consumption"
+      }
+    ],
+    "state": "Succeeded",
+    "staticIp": "4.187.136.94",
+    "subnet": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.Network/virtualNetworks/vnet-dhumi-ci-01/subnets/snet-containerapps",
+    "workspaceCustomerId": "45a8268a-65e1-415c-8ace-bb8a9b2a2a30",
+    "zoneRedundant": true
+  },
+  "workspace": {
+    "customerId": "45a8268a-65e1-415c-8ace-bb8a9b2a2a30",
+    "id": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.OperationalInsights/workspaces/law-dhumi-ci-01",
+    "location": "centralindia",
+    "name": "law-dhumi-ci-01",
+    "retentionDays": 30,
+    "sku": "PerGB2018",
+    "state": "Succeeded"
+  },
+  "network": {
+    "id": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.Network/virtualNetworks/vnet-dhumi-ci-01",
+    "location": "centralindia",
+    "name": "vnet-dhumi-ci-01",
+    "peerings": [],
+    "prefixes": [
+      "10.60.0.0/16"
+    ],
+    "state": "Succeeded"
+  },
+  "subnet": {
+    "delegations": [
+      "Microsoft.App/environments"
+    ],
+    "id": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.Network/virtualNetworks/vnet-dhumi-ci-01/subnets/snet-containerapps",
+    "natGateway": null,
+    "networkSecurityGroup": null,
+    "prefix": "10.60.0.0/23",
+    "routeTable": null,
+    "state": "Succeeded"
+  },
+  "deployedApplications": []
+}

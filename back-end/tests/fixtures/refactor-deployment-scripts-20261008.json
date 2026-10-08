@@ -1,0 +1,12 @@
+{
+  "scope": "Owner-authorized single Azure env and Service Bus connection; retain prior dependency/lock pins and allow only these exact commands",
+  "scripts": {
+    "storage:check": "node --import tsx scripts/azure/check-blob-storage.mjs",
+    "deployment:check": "node scripts/azure/run-backend.mjs check",
+    "queue:check": "node --import tsx scripts/azure/check-service-bus.mjs",
+    "redis:check": "node --import tsx scripts/azure/check-redis.mjs",
+    "deployment:api": "node scripts/azure/run-backend.mjs api",
+    "deployment:outbox": "node scripts/azure/run-backend.mjs outbox",
+    "deployment:jobs": "node scripts/azure/run-backend.mjs jobs"
+  }
+}

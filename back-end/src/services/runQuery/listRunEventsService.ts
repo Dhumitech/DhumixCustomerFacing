@@ -45,6 +45,8 @@ const EVENT_PROJECTIONS = new Map<string, EventProjection>([
   ["progress", { type: "progress", message: "Run is in progress." }],
   ["processing", { type: "progress", message: "Run is in progress." }],
   ["reconciliation_scheduled", { type: "progress", message: "Run recovery is in progress." }],
+  ["normalization_reprocessing_started", { type: "progress", message: "Run result processing restarted." }],
+  ["processing_recovered", { type: "progress", message: "Run result processing recovered." }],
   ["result_received", { type: "result_received", message: "Run result received." }],
   ["completed", { type: "completed", message: "Run completed." }],
   ["failed", { type: "failed", message: "Run failed." }],

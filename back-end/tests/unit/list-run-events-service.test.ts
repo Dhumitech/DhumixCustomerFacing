@@ -86,6 +86,8 @@ describe("listRunEventsService", () => {
       ["progress", "progress", "Run is in progress."],
       ["processing", "progress", "Run is in progress."],
       ["reconciliation_scheduled", "progress", "Run recovery is in progress."],
+      ["normalization_reprocessing_started", "progress", "Run result processing restarted."],
+      ["processing_recovered", "progress", "Run result processing recovered."],
       ["result_received", "result_received", "Run result received."],
       ["completed", "completed", "Run completed."],
       ["failed", "failed", "Run failed."],

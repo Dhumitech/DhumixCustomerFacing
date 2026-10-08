@@ -1,0 +1,33 @@
+{
+  "release": "20261008194055",
+  "publishedDateIndia": "2026-10-09",
+  "subscriptionId": "373d10ba-f7db-4db1-938b-14a73655bb0a",
+  "resourceGroup": "rg-dhumcustomerfacing-centralindia",
+  "registry": "acrdhumici01",
+  "loginServer": "acrdhumici01.azurecr.io",
+  "location": "centralindia",
+  "sku": "Basic",
+  "images": [
+    {
+      "repository": "dhumi/backend",
+      "tag": "20261008194055",
+      "digest": "sha256:16485d7b548c679c55e5202bbdd60f922d075489b5fac9a6135ffd8566000f97",
+      "reference": "acrdhumici01.azurecr.io/dhumi/backend@sha256:16485d7b548c679c55e5202bbdd60f922d075489b5fac9a6135ffd8566000f97",
+      "roles": ["api", "outbox", "jobs"],
+      "commandPrefix": ["node", "dist/deployment/runtimeEntrypoint.js"],
+      "roleIsFinalArgument": true,
+      "runtimeSettingsPath": "/run/secrets/runtime.json",
+      "platform": "linux/amd64"
+    },
+    {
+      "repository": "dhumi/frontend",
+      "tag": "20261008194055",
+      "digest": "sha256:60a224c8da8eae2ff1b76ed29ef6950637a465bbf6a47b7a7ca5e403feb6d250",
+      "reference": "acrdhumici01.azurecr.io/dhumi/frontend@sha256:60a224c8da8eae2ff1b76ed29ef6950637a465bbf6a47b7a7ca5e403feb6d250",
+      "roles": ["frontend"],
+      "port": 8080,
+      "apiUpstreamEnvironmentVariable": "DHUMI_API_UPSTREAM",
+      "platform": "linux/amd64"
+    }
+  ]
+}

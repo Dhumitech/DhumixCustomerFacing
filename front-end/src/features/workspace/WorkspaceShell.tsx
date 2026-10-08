@@ -1,9 +1,12 @@
-import { OrganizationPanel } from "../organizations/OrganizationPanel";
-import { organizationPath, selectedOrganization } from "../../api/organizationScope";
 import { useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import {
+  organizationPath,
+  selectedOrganization,
+} from "../../api/organizationScope";
 import { BrandMark } from "../../components/ui/BrandMark";
 import { useSession } from "../../session/useSession";
+import { OrganizationPanel } from "../organizations/OrganizationPanel";
 import { PlatformStatusNotice } from "../status/PlatformStatusNotice";
 import { useWorkspaceQuery } from "./workspaceQueries";
 
@@ -21,14 +24,14 @@ export function WorkspaceShell() {
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const { identityEmail, logout } = useSession();
   const location = useLocation();
+  const navigate = useNavigate();
+  const organizationId = selectedOrganization(location.pathname);
   const workspaceQuery = useWorkspaceQuery();
   const customerLabel = identityEmail ?? "Authenticated customer";
   const customerInitial = customerLabel.slice(0, 1).toLocaleUpperCase();
   const workspaceName = workspaceQuery.data?.name ?? "Browse Dhumi";
   const workspaceState = workspaceQuery.data?.state ?? null;
-  const statusFamily = location.pathname.includes("/workspace/marketplace")
-    ? "marketplace_dataset"
-    : "scraper_library";
+  const isMarketplace = location.pathname.includes("/workspace/marketplace");
 
   async function signOut(): Promise<void> {
     setIsSigningOut(true);
@@ -36,7 +39,7 @@ export function WorkspaceShell() {
 
     try {
       await logout();
-      window.history.replaceState(null, "", "/");
+      navigate("/", { replace: true });
     } catch {
       setIsSigningOut(false);
       setSignOutError("Sign out could not be completed. Please try again.");
@@ -55,7 +58,7 @@ export function WorkspaceShell() {
         <div className="workspace-rail__header">
           <NavLink
             className="workspace-brand"
-            to={organizationPath("/workspace/scrapers")}
+            to={organizationPath("/workspace/scrapers", organizationId)}
             aria-label="Dhumi Data Scrappers home"
           >
             <BrandMark compact={railCollapsed} />
@@ -78,7 +81,7 @@ export function WorkspaceShell() {
             className={({ isActive }) =>
               `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
             }
-            to={organizationPath("/workspace/scrapers")}
+            to={organizationPath("/workspace/scrapers", organizationId)}
             title="Scrapers Library"
           >
             <span>01</span>
@@ -88,7 +91,7 @@ export function WorkspaceShell() {
             className={({ isActive }) =>
               `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
             }
-            to={organizationPath("/workspace/marketplace")}
+            to={organizationPath("/workspace/marketplace", organizationId)}
             title="Dataset Marketplace"
           >
             <span>02</span>
@@ -98,7 +101,7 @@ export function WorkspaceShell() {
             className={({ isActive }) =>
               `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
             }
-            to={organizationPath("/workspace/runs")}
+            to={organizationPath("/workspace/runs", organizationId)}
             title="Runs"
           >
             <span>03</span>
@@ -108,28 +111,39 @@ export function WorkspaceShell() {
             className={({ isActive }) =>
               `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
             }
-            to={organizationPath("/workspace/usage")}
+            to={organizationPath("/workspace/usage", organizationId)}
             title="Usage"
           >
             <span>04</span>
             <strong>Usage</strong>
           </NavLink>
-          {selectedOrganization(location.pathname) && <NavLink to={organizationPath("/workspace/members")}>Members</NavLink>}
-          {selectedOrganization(location.pathname) && <NavLink to={organizationPath('/workspace/activity')}>Activity</NavLink>}
+          {organizationId && (
+            <NavLink
+              className={({ isActive }) =>
+                `workspace-navigation__item${isActive ? " workspace-navigation__item--active" : ""}`
+              }
+              to={organizationPath("/workspace/members", organizationId)}
+              title="Members"
+            >
+              <span>05</span>
+              <strong>Members</strong>
+            </NavLink>
+          )}
         </nav>
 
         <div className="workspace-rail__footer">
           <div className="workspace-state">
             <span aria-hidden="true" />
             <span className="workspace-state__label">
-              {selectedOrganization(location.pathname) && workspaceQuery.isPending
+              {selectedOrganization(location.pathname) &&
+              workspaceQuery.isPending
                 ? "Loading workspace"
                 : workspaceState
                   ? `Workspace ${workspaceState}`
                   : "Browsing without an organization"}
             </span>
           </div>
-          <strong>{workspaceName}</strong>
+          <OrganizationPanel />
           <small title={customerLabel}>{customerLabel}</small>
           <button
             className="workspace-signout"
@@ -166,8 +180,17 @@ export function WorkspaceShell() {
             )}
           </div>
 
-          <OrganizationPanel />
-          <PlatformStatusNotice family={statusFamily} />
+          {isMarketplace ? (
+            <div
+              className="platform-status platform-status--not_enabled"
+              role="status"
+            >
+              <span aria-hidden="true" />
+              Marketplace coming soon
+            </div>
+          ) : (
+            <PlatformStatusNotice family="scraper_library" />
+          )}
 
           <div className="workspace-account">
             <span className="workspace-account__avatar" aria-hidden="true">

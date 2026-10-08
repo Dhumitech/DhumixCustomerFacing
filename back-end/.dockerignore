@@ -1,0 +1,16 @@
+.env*
+.npmrc
+*.pem
+*.key
+.git
+.runtime
+node_modules
+dist
+tests
+coverage
+*.private.*
+*.credentials.*
+*.dump
+*.log
+scripts
+compose*.yml

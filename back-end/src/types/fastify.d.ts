@@ -9,6 +9,7 @@ import type {
 import type { LogoutService } from "../services/identity/logoutService.js";
 import type { SignInService } from "../services/identity/signInService.js";
 import type { RefreshService } from "../services/identity/refreshService.js";
+import type { RestoreSessionService } from "../services/identity/restoreSessionService.js";
 import type { SignupService } from "../services/identity/signupService.js";
 import type {
   TenantAuthorizationService,
@@ -49,6 +50,7 @@ declare module "fastify" {
     signupService: SignupService;
     signInService: SignInService;
     refreshService: RefreshService;
+    restoreSessionService: RestoreSessionService;
     browserAuthenticationService: BrowserAuthenticationService;
     logoutService: LogoutService;
     tenantAuthorizationService: TenantAuthorizationService;

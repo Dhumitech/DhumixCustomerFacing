@@ -8,6 +8,11 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "demo:up": "node --import tsx scripts/local-demo/demo.mjs up",
+    "demo:start": "node --import tsx scripts/local-demo/demo.mjs start",
+    "demo:stop": "node --import tsx scripts/local-demo/demo.mjs stop",
+    "demo:status": "node --import tsx scripts/local-demo/demo.mjs status",
+    "demo:test": "node --import tsx scripts/local-demo/demo.mjs test",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "dev": "node --env-file-if-exists=.env --import tsx src/server.ts",
     "worker:outbox": "node --env-file-if-exists=.env --import tsx src/worker/outboxDispatcher.ts",
@@ -28,9 +33,18 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:database": "node --env-file-if-exists=.env.test node_modules/vitest/vitest.mjs run tests/integration",
-    "test:azurite": "node --env-file-if-exists=.env.test node_modules/vitest/vitest.mjs run tests/integration/azurite-result-storage.test.ts"
+    "test:azurite": "node --env-file-if-exists=.env.test node_modules/vitest/vitest.mjs run tests/integration/azurite-result-storage.test.ts",
+    "storage:check": "node --import tsx scripts/azure/check-blob-storage.mjs",
+    "deployment:check": "node scripts/azure/run-backend.mjs check",
+    "database:check": "node --import tsx scripts/azure/check-database.mjs",
+    "queue:check": "node --import tsx scripts/azure/check-service-bus.mjs",
+    "redis:check": "node --import tsx scripts/azure/check-redis.mjs",
+    "deployment:api": "node scripts/azure/run-backend.mjs api",
+    "deployment:outbox": "node scripts/azure/run-backend.mjs outbox",
+    "deployment:jobs": "node scripts/azure/run-backend.mjs jobs"
   },
   "dependencies": {
+    "@azure/identity": "4.13.3",
     "@azure/service-bus": "7.9.5",
     "@azure/storage-blob": "12.33.0",
     "@fastify/cookie": "11.1.2",
@@ -52,6 +66,6 @@
     "@types/pg": "8.23.1",
     "tsx": "4.23.12",
     "typescript": "7.0.2",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }

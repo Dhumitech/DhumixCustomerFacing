@@ -48,8 +48,8 @@ export function createSignupService(dependencies: SignupServiceDependencies): Si
 
       const emailNormalized = normalizeEmail(request.email);
 
-      // Hash even an existing email before consulting the database, preserving
-      // the generic accepted response and password-cost protection.
+      // Hash every valid request before persistence; duplicate detection never
+      // replaces an existing password and retains the same cost/rate controls.
       const passwordHash = await passwordHasher.hash(request.password);
 
       const requestHash = canonicalRequestHash({
@@ -65,10 +65,9 @@ export function createSignupService(dependencies: SignupServiceDependencies): Si
         disclosure_version: legal.disclosureVersion,
       }));
 
-      // Every committed outcome and an in-progress duplicate are all accepted.
-      // The architecture requires an in-progress duplicate to return the
-      // original accepted representation rather than an error.
-      await repository.createSignup({
+      // Persistence commits the outcome before it is mapped to an HTTP error,
+      // so duplicate rejection is audited and idempotent retries are stable.
+      const outcome = await repository.createSignup({
         emailNormalized,
         passwordHash,
         legalAcceptances,
@@ -86,6 +85,14 @@ export function createSignupService(dependencies: SignupServiceDependencies): Si
               }),
             }),
       });
+      if (outcome.kind === "existing") {
+        throw new ApplicationError({
+          status: 409,
+          code: "ACCOUNT_ALREADY_EXISTS",
+          title: "Account already exists",
+          detail: "An account with this email already exists. Sign in to continue. If you forgot your password, contact dhumitechnologies@gmail.com.",
+        });
+      }
     },
   };
 }

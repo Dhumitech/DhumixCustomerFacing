@@ -34,9 +34,8 @@ export async function signUp(
     requestId: request.traceId,
   });
 
-  // One response for every accepted outcome: a new identity, an existing
-  // email, a replay and an in-progress duplicate. Any difference in status,
-  // headers or body would disclose whether the address is registered.
+  // New identities and accepted replays use 202. The service maps a recorded
+  // duplicate-account rejection to the owner's explicit 409 response.
   await reply.status(202).send(ACCEPTED_BODY);
 }
 

@@ -1,7 +1,8 @@
 import pino from "pino";
 import path from "node:path";
-import { loadOrganizationEmailConfig, loadOrganizationInviteResendLifetimeDays } from "./config/organizationEnvironment.js";
-import { createAcsEmailSender, createFileEmailSender } from "./services/organizations/verificationEmail.js";
+import { loadOrganizationWorkflowConfig, loadOrganizationInviteResendLifetimeDays, loadOrganizationCollaborationEnabled } from "./config/organizationEnvironment.js";
+import { createRestoreSessionService } from "./services/identity/restoreSessionService.js";
+import { createAcsEmailSender, createFileEmailSender, createDisabledEmailSender } from "./services/organizations/verificationEmail.js";
 import { createOrganizationWorkflowRepository } from "./services/organizations/organizationWorkflowRepository.js";
 import { createOrganizationWorkflowService } from "./services/organizations/organizationWorkflowService.js";
 import { buildApp } from "./app.js";
@@ -85,7 +86,8 @@ import { createMarketplaceExpertEnquiryService } from
 
 async function start(): Promise<void> {
   const config = loadRuntimeConfig();
-  const organizationConfig = loadOrganizationEmailConfig();
+  const organizationConfig = loadOrganizationWorkflowConfig();
+  const collaborationEnabled = loadOrganizationCollaborationEnabled();
   const inviteResendLifetimeDays = loadOrganizationInviteResendLifetimeDays();
   const bootstrapLogger = pino(createLoggerOptions(config));
   const pools = createDatabasePools(config.database, (poolName, error) => {
@@ -106,12 +108,14 @@ async function start(): Promise<void> {
   const accessTokens = createAccessTokenService(config.session.accessToken);
   const refreshTokens = createRefreshTokenService();
   const csrf = createCsrfService(config.session.accessToken.secret);
-  const workflowEmail = organizationConfig.driver === "acs" ? createAcsEmailSender(organizationConfig)
-    : await createFileEmailSender(organizationConfig, path.resolve(".runtime/mail"));
+  const workflowEmail = organizationConfig.demoDisableOtp ? createDisabledEmailSender()
+    : organizationConfig.email.driver === "acs" ? createAcsEmailSender(organizationConfig.email)
+    : await createFileEmailSender(organizationConfig.email, path.resolve(".runtime/mail"));
   const organizationWorkflowService = createOrganizationWorkflowService({
     repository: createOrganizationWorkflowRepository({ identityPool: pools.identity, customerPool: pools.customerApi,
-      otpSecret: organizationConfig.otpSecret, publicUrl: organizationConfig.publicUrl, inviteResendLifetimeDays }),
-    passwordHasher, csrf, email: workflowEmail,
+      otpSecret: organizationConfig.demoDisableOtp ? "" : organizationConfig.email.otpSecret,
+      demoDisableOtp: organizationConfig.demoDisableOtp, publicUrl: organizationConfig.publicUrl, inviteResendLifetimeDays }),
+    passwordHasher, csrf, email: workflowEmail, demoDisableOtp: organizationConfig.demoDisableOtp, collaborationEnabled,
     recordDelivery: (traceId, outcome, receipt, purpose) => bootstrapLogger.info({ traceId, outcome, purpose,
       operationId: receipt?.operationId, operationLocation: receipt?.operationLocation, retryAfterSeconds: receipt?.retryAfterSeconds }, "Organization email handoff"),
   });
@@ -237,6 +241,7 @@ async function start(): Promise<void> {
       ? await createConfiguredMarketplaceSampleDownloadStore({
           connectionString: config.resultStorage.connectionString,
           containerName: config.resultStorage.containerName,
+          ...(config.resultStorage.publicBaseUrl ? { publicBaseUrl: config.resultStorage.publicBaseUrl } : {}),
         })
       : createUnavailableMarketplaceSampleDownloadStore();
   const marketplaceSampleDownloadService = createMarketplaceSampleDownloadService({
@@ -251,11 +256,12 @@ async function start(): Promise<void> {
     csrf,
   });
   const app = await buildApp(config, {
-    organizationActivityService:createOrganizationActivityService(pools.customerApi),
+    organizationActivityService:createOrganizationActivityService(pools.customerApi,{enabled:collaborationEnabled}),
     organizationWorkflowService,
     signupService,
     signInService,
     refreshService,
+    restoreSessionService: createRestoreSessionService({ pool: pools.identity, accessTokens, csrf, refreshTokens }),
     browserAuthenticationService,
     logoutService,
     tenantAuthorizationService,

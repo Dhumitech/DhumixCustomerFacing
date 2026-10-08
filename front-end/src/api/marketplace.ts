@@ -1,4 +1,8 @@
-import { guardOrganizationAction, organizationHeaders } from "./organizationScope";
+import {
+  guardOrganizationAction,
+  organizationHeaders,
+  selectedOrganization,
+} from "./organizationScope";
 import { tokenStore } from "../session/tokenStore";
 import { dhumiClient } from "./client";
 import { asDhumiRequest } from "./errors";
@@ -34,11 +38,12 @@ function currentCsrfToken(): string {
 }
 
 export const marketplaceApi = Object.freeze({
-  async list(): Promise<TemplatePage> {
-    const scope = organizationHeaders();
+  async list(organizationId = selectedOrganization()): Promise<TemplatePage> {
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedListTemplates({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         query: {
           family: "marketplace_dataset",
           limit: MAX_CATALOGUE_PAGE_SIZE,
@@ -49,11 +54,15 @@ export const marketplaceApi = Object.freeze({
     return response.data;
   },
 
-  async getTemplate(slug: string): Promise<ServiceTemplate> {
-    const scope = organizationHeaders();
+  async getTemplate(
+    slug: string,
+    organizationId = selectedOrganization(),
+  ): Promise<ServiceTemplate> {
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedGetTemplate({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         path: { slug },
         throwOnError: true,
       }),
@@ -64,11 +73,13 @@ export const marketplaceApi = Object.freeze({
   async getSample(
     slug: string,
     cursor?: string,
+    organizationId = selectedOrganization(),
   ): Promise<MarketplaceSampleQueryResult> {
-    const scope = organizationHeaders();
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedGetMarketplaceSample({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         path: { slug },
         query: {
           limit: DEFAULT_SAMPLE_PAGE_SIZE,
@@ -83,8 +94,9 @@ export const marketplaceApi = Object.freeze({
   async querySample(
     slug: string,
     body: MarketplaceSampleQueryInput,
+    organizationId = selectedOrganization(),
   ): Promise<MarketplaceSampleQueryResult> {
-    const scope = organizationHeaders();
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedQueryMarketplaceSample({
         client: dhumiClient,
@@ -100,8 +112,9 @@ export const marketplaceApi = Object.freeze({
   async authorizeSampleDownload(
     slug: string,
     body: MarketplaceSampleDownloadInput,
+    organizationId = selectedOrganization(),
   ): Promise<MarketplaceSampleDownloadAuthorization> {
-    const scope = organizationHeaders();
+    const scope = organizationHeaders(organizationId);
     guardOrganizationAction(scope);
     const lease = await acquireMutationIdempotency(
       "marketplace.sample-download",
@@ -112,7 +125,8 @@ export const marketplaceApi = Object.freeze({
         client: dhumiClient,
         path: { slug },
         body,
-        headers: { ...scope,
+        headers: {
+          ...scope,
           "Idempotency-Key": lease.headerValue,
           "X-CSRF-Token": currentCsrfToken(),
         },
@@ -126,8 +140,9 @@ export const marketplaceApi = Object.freeze({
   async createExpertEnquiry(
     slug: string,
     body: MarketplaceExpertEnquiryInput,
+    organizationId = selectedOrganization(),
   ): Promise<MarketplaceExpertEnquiry> {
-    const scope = organizationHeaders();
+    const scope = organizationHeaders(organizationId);
     guardOrganizationAction(scope);
     const lease = await acquireMutationIdempotency(
       "marketplace.expert-enquiry",
@@ -138,7 +153,8 @@ export const marketplaceApi = Object.freeze({
         client: dhumiClient,
         path: { slug },
         body,
-        headers: { ...scope,
+        headers: {
+          ...scope,
           "Idempotency-Key": lease.headerValue,
           "X-CSRF-Token": currentCsrfToken(),
         },

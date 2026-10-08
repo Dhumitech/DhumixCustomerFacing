@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { FastifyInstance } from "fastify";
-export type AccessLevel = "public" | "browser_session" | "browser_user" | "organization_member" | "organization_admin" | "purpose_bound_verification" | "refresh_cookie_csrf";
+export type AccessLevel = "public" | "browser_session" | "browser_user" | "organization_member" | "organization_admin" | "purpose_bound_verification" | "refresh_cookie_csrf" | "refresh_cookie_origin";
 interface AccessRoute { method: string; path: string; access: AccessLevel }
 /** Declare access on the actual Fastify routes, before registration.
  * The contract supplies metadata; authentication/transaction guards enforce it. */

@@ -1,0 +1,219 @@
+{
+  "recordDateIndia": "2026-10-09",
+  "recordedAtUtc": "2026-10-08T21:07:49.150Z",
+  "status": "hosted-and-qualified",
+  "subscriptionId": "373d10ba-f7db-4db1-938b-14a73655bb0a",
+  "resourceGroup": "rg-dhumcustomerfacing-centralindia",
+  "environment": "cae-dhumi-ci-01",
+  "portal": "https://ca-dhumi-frontend-ci-01.bluerock-9b30fd6a.centralindia.azurecontainerapps.io",
+  "apiUpstream": "https://ca-dhumi-api-ci-01.internal.bluerock-9b30fd6a.centralindia.azurecontainerapps.io",
+  "applications": [
+    {
+      "args": [
+        "dist/deployment/runtimeEntrypoint.js",
+        "api"
+      ],
+      "command": [
+        "node"
+      ],
+      "external": false,
+      "fqdn": "ca-dhumi-api-ci-01.internal.bluerock-9b30fd6a.centralindia.azurecontainerapps.io",
+      "identitySettings": [
+        {
+          "identity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourcegroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+          "lifecycle": "None"
+        }
+      ],
+      "image": "acrdhumici01.azurecr.io/dhumi/backend@sha256:16485d7b548c679c55e5202bbdd60f922d075489b5fac9a6135ffd8566000f97",
+      "name": "ca-dhumi-api-ci-01",
+      "readyRevision": "ca-dhumi-api-ci-01--samhhpv",
+      "registryIdentity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+      "resources": {
+        "cpu": 0.5,
+        "ephemeralStorage": "2Gi",
+        "memory": "1Gi"
+      },
+      "running": "Running",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 1,
+        "minReplicas": 1,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "secretNames": [
+        "runtime-settings"
+      ],
+      "state": "Succeeded",
+      "volumes": [
+        {
+          "name": "runtime",
+          "secrets": [
+            {
+              "path": "runtime.json",
+              "secretRef": "runtime-settings"
+            }
+          ],
+          "storageType": "Secret"
+        }
+      ],
+      "revisionHealth": "Healthy",
+      "replicas": 1
+    },
+    {
+      "args": null,
+      "command": null,
+      "external": true,
+      "fqdn": "ca-dhumi-frontend-ci-01.bluerock-9b30fd6a.centralindia.azurecontainerapps.io",
+      "identitySettings": [
+        {
+          "identity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourcegroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+          "lifecycle": "None"
+        }
+      ],
+      "image": "acrdhumici01.azurecr.io/dhumi/frontend@sha256:60a224c8da8eae2ff1b76ed29ef6950637a465bbf6a47b7a7ca5e403feb6d250",
+      "name": "ca-dhumi-frontend-ci-01",
+      "readyRevision": "ca-dhumi-frontend-ci-01--9rswuct",
+      "registryIdentity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+      "resources": {
+        "cpu": 0.25,
+        "ephemeralStorage": "1Gi",
+        "memory": "0.5Gi"
+      },
+      "running": "Running",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 1,
+        "minReplicas": 1,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "secretNames": null,
+      "state": "Succeeded",
+      "volumes": [],
+      "revisionHealth": "Healthy",
+      "replicas": 1
+    },
+    {
+      "args": [
+        "dist/deployment/runtimeEntrypoint.js",
+        "outbox"
+      ],
+      "command": [
+        "node"
+      ],
+      "external": null,
+      "fqdn": null,
+      "identitySettings": [
+        {
+          "identity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourcegroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+          "lifecycle": "None"
+        }
+      ],
+      "image": "acrdhumici01.azurecr.io/dhumi/backend@sha256:16485d7b548c679c55e5202bbdd60f922d075489b5fac9a6135ffd8566000f97",
+      "name": "ca-dhumi-outbox-ci-01",
+      "readyRevision": "ca-dhumi-outbox-ci-01--dcdqjlb",
+      "registryIdentity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+      "resources": {
+        "cpu": 0.25,
+        "ephemeralStorage": "1Gi",
+        "memory": "0.5Gi"
+      },
+      "running": "Running",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 1,
+        "minReplicas": 1,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "secretNames": [
+        "runtime-settings"
+      ],
+      "state": "Succeeded",
+      "volumes": [
+        {
+          "name": "runtime",
+          "secrets": [
+            {
+              "path": "runtime.json",
+              "secretRef": "runtime-settings"
+            }
+          ],
+          "storageType": "Secret"
+        }
+      ],
+      "revisionHealth": "Healthy",
+      "replicas": 1
+    },
+    {
+      "args": [
+        "dist/deployment/runtimeEntrypoint.js",
+        "jobs"
+      ],
+      "command": [
+        "node"
+      ],
+      "external": null,
+      "fqdn": null,
+      "identitySettings": [
+        {
+          "identity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourcegroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+          "lifecycle": "None"
+        }
+      ],
+      "image": "acrdhumici01.azurecr.io/dhumi/backend@sha256:16485d7b548c679c55e5202bbdd60f922d075489b5fac9a6135ffd8566000f97",
+      "name": "ca-dhumi-jobs-ci-01",
+      "readyRevision": "ca-dhumi-jobs-ci-01--nmtlk0u",
+      "registryIdentity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+      "resources": {
+        "cpu": 1,
+        "ephemeralStorage": "4Gi",
+        "memory": "2Gi"
+      },
+      "running": "Running",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 1,
+        "minReplicas": 1,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "secretNames": [
+        "runtime-settings"
+      ],
+      "state": "Succeeded",
+      "volumes": [
+        {
+          "name": "runtime",
+          "secrets": [
+            {
+              "path": "runtime.json",
+              "secretRef": "runtime-settings"
+            }
+          ],
+          "storageType": "Secret"
+        }
+      ],
+      "revisionHealth": "Healthy",
+      "replicas": 1
+    }
+  ],
+  "registryPullIdentity": "/subscriptions/373d10ba-f7db-4db1-938b-14a73655bb0a/resourceGroups/rg-dhumcustomerfacing-centralindia/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-dhumi-acr-pull-ci-01",
+  "registryRole": "AcrPull",
+  "registryIdentityRuntimeLifecycle": "None",
+  "runtimeProfileSource": "back-end/.env.azure (private, unchanged)",
+  "settingsMount": "/run/secrets/runtime.json",
+  "acceptedDemo": {
+    "otpEnabled": false,
+    "organizationCreation": "one per user",
+    "joiningAndInvitations": "deferred",
+    "marketplace": "Coming soon",
+    "executor": "bright_data"
+  },
+  "dockerRehearsal": "all four owned roles stopped at idle gate",
+  "pcWorkers": "paused",
+  "pcOrSshRequired": false,
+  "qualificationJob": "succeeded and deleted",
+  "manualCloudAccountAndNewCollectionAcceptance": "pending owner test"
+}

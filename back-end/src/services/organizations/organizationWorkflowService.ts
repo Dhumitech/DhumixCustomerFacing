@@ -11,9 +11,13 @@ export interface OrganizationWorkflowService {
 }
 export function createOrganizationWorkflowService(input: {
   repository: OrganizationWorkflowRepository; passwordHasher: PasswordHasher; csrf: CsrfService; email: WorkflowEmailSender;
+  demoDisableOtp?: boolean;
+  collaborationEnabled?: boolean;
   recordDelivery: (traceId: string, outcome: MailOutcome, receipt?: MailReceipt, purpose?: WorkflowMail["purpose"]) => void;
 }): OrganizationWorkflowService {
   return { async run(action, request, session, csrfToken) {
+    if (input.demoDisableOtp && ["passwordReset", "confirmVerification", "resendVerification"].includes(action))
+      throw new ApplicationError({ status: 403, code: "ACCESS_DENIED", title: "Email verification and password reset are unavailable in this demo" });
     const publicAction = ["passwordReset", "confirmVerification", "resendVerification"].includes(action);
     const read = ["listOrganizations", "listMembers", "listInvites"].includes(action);
     if (!publicAction && !session)
@@ -22,6 +26,8 @@ export function createOrganizationWorkflowService(input: {
       throw new ApplicationError({ status: 403, code: "ACCESS_DENIED", title: "CSRF verification failed" });
     if (!read && !/^[A-Za-z0-9._:-]{16,128}$/.test(request.key))
       throw new ApplicationError({ status: 422, code: "VALIDATION_ERROR", title: "A valid Idempotency-Key is required" });
+    if (input.collaborationEnabled === false && ["acceptInvite", "listMembers", "changeMember", "removeMember", "listInvites", "createInvite", "revokeInvite", "resendInvite"].includes(action))
+      throw new ApplicationError({ status: 403, code: "ACCESS_DENIED", title: "Organization collaboration is coming in the next update" });
     // Caller identity is always taken from authentication, never the request body.
     const { userId: _discard, ...bound } = request;
     const password = request.body.new_password;

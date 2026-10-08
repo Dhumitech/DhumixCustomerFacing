@@ -100,7 +100,7 @@ function renderPanel(onRetried = vi.fn()) {
     ...render(
       <QueryClientProvider client={queryClient}>
         <SessionContext.Provider value={session}>
-          <MemoryRouter>
+          <MemoryRouter initialEntries={[window.location.pathname + window.location.search]}>
             <CurrentRunPanel
               runId="run-1"
               serviceName="My Amazon Products Scraper"
@@ -122,7 +122,7 @@ function renderRunsWorkspace() {
   return render(
     <QueryClientProvider client={queryClient}>
       <SessionContext.Provider value={session}>
-        <MemoryRouter initialEntries={["/workspace/runs"]}>
+        <MemoryRouter initialEntries={[window.location.pathname + window.location.search]}>
           <RunsWorkspacePage />
         </MemoryRouter>
       </SessionContext.Provider>

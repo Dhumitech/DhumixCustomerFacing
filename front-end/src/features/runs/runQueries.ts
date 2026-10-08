@@ -1,3 +1,4 @@
+import { useLocation } from "react-router";
 import { selectedOrganization } from "../../api/organizationScope";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { runsApi, serviceExecutionApi } from "../../api/customerRuns";
@@ -14,19 +15,21 @@ const TERMINAL_STATUSES = new Set<RunStatus>([
 
 export function useServiceQuery(serviceId: string | null) {
   const { identityEmail, isAuthenticated } = useSession();
-  const organizationId = selectedOrganization();
+  const organizationId = selectedOrganization(useLocation().pathname);
   return useQuery({
     queryKey: ["service", identityEmail, organizationId, serviceId],
-    queryFn: () => serviceExecutionApi.get(serviceId as string),
+    queryFn: () => serviceExecutionApi.get(serviceId as string, organizationId),
     enabled: isAuthenticated && !!organizationId && serviceId !== null,
     staleTime: 30_000,
   });
 }
 
 export function useCreateServiceMutation() {
+  const organizationId = selectedOrganization(useLocation().pathname);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: serviceExecutionApi.create,
+    mutationFn: (input: Parameters<typeof serviceExecutionApi.create>[0]) =>
+      serviceExecutionApi.create(input, organizationId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["services"] });
     },
@@ -37,15 +40,16 @@ export function useRunsQuery(
   filters: { readonly status?: RunStatus; readonly serviceId?: string } = {},
 ) {
   const { identityEmail, isAuthenticated } = useSession();
-  const organizationId = selectedOrganization();
+  const organizationId = selectedOrganization(useLocation().pathname);
   return useQuery({
     queryKey: [
       "runs",
-      identityEmail, organizationId,
+      identityEmail,
+      organizationId,
       filters.status ?? "all",
       filters.serviceId ?? "all",
     ],
-    queryFn: () => runsApi.list(filters),
+    queryFn: () => runsApi.list(filters, organizationId),
     enabled: isAuthenticated && !!organizationId,
     refetchInterval: (query) =>
       query.state.data?.data.some((run) => !TERMINAL_STATUSES.has(run.status))
@@ -56,10 +60,10 @@ export function useRunsQuery(
 
 export function useRunQuery(runId: string | null) {
   const { identityEmail, isAuthenticated } = useSession();
-  const organizationId = selectedOrganization();
+  const organizationId = selectedOrganization(useLocation().pathname);
   return useQuery({
     queryKey: ["run", identityEmail, organizationId, runId],
-    queryFn: () => runsApi.get(runId as string),
+    queryFn: () => runsApi.get(runId as string, organizationId),
     enabled: isAuthenticated && !!organizationId && runId !== null,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
@@ -70,11 +74,15 @@ export function useRunQuery(runId: string | null) {
 
 export function useRunEventsQuery(runId: string | null, status?: RunStatus) {
   const { identityEmail, isAuthenticated } = useSession();
-  const organizationId = selectedOrganization();
+  const organizationId = selectedOrganization(useLocation().pathname);
   return useQuery({
     queryKey: ["run-events", identityEmail, organizationId, runId],
-    queryFn: () => runsApi.events(runId as string),
-    enabled: isAuthenticated && !!organizationId && runId !== null && status !== undefined,
+    queryFn: () => runsApi.events(runId as string, organizationId),
+    enabled:
+      isAuthenticated &&
+      !!organizationId &&
+      runId !== null &&
+      status !== undefined,
     refetchInterval:
       status && TERMINAL_STATUSES.has(status) ? false : POLL_INTERVAL_MS,
   });
@@ -93,32 +101,39 @@ function useRunMutationInvalidation() {
 }
 
 export function useCreateRunMutation() {
+  const organizationId = selectedOrganization(useLocation().pathname);
   const invalidate = useRunMutationInvalidation();
   return useMutation({
     mutationFn: (request: {
       readonly serviceId: string;
       readonly input: Record<string, unknown>;
-    }) => runsApi.create(request.serviceId, request.input),
+    }) => runsApi.create(request.serviceId, request.input, organizationId),
     onSuccess: (run) => invalidate(run.run_id),
   });
 }
 
 export function useCancelRunMutation() {
+  const organizationId = selectedOrganization(useLocation().pathname);
   const invalidate = useRunMutationInvalidation();
   return useMutation({
-    mutationFn: runsApi.cancel,
+    mutationFn: (runId: string) => runsApi.cancel(runId, organizationId),
     onSuccess: (run) => invalidate(run.id),
   });
 }
 
 export function useRetryRunMutation() {
+  const organizationId = selectedOrganization(useLocation().pathname);
   const invalidate = useRunMutationInvalidation();
   return useMutation({
-    mutationFn: runsApi.retry,
+    mutationFn: (runId: string) => runsApi.retry(runId, organizationId),
     onSuccess: (run) => invalidate(run.run_id),
   });
 }
 
 export function useRunResultMutation() {
-  return useMutation({ mutationFn: runsApi.result });
+  const organizationId = selectedOrganization(useLocation().pathname);
+  return useMutation({
+    mutationFn: (request: Parameters<typeof runsApi.result>[0]) =>
+      runsApi.result(request, organizationId),
+  });
 }

@@ -1,4 +1,8 @@
-import { guardOrganizationAction, organizationHeaders } from "./organizationScope";
+import {
+  guardOrganizationAction,
+  organizationHeaders,
+  selectedOrganization,
+} from "./organizationScope";
 import { tokenStore } from "../session/tokenStore";
 import { dhumiClient } from "./client";
 import { asDhumiRequest } from "./errors";
@@ -47,11 +51,15 @@ export interface RunResultRequest {
 }
 
 export const serviceExecutionApi = Object.freeze({
-  async get(serviceId: string): Promise<Service> {
-    const scope = organizationHeaders();
+  async get(
+    serviceId: string,
+    organizationId = selectedOrganization(),
+  ): Promise<Service> {
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedGetService({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         path: { service_id: serviceId },
         throwOnError: true,
       }),
@@ -59,12 +67,15 @@ export const serviceExecutionApi = Object.freeze({
     return response.data;
   },
 
-  async create(input: {
-    readonly templateSlug: string;
-    readonly name: string;
-    readonly configuration: Record<string, unknown>;
-  }): Promise<Service> {
-    const scope = organizationHeaders();
+  async create(
+    input: {
+      readonly templateSlug: string;
+      readonly name: string;
+      readonly configuration: Record<string, unknown>;
+    },
+    organizationId = selectedOrganization(),
+  ): Promise<Service> {
+    const scope = organizationHeaders(organizationId);
     guardOrganizationAction(scope);
     const body = {
       template_slug: input.templateSlug,
@@ -76,7 +87,8 @@ export const serviceExecutionApi = Object.freeze({
       generatedCreateService({
         client: dhumiClient,
         body,
-        headers: { ...scope,
+        headers: {
+          ...scope,
           "Idempotency-Key": lease.headerValue,
           "X-CSRF-Token": currentCsrfToken(),
         },
@@ -91,11 +103,13 @@ export const serviceExecutionApi = Object.freeze({
 export const runsApi = Object.freeze({
   async list(
     filters: { readonly status?: RunStatus; readonly serviceId?: string } = {},
+    organizationId = selectedOrganization(),
   ): Promise<RunPage> {
-    const scope = organizationHeaders();
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedListRuns({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         query: {
           limit: MAX_PAGE_SIZE,
           ...(filters.status ? { status: filters.status } : {}),
@@ -107,11 +121,15 @@ export const runsApi = Object.freeze({
     return response.data;
   },
 
-  async get(runId: string): Promise<Run> {
-    const scope = organizationHeaders();
+  async get(
+    runId: string,
+    organizationId = selectedOrganization(),
+  ): Promise<Run> {
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedGetRun({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         path: { run_id: runId },
         throwOnError: true,
       }),
@@ -122,8 +140,9 @@ export const runsApi = Object.freeze({
   async create(
     serviceId: string,
     input: Record<string, unknown>,
+    organizationId = selectedOrganization(),
   ): Promise<RunAccepted> {
-    const scope = organizationHeaders();
+    const scope = organizationHeaders(organizationId);
     guardOrganizationAction(scope);
     const body = { input };
     const lease = await acquireMutationIdempotency("run.create", {
@@ -135,7 +154,8 @@ export const runsApi = Object.freeze({
         client: dhumiClient,
         path: { service_id: serviceId },
         body,
-        headers: { ...scope,
+        headers: {
+          ...scope,
           "Idempotency-Key": lease.headerValue,
           "X-CSRF-Token": currentCsrfToken(),
         },
@@ -146,15 +166,19 @@ export const runsApi = Object.freeze({
     return response.data;
   },
 
-  async cancel(runId: string): Promise<Run> {
-    const scope = organizationHeaders();
+  async cancel(
+    runId: string,
+    organizationId = selectedOrganization(),
+  ): Promise<Run> {
+    const scope = organizationHeaders(organizationId);
     guardOrganizationAction(scope);
     const lease = await acquireMutationIdempotency("run.cancel", { runId });
     const response = await asDhumiRequest(
       generatedCancelRun({
         client: dhumiClient,
         path: { run_id: runId },
-        headers: { ...scope,
+        headers: {
+          ...scope,
           "Idempotency-Key": lease.headerValue,
           "X-CSRF-Token": currentCsrfToken(),
         },
@@ -165,15 +189,19 @@ export const runsApi = Object.freeze({
     return response.data;
   },
 
-  async retry(runId: string): Promise<RunAccepted> {
-    const scope = organizationHeaders();
+  async retry(
+    runId: string,
+    organizationId = selectedOrganization(),
+  ): Promise<RunAccepted> {
+    const scope = organizationHeaders(organizationId);
     guardOrganizationAction(scope);
     const lease = await acquireMutationIdempotency("run.retry", { runId });
     const response = await asDhumiRequest(
       generatedRetryRun({
         client: dhumiClient,
         path: { run_id: runId },
-        headers: { ...scope,
+        headers: {
+          ...scope,
           "Idempotency-Key": lease.headerValue,
           "X-CSRF-Token": currentCsrfToken(),
         },
@@ -184,11 +212,15 @@ export const runsApi = Object.freeze({
     return response.data;
   },
 
-  async events(runId: string): Promise<RunEventPage> {
-    const scope = organizationHeaders();
+  async events(
+    runId: string,
+    organizationId = selectedOrganization(),
+  ): Promise<RunEventPage> {
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedListRunEvents({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         path: { run_id: runId },
         query: { limit: MAX_PAGE_SIZE },
         throwOnError: true,
@@ -197,11 +229,15 @@ export const runsApi = Object.freeze({
     return response.data;
   },
 
-  async result(request: RunResultRequest): Promise<RunResult> {
-    const scope = organizationHeaders();
+  async result(
+    request: RunResultRequest,
+    organizationId = selectedOrganization(),
+  ): Promise<RunResult> {
+    const scope = organizationHeaders(organizationId);
     const response = await asDhumiRequest(
       generatedGetRunResult({
-        client: dhumiClient, headers: scope,
+        client: dhumiClient,
+        headers: scope,
         path: { run_id: request.runId },
         query: { representation: request.representation },
         throwOnError: true,

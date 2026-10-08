@@ -39,9 +39,10 @@ const callTotals=`jsonb_build_object('intents',count(*)::text,'confirmed_calls',
   'uncertain',count(*) FILTER (WHERE c.state IN ('prepared','uncertain'))::text)`;
 const emptyCalls=`'{"intents":"0","confirmed_calls":"0","accepted_submissions":"0","http_errors":"0","not_sent":"0","uncertain":"0"}'::jsonb`;
 
-export function createOrganizationActivityService(pool:Pool):OrganizationActivityService {
+export function createOrganizationActivityService(pool:Pool, options:{enabled?:boolean}={}):OrganizationActivityService {
   return {async get(principal,query){
     if(principal.kind!=='browser')throw new ApplicationError({status:403,code:'ACCESS_DENIED',title:'Browser session required'});
+    if(options.enabled===false)throw new ApplicationError({status:403,code:'ACCESS_DENIED',title:'Organization activity is coming in the next update'});
     const filters=parseQuery(query),values=[principal.tenantId,filters.from,filters.to,filters.member,filters.limit+1];
     try {return await withOrganizationReadTransaction(pool,{tenantId:principal.tenantId,userId:principal.userId},async db=>{
       // Independent aggregates prevent call x usage multiplication. Internal traffic is excluded.

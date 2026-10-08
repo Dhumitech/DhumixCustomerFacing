@@ -41,7 +41,7 @@ const legalAcceptances = [
 ];
 
 describe("0071 signup service", () => {
-  it("hashes before persistence even for an existing email and ignores workspace in new claims", async () => {
+  it("hashes before persistence for historical accepted replay and ignores workspace in new claims", async () => {
     const order: string[] = [];
     const inputs: Array<
       Parameters<
@@ -97,6 +97,26 @@ describe("0071 signup service", () => {
       document_hash_hex: "a".repeat(64),
       disclosure_version: null,
     });
+  });
+  it.each([false, true])("maps a duplicate-account outcome to 409 after persistence (replayed=%s)", async (replayed) => {
+    const order: string[] = [];
+    const service = createSignupService({
+      legal,
+      passwordHasher: {
+        async hash() { order.push("hash"); return "encoded-password"; },
+        async verify() { return false; },
+        needsRehash() { return false; },
+      },
+      repository: { async createSignup() { order.push("persist"); return { kind: "existing", replayed }; } },
+    });
+    await expect(service.submit({
+      email: "existing@example.test", password: "a-sufficiently-long-password",
+      legalAcceptances, idempotencyKey: "duplicate-signup-service-test", requestId: null,
+    })).rejects.toMatchObject({
+      status: 409, code: "ACCOUNT_ALREADY_EXISTS", title: "Account already exists",
+      detail: expect.stringContaining("dhumitechnologies@gmail.com"),
+    });
+    expect(order).toEqual(["hash", "persist"]);
   });
   it("validates legal consent before hashing or contacting persistence", async () => {
     const hash = vi.fn(async () => "encoded");

@@ -1,12 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { WelcomePage } from "../features/authentication/WelcomePage";
-import { LinkedInPeoplePage } from "../features/marketplace/LinkedInPeoplePage";
-import { LinkedInPostsPage } from "../features/marketplace/LinkedInPostsPage";
-import { MarketplaceDatasetPage } from "../features/marketplace/MarketplaceDatasetPage";
-import { MarketplaceDomainPage } from "../features/marketplace/MarketplaceDomainPage";
-import { MarketplaceLibraryPage } from "../features/marketplace/MarketplaceLibraryPage";
+import { MarketplaceShowcasePage } from "../features/marketplace/MarketplaceShowcasePage";
 import { ActivityPage } from "../features/organizations/ActivityPage";
+import { CollaborationNotice } from "../features/organizations/CollaborationNotice";
 import { MembersPage } from "../features/organizations/MembersPage";
+import { OrganizationBoundary } from "../features/organizations/OrganizationBoundary";
 import { VerificationPage } from "../features/organizations/VerificationPage";
 import { PriceAnalysisPage } from "../features/priceAnalysis/PriceAnalysisPage";
 import { RunsWorkspacePage } from "../features/runs/RunsWorkspacePage";
@@ -26,7 +24,7 @@ export function AppRoutes({
   return (
     <Routes>
       <Route path="/verify" element={<VerificationPage />} />
-      <Route path="/invite" element={<VerificationPage />} />
+      <Route path="/invite" element={<CollaborationNotice />} />
       <Route
         path="/analysis"
         element={<PriceAnalysisPage isAuthenticated={isAuthenticated} />}
@@ -34,34 +32,58 @@ export function AppRoutes({
       {isAuthenticated ? (
         <>
           {["/workspace", "/o/:organizationId/workspace"].map((prefix) => (
-            <Route key={prefix} path={prefix} element={<WorkspaceShell />}>
+            <Route
+              key={prefix}
+              path={prefix}
+              element={
+                <OrganizationBoundary>
+                  <WorkspaceShell />
+                </OrganizationBoundary>
+              }
+            >
               <Route index element={<Navigate to="scrapers" replace />} />
               <Route path="scrapers" element={<WorkspaceLibraryPage />} />
-              <Route path="scrapers/:domainSlug" element={<AmazonDomainPage />} />
-              <Route path="scrapers/:domainSlug/:templateSlug" element={<AmazonDomainPage />} />
-              <Route path="marketplace" element={<MarketplaceLibraryPage />} />
-              <Route path="marketplace/linkedin" element={<MarketplaceDomainPage domainSlug="linkedin" />} />
-              <Route path="marketplace/groups/:domainSlug" element={<MarketplaceDomainPage />} />
-              <Route path="marketplace/linkedin-posts" element={<LinkedInPostsPage />} />
-              <Route path="marketplace/linkedin-people" element={<LinkedInPeoplePage />} />
-              <Route path="marketplace/:templateSlug" element={<MarketplaceDatasetPage />} />
+              <Route
+                path="scrapers/:domainSlug"
+                element={<AmazonDomainPage />}
+              />
+              <Route
+                path="scrapers/:domainSlug/:templateSlug"
+                element={<AmazonDomainPage />}
+              />
+              <Route
+                path="marketplace/*"
+                element={<MarketplaceShowcasePage />}
+              />
               <Route path="runs" element={<RunsWorkspacePage />} />
               <Route path="usage" element={<UsageWorkspacePage />} />
               <Route path="members" element={<MembersPage />} />
               <Route path="activity" element={<ActivityPage />} />
             </Route>
           ))}
-          <Route path="*" element={<Navigate to="/workspace/scrapers" replace />} />
+          <Route
+            path="*"
+            element={<Navigate to="/workspace/scrapers" replace />}
+          />
         </>
       ) : (
-        <Route path="*" element={<WelcomePage initialAuthMode={initialAuthMode} />} />
+        <Route
+          path="*"
+          element={<WelcomePage initialAuthMode={initialAuthMode} />}
+        />
       )}
     </Routes>
   );
 }
 
 export function App() {
-  const { isAuthenticated } = useSession();
+  const { isAuthenticated, isRestoring } = useSession();
+  if (isRestoring)
+    return (
+      <main className="organization-entry">
+        <p role="status">Restoring your session…</p>
+      </main>
+    );
   const initialAuthMode =
     window.location.pathname === "/sign-up"
       ? "sign-up"
@@ -71,7 +93,10 @@ export function App() {
 
   return (
     <BrowserRouter>
-      <AppRoutes isAuthenticated={isAuthenticated} initialAuthMode={initialAuthMode} />
+      <AppRoutes
+        isAuthenticated={isAuthenticated}
+        initialAuthMode={initialAuthMode}
+      />
     </BrowserRouter>
   );
 }

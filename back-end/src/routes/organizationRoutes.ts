@@ -20,13 +20,14 @@ export async function registerOrganizationRoutes(app: FastifyInstance, config: R
   const time = { type: "string", format: "date-time" };
   const accepted = object({ accepted: { const: true }, verification_id: uuid, message: string }, ["accepted", "verification_id"]);
   const confirmed = object({ confirmed: { const: true }, organization_id: uuid, sign_in_required: { type: "boolean" } }, ["confirmed"]);
+  const demoCompleted = object({ confirmed: { const: true }, organization_id: uuid, verification_skipped: { const: true } }, ["confirmed", "organization_id", "verification_skipped"]);
   const completed = object({ completed: { const: true } }, ["completed"]);
-  const organization = object({ id: uuid, name: string, state: { const: "active" }, role }, ["id", "name", "state", "role"]);
+  const organization = object({ id: uuid, name: string, state: { const: "active" }, role, is_creator: { type: "boolean" } }, ["id", "name", "state", "role", "is_creator"]);
   const member = object({ user_id: uuid, email, role, state: { type: "string", enum: ["active", "removed"] }, created_at: time, is_creator: { type: "boolean" } }, ["user_id", "email", "role", "state", "created_at", "is_creator"]);
   const invite = object({ id: uuid, email: { type: ["string", "null"] }, role, max_uses: { type: ["integer", "null"] }, use_count: { type: "integer" }, expires_at: time, revoked_at: { type: ["string", "null"], format: "date-time" }, created_at: time }, ["id", "email", "role", "max_uses", "use_count", "expires_at", "revoked_at", "created_at"]);
   const minted = object({ invite, invite_token: string, invite_url: string, join_code: string, message: string }, ["invite"]);
   const responses: Record<string, { status: number; schema: unknown }> = {
-    "GET /v1/organizations": { status: 200, schema: object({ organizations: { type: "array", items: organization } }, ["organizations"]) },
+    "GET /v1/organizations": { status: 200, schema: object({ organizations: { type: "array", items: organization }, can_create: { type: "boolean" } }, ["organizations", "can_create"]) },
     "POST /v1/organizations": { status: 202, schema: accepted },
     "POST /v1/invites/accept": { status: 202, schema: accepted },
     "POST /v1/auth/password-reset": { status: 202, schema: accepted },
@@ -42,7 +43,9 @@ export async function registerOrganizationRoutes(app: FastifyInstance, config: R
     const methods = Array.isArray(route.method) ? route.method : [route.method];
     for (const method of methods) {
       const response = responses[`${method === "HEAD" ? "GET" : method} ${route.url}`];
-      if (response) route.schema = { ...route.schema, response: { [response.status]: response.schema } };
+      if (response) route.schema = { ...route.schema, response: { [response.status]: response.schema,
+        ...(method === "POST" && route.url === "/v1/organizations" ? { 201: demoCompleted } : {}),
+        ...(method === "POST" && route.url === "/v1/invites/accept" ? { 200: demoCompleted } : {}) } };
     }
   });
   function handler(action: OrganizationAction, status = 200): RouteHandlerMethod {
@@ -61,7 +64,9 @@ export async function registerOrganizationRoutes(app: FastifyInstance, config: R
         ...(params?.user_id || params?.invite_id ? { targetId: (params.user_id ?? params.invite_id)! } : {}),
         body, key: typeof key === "string" ? key : "", traceId: request.traceId,
       }, request.trustedSessionIdentity, typeof csrf === "string" ? csrf : undefined);
-      await reply.status(status).send(status === 204 ? undefined : result);
+      const actualStatus = result.verification_skipped === true && typeof result.organization_id === "string"
+        ? action === "createOrganization" ? 201 : action === "acceptInvite" ? 200 : status : status;
+      await reply.status(actualStatus).send(actualStatus === 204 ? undefined : result);
     };
   }
   const rateLimit = { max: config.signupRateLimit.max, timeWindow: config.signupRateLimit.windowMs };

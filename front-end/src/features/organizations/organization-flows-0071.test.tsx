@@ -23,6 +23,40 @@ function show(component: React.ReactNode, initial = "/workspace/scrapers/amazon-
 beforeEach(() => { tokenStore.set(authSession, context.identityEmail!); window.history.replaceState(null, "", "/workspace/scrapers"); });
 afterEach(() => { tokenStore.clear(); window.history.replaceState(null, "", "/"); vi.unstubAllGlobals(); });
 describe("0071 browser organization flows", () => {
+  it("closes the selector for the active organization without clearing the current Run or Service", async () => {
+    const requests: Request[] = [];
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async input => {
+      requests.push(input as Request);
+      return json({ can_create: false, organizations: [{ id: orgA, name: "Unit organization", state: "active", role: "admin", is_creator: true }] });
+    }));
+    const route = `/o/${orgA}/workspace/runs?run=current-run&service=current-service`;
+    const user = userEvent.setup(); show(<OrganizationPanel />, route);
+    const selector = await screen.findByRole("button", { name: "Unit organization" });
+    await user.click(selector);
+    expect(screen.getByRole("dialog", { name: "Your organization" })).toBeInTheDocument();
+    expect(screen.getByText("Active organization")).toBeInTheDocument();
+    expect(screen.queryByText(/Select it above to continue/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to workspace" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Route")).toHaveTextContent(route);
+    expect(selector).toHaveFocus();
+    expect(requests.every(request => request.method === "GET")).toBe(true);
+  });
+  it("offers switching only for multiple memberships and clears another organization's resource selections", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => json({ can_create: false, organizations: [
+      { id: orgA, name: "Team A", state: "active", role: "admin", is_creator: true },
+      { id: orgB, name: "Team B", state: "active", role: "member", is_creator: false },
+    ] })));
+    const user = userEvent.setup();
+    show(<OrganizationPanel />, `/o/${orgA}/workspace/runs?run=previous-run&service=previous-service`);
+    await user.click(await screen.findByRole("button", { name: "Team A" }));
+    expect(screen.getByRole("dialog", { name: "Switch organization" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Team B.*Member organization/ }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Route")).toHaveTextContent(`/o/${orgB}/workspace/runs`);
+    expect(screen.getByLabelText("Route")).not.toHaveTextContent("previous-run");
+    expect(screen.getByLabelText("Route")).not.toHaveTextContent("previous-service");
+  });
   it("reads selectors only from a validated URL and keeps tabs independent of storage", () => {
     sessionStorage.setItem("active-organization", orgB);
     window.history.replaceState(null, "", `/o/${orgA}/workspace/scrapers`);
@@ -68,6 +102,45 @@ describe("0071 browser organization flows", () => {
   it("extracts invitation material without putting it in query strings or browser storage", () => {
     const token = "i".repeat(43); window.history.replaceState(null, "", `/invite#invite_token=${token}`);
     expect(readVerificationFragment().invite).toBe(token); expect(window.location.search).toBe(""); expect(window.location.hash).toBe("");
+  });
+  it("creates a demo organization immediately without requesting an OTP or starting a Run", async () => {
+    const requests: Request[] = [];
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async input => {
+      const request = input as Request; requests.push(request);
+      if (request.method === "GET") return json({ organizations: [] });
+      return json({ confirmed: true, organization_id: orgA, verification_skipped: true }, 201);
+    }));
+    const user = userEvent.setup(); show(<OrganizationPanel />);
+    await user.click(screen.getByRole("button", { name: "Organizations" }));
+    await user.type(screen.getByLabelText("Organization name"), "Demo organization");
+    await user.click(screen.getByRole("button", { name: "Create organization" }));
+    await waitFor(() => expect(screen.getByLabelText("Route")).toHaveTextContent(`/o/${orgA}/workspace/scrapers/amazon-com/example?tab=configuration`));
+    expect(screen.queryByLabelText("Verification code")).not.toBeInTheDocument();
+    expect(requests.filter(r => r.method === "POST")).toHaveLength(1);
+    expect(new URL(requests.find(r => r.method === "POST")!.url).pathname).toBe("/v1/organizations");
+  });
+  it("defers joining and sends no invitation mutation", async () => {
+    const requests: Request[] = [];
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async input => {
+      const request = input as Request; requests.push(request);
+      if (request.method === "GET") return json({ organizations: [] });
+      return json({ confirmed: true, organization_id: orgB, verification_skipped: true });
+    }));
+    const user = userEvent.setup(); show(<OrganizationPanel />);
+    await user.click(screen.getByRole("button", { name: "Organizations" }));
+    expect(screen.queryByLabelText("Join code")).not.toBeInTheDocument();
+    expect(screen.getByText(/Invitations and member activity.*next update/)).toBeInTheDocument();
+    expect(requests.some(r => r.method === "POST")).toBe(false);
+  });
+  it("shows next-update messaging for old invitation links without consuming them", async () => {
+    const token = "i".repeat(43); window.history.replaceState(null, "", `/invite#invite_token=${token}`);
+    const fetcher = vi.fn<typeof fetch>(async () => json({ confirmed: true, organization_id: orgA, verification_skipped: true }));
+    vi.stubGlobal("fetch", fetcher); show(<VerificationPage />, "/invite");
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Invitations, joining.*next update/)).toBeInTheDocument();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Verification code")).not.toBeInTheDocument();
   });
   it("captures the organization before asynchronous request preparation", async () => {
     window.history.replaceState(null, "", `/o/${orgA}/workspace/members`);

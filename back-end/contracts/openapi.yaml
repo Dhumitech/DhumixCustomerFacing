@@ -47,9 +47,10 @@ paths:
         Creates only the local User, legal evidence and audit atomically.
         Creates no organization, membership, OTP or notification outbox.
         workspace_name is optional, deprecated and ignored. Makes no Bright Data request.
-        Response is deliberately generic. An existing email follows the same
-        accepted flow; 409 is reserved for the same Idempotency-Key used with a
-        different canonical request body.
+        A fresh request for an existing email returns 409 ACCOUNT_ALREADY_EXISTS
+        without changing the existing password or legal evidence. Successful
+        same-key retries and historical accepted receipts retain 202. A reused
+        key with a different canonical request returns 409 IDEMPOTENCY_CONFLICT.
       security: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -72,7 +73,7 @@ paths:
                 $ref: '#/components/schemas/AuthAccepted'
         '400': { $ref: '#/components/responses/BadRequest' }
         '409':
-          description: "Same Idempotency-Key was used with a different canonical request (IDEMPOTENCY_CONFLICT); never a duplicate-email signal"
+          description: "Email already registered (ACCOUNT_ALREADY_EXISTS), or the same Idempotency-Key used with a different canonical request (IDEMPOTENCY_CONFLICT)"
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -112,6 +113,25 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/auth/session:
+    get:
+      tags: [Authentication]
+      operationId: restoreSession
+      x-dhumi-access: refresh_cookie_origin
+      summary: Restore a signed-in browser after a reload
+      description: Reads the existing active HttpOnly refresh cookie without rotating it. Requires the trusted frontend Origin or same-origin Fetch Metadata. Returns memory-only access and CSRF tokens plus the authenticated email; never returns a refresh secret or changes account/session state.
+      security: []
+      responses:
+        '200':
+          description: Active browser session; response is not cacheable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestoredAuthSession'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/auth/refresh:
@@ -813,7 +833,10 @@ paths:
       operationId: createOrganization
       x-dhumi-access: browser_session
       summary: create Organization
-      description: Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+      description: >-
+        Signed-in organization creation normally requires fresh email verification.
+        Explicit non-production DEMO_DISABLE_OTP mode completes immediately without OTP.
+        Authentication, CSRF, idempotency and invitation authorization remain required.
       security:
         - BrowserBearer: []
       parameters:
@@ -827,6 +850,12 @@ paths:
             schema:
               $ref: '#/components/schemas/OrganizationCreateInput'
       responses:
+        '201':
+          description: Completed immediately in explicit demo mode without email verification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemoOrganizationCompleted'
         '202':
           description: Success
           content:
@@ -861,8 +890,9 @@ paths:
       x-dhumi-access: browser_session
       summary: accept Invite
       description: >-
-        Secrets appear only on the first minting response. An idempotent replay returns metadata; explicit resend rotates
-        the token. List responses never reveal token hashes or secrets.
+        Signed-in organization joining normally requires fresh email verification.
+        Explicit non-production DEMO_DISABLE_OTP mode completes immediately without OTP.
+        Authentication, CSRF, idempotency and invitation authorization remain required.
       security:
         - BrowserBearer: []
       parameters:
@@ -876,6 +906,12 @@ paths:
             schema:
               $ref: '#/components/schemas/InviteAcceptInput'
       responses:
+        '200':
+          description: Completed immediately in explicit demo mode without email verification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemoOrganizationCompleted'
         '202':
           description: Success
           content:
@@ -909,7 +945,9 @@ paths:
       operationId: requestPasswordReset
       x-dhumi-access: public
       summary: request Password Reset
-      description: Organization workflows are implemented for 0071; database cutover and qualification remain pending.
+      description: >-
+        Normal mode requests email proof before changing a password.
+        Explicit non-production DEMO_DISABLE_OTP mode makes recovery unavailable with 403.
       security: []
       parameters:
         - $ref: '#/components/parameters/RequestId'
@@ -958,6 +996,7 @@ paths:
         Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token.
         Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second
         cooldown and five issues per hour across purposes. GET never consumes a proof.
+        Explicit non-production DEMO_DISABLE_OTP mode disables this endpoint with 403.
       security:
         - {}
         - BrowserBearer: []
@@ -1020,6 +1059,7 @@ paths:
         Create/join requires the same signed-in user and CSRF; reset requires code and new_password, no email-link token.
         Fresh proof expires in ten minutes; five wrong attempts end it. A resend rotates code/link, with a 60-second
         cooldown and five issues per hour across purposes. GET never consumes a proof.
+        Explicit non-production DEMO_DISABLE_OTP mode disables this endpoint with 403.
       security:
         - {}
         - BrowserBearer: []
@@ -2198,6 +2238,7 @@ components:
         - ORGANIZATION_MEMBERSHIP_REQUIRED
         - RESOURCE_NOT_FOUND
         - IDEMPOTENCY_CONFLICT
+        - ACCOUNT_ALREADY_EXISTS
         - STATE_CONFLICT
         - PAYLOAD_TOO_LARGE
         - UNSUPPORTED_MEDIA_TYPE
@@ -2237,6 +2278,23 @@ components:
           format: uuid
         message:
           type: string
+    DemoOrganizationCompleted:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmed
+        - organization_id
+        - verification_skipped
+      properties:
+        confirmed:
+          type: boolean
+          const: true
+        organization_id:
+          type: string
+          format: uuid
+        verification_skipped:
+          type: boolean
+          const: true
     VerificationConfirmed:
       type: object
       additionalProperties: false
@@ -2251,6 +2309,16 @@ components:
           format: uuid
         sign_in_required:
           type: boolean
+    RestoredAuthSession:
+      type: object
+      additionalProperties: false
+      required: [access_token, token_type, expires_in, csrf_token, identity_email]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, minimum: 1 }
+        csrf_token: { type: string }
+        identity_email: { type: string, format: email }
     OrganizationSummary:
       type: object
       additionalProperties: false
@@ -2259,7 +2327,11 @@ components:
         - name
         - state
         - role
+        - is_creator
       properties:
+        is_creator:
+          type: boolean
+          description: Whether the authenticated user created this organization.
         id:
           type: string
           format: uuid
@@ -2279,7 +2351,11 @@ components:
       additionalProperties: false
       required:
         - organizations
+        - can_create
       properties:
+        can_create:
+          type: boolean
+          description: False once the authenticated user has created an organization. Memberships in other organizations do not consume this limit.
         organizations:
           type: array
           items:

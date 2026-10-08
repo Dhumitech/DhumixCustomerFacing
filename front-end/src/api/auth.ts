@@ -1,7 +1,7 @@
 import { runtimeConfig } from "../config/runtime";
 import { tokenStore } from "../session/tokenStore";
 import { dhumiClient } from "./client";
-import { asDhumiRequest } from "./errors";
+import { asDhumiRequest, DhumiApiError } from "./errors";
 import {
   type AuthAccepted,
   type AuthSession,
@@ -9,6 +9,7 @@ import {
   refreshSession as generatedRefreshSession,
   signIn as generatedSignIn,
   signUp as generatedSignUp,
+  restoreSession as generatedRestoreSession,
 } from "./generated";
 import {
   acquireMutationIdempotency,
@@ -28,8 +29,44 @@ export interface SignInRequest {
   readonly email: string;
   readonly password: string;
 }
+let restorePending: Promise<AuthSession | null> | null = null;
 
 export const authApi = Object.freeze({
+  async restore(): Promise<AuthSession | null> {
+    const current = tokenStore.getSnapshot();
+    if (current) return current;
+    if (restorePending) return restorePending;
+    const revision = tokenStore.getRevision();
+    restorePending = (async () => {
+      try {
+        const { data } = await asDhumiRequest(
+          generatedRestoreSession({ client: dhumiClient, throwOnError: true }),
+        );
+        const session: AuthSession = {
+          access_token: data.access_token,
+          token_type: data.token_type,
+          expires_in: data.expires_in,
+          csrf_token: data.csrf_token,
+        };
+        if (
+          tokenStore.getRevision() === revision &&
+          tokenStore.getSnapshot() === null
+        )
+          tokenStore.set(session, data.identity_email);
+        return session;
+      } catch (error) {
+        if (
+          error instanceof DhumiApiError &&
+          (error.status === 401 || error.status === 403)
+        )
+          return null;
+        throw error;
+      } finally {
+        restorePending = null;
+      }
+    })();
+    return restorePending;
+  },
   async signUp(input: SignUpRequest): Promise<AuthAccepted> {
     if (runtimeConfig.signupLegalAcceptances.length === 0) {
       throw new Error(

@@ -131,18 +131,18 @@ function renderFlow() {
   return render(
     <QueryClientProvider client={queryClient}>
       <SessionContext.Provider value={session}>
-        <MemoryRouter initialEntries={["/workspace/marketplace"]}>
+        <MemoryRouter initialEntries={["/o/11111111-1111-4111-8111-111111111111/workspace/marketplace"]}>
           <Routes>
             <Route
-              path="/workspace/marketplace"
+              path="/o/11111111-1111-4111-8111-111111111111/workspace/marketplace"
               element={<MarketplaceLibraryPage />}
             />
             <Route
-              path="/workspace/marketplace/groups/:domainSlug"
+              path="/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/groups/:domainSlug"
               element={<MarketplaceDomainPage />}
             />
             <Route
-              path="/workspace/marketplace/:templateSlug"
+              path="/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/:templateSlug"
               element={<LinkedInPostsPage />}
             />
           </Routes>
@@ -153,10 +153,12 @@ function renderFlow() {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/o/11111111-1111-4111-8111-111111111111/workspace/marketplace");
   tokenStore.set(authSession, "customer@example.test");
 });
 
 afterEach(() => {
+  window.history.replaceState(null, "", "/");
   tokenStore.clear();
   vi.unstubAllGlobals();
 });
@@ -472,11 +474,11 @@ describe("M4 Dataset Marketplace customer flow", () => {
       <QueryClientProvider client={queryClient}>
         <SessionContext.Provider value={session}>
           <MemoryRouter
-            initialEntries={["/workspace/marketplace/linkedin-posts"]}
+            initialEntries={["/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/linkedin-posts"]}
           >
             <Routes>
               <Route
-                path="/workspace/marketplace/:templateSlug"
+                path="/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/:templateSlug"
                 element={<LinkedInPostsPage />}
               />
             </Routes>
@@ -589,11 +591,11 @@ describe("M4 Dataset Marketplace customer flow", () => {
       <QueryClientProvider client={queryClient}>
         <SessionContext.Provider value={session}>
           <MemoryRouter
-            initialEntries={["/workspace/marketplace/linkedin-posts"]}
+            initialEntries={["/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/linkedin-posts"]}
           >
             <Routes>
               <Route
-                path="/workspace/marketplace/:templateSlug"
+                path="/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/:templateSlug"
                 element={<LinkedInPostsPage />}
               />
             </Routes>
@@ -671,11 +673,11 @@ describe("M4 Dataset Marketplace customer flow", () => {
       <QueryClientProvider client={queryClient}>
         <SessionContext.Provider value={session}>
           <MemoryRouter
-            initialEntries={["/workspace/marketplace/linkedin-posts"]}
+            initialEntries={["/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/linkedin-posts"]}
           >
             <Routes>
               <Route
-                path="/workspace/marketplace/:templateSlug"
+                path="/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/:templateSlug"
                 element={<LinkedInPostsPage />}
               />
             </Routes>
@@ -753,11 +755,11 @@ describe("M4 Dataset Marketplace customer flow", () => {
       <QueryClientProvider client={queryClient}>
         <SessionContext.Provider value={session}>
           <MemoryRouter
-            initialEntries={["/workspace/marketplace/linkedin-posts"]}
+            initialEntries={["/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/linkedin-posts"]}
           >
             <Routes>
               <Route
-                path="/workspace/marketplace/:templateSlug"
+                path="/o/11111111-1111-4111-8111-111111111111/workspace/marketplace/:templateSlug"
                 element={<LinkedInPostsPage />}
               />
             </Routes>

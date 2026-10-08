@@ -4,7 +4,8 @@ import {
   type ServiceBusReceivedMessage,
   type ServiceBusReceiver,
 } from "@azure/service-bus";
-import type { ServiceBusEmulatorRuntimeConfig } from "../../config/pattern4Environment.js";
+import { ClientSecretCredential } from "@azure/identity";
+import type { ServiceBusRuntimeConfig } from "../../config/serviceBusEnvironment.js";
 import { parseJobCommandEnvelope } from "./jobCommand.js";
 import type {
   DeadLetterCommandDelivery,
@@ -22,10 +23,17 @@ function commandForMessage(message: ServiceBusReceivedMessage) {
   return command;
 }
 
+export function createConfiguredServiceBusClient(config: ServiceBusRuntimeConfig): ServiceBusClient {
+  if (config.driver === "emulator") return new ServiceBusClient(config.connectionString);
+  const credential = config.credential;
+  return new ServiceBusClient(config.fullyQualifiedNamespace,
+    new ClientSecretCredential(credential.tenantId, credential.clientId, credential.clientSecret));
+}
+
 export function createServiceBusJobCommandPublisher(
-  config: ServiceBusEmulatorRuntimeConfig,
+  config: ServiceBusRuntimeConfig,
 ): JobCommandPublisher {
-  const client = new ServiceBusClient(config.connectionString);
+  const client = createConfiguredServiceBusClient(config);
   const sender = client.createSender(config.queueName);
   return {
     async publish(command): Promise<void> {
@@ -76,9 +84,9 @@ function deliveryFor(
 }
 
 export function createServiceBusDeadLetterCommandReceiver(
-  config: ServiceBusEmulatorRuntimeConfig,
+  config: ServiceBusRuntimeConfig,
 ): DeadLetterCommandReceiver {
-  const client = new ServiceBusClient(config.connectionString);
+  const client = createConfiguredServiceBusClient(config);
   const receiver = client.createReceiver(config.queueName, {
     receiveMode: "peekLock",
     subQueueType: "deadLetter",
@@ -123,10 +131,10 @@ export function createServiceBusDeadLetterCommandReceiver(
 }
 
 export function createServiceBusJobCommandReceiver(
-  config: ServiceBusEmulatorRuntimeConfig,
+  config: ServiceBusRuntimeConfig,
   maxConcurrentCalls: number,
 ): JobCommandReceiver {
-  const client = new ServiceBusClient(config.connectionString);
+  const client = createConfiguredServiceBusClient(config);
   const receiver = client.createReceiver(config.queueName, { receiveMode: "peekLock" });
   return {
     async subscribe(handler, onError) {

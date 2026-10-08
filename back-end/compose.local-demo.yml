@@ -1,0 +1,74 @@
+name: dhumi-local-demo
+
+# Azure emulators come from compose.pattern3.yml and compose.pattern4.yml.
+# This additional database is a copy; port 5432 on the host stays untouched.
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: ${PATTERN4_ACCEPT_EULA:-N}
+      MSSQL_SA_PASSWORD: ${PATTERN4_MSSQL_SA_PASSWORD:-}
+      MSSQL_MEMORY_LIMIT_MB: 1024
+    volumes:
+      - demo-servicebus-sql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    mem_limit: 2g
+    cpus: 2
+    restart: unless-stopped
+
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    environment:
+      ACCEPT_EULA: ${PATTERN4_ACCEPT_EULA:-N}
+      SQL_SERVER: mssql
+      MSSQL_SA_PASSWORD: ${PATTERN4_MSSQL_SA_PASSWORD:-}
+      EMULATOR_HTTP_PORT: 5300
+      SQL_WAIT_INTERVAL: 10
+    volumes:
+      - ./infra/pattern4/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:5300:5300"
+    depends_on:
+      mssql:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 2
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    environment:
+      POSTGRES_USER: ${DHUMI_DEMO_POSTGRES_USER:?Use npm run demo:up}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: dhumi_test
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets:
+      - postgres_password
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      # PostgreSQL 18 uses a versioned directory below this parent.
+      - demo-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d dhumi_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    mem_limit: 1g
+    cpus: 2
+    restart: unless-stopped
+
+secrets:
+  postgres_password:
+    file: ./.runtime/local-demo/postgres-password.private.txt
+
+volumes:
+  demo-postgres-data:
+  demo-servicebus-sql-data:

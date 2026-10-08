@@ -1,4 +1,5 @@
 import { Pool, type PoolConfig } from "pg";
+import { checkServerIdentity } from "node:tls";
 import type {
   DatabaseCredentialConfig,
   DatabaseRuntimeConfig,
@@ -40,7 +41,12 @@ function createPoolConfig(
     statement_timeout: config.statementTimeoutMs,
     query_timeout: config.queryTimeoutMs,
     idle_in_transaction_session_timeout: config.idleTransactionTimeoutMs,
-    ssl: config.ssl,
+    ssl: config.ssl ? {
+      ...config.ssl,
+      // pg omits SNI for IP addresses. Verify the configured endpoint explicitly
+      // rather than allowing Node's fallback hostname to decide its identity.
+      checkServerIdentity: (_hostname, certificate) => checkServerIdentity(config.host, certificate),
+    } : false,
     allowExitOnIdle: false,
   };
 }

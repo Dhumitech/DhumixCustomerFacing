@@ -379,7 +379,7 @@ export type ProblemField = {
     message: string;
 };
 
-export type ProblemCode = 'BAD_REQUEST' | 'AUTHENTICATION_REQUIRED' | 'ACCESS_DENIED' | 'ORGANIZATION_REQUIRED' | 'ORGANIZATION_MEMBERSHIP_REQUIRED' | 'RESOURCE_NOT_FOUND' | 'IDEMPOTENCY_CONFLICT' | 'STATE_CONFLICT' | 'PAYLOAD_TOO_LARGE' | 'UNSUPPORTED_MEDIA_TYPE' | 'VALIDATION_ERROR' | 'SERVICE_INPUT_INVALID' | 'PLATFORM_CAPACITY_LIMIT' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE';
+export type ProblemCode = 'BAD_REQUEST' | 'AUTHENTICATION_REQUIRED' | 'ACCESS_DENIED' | 'ORGANIZATION_REQUIRED' | 'ORGANIZATION_MEMBERSHIP_REQUIRED' | 'RESOURCE_NOT_FOUND' | 'IDEMPOTENCY_CONFLICT' | 'ACCOUNT_ALREADY_EXISTS' | 'STATE_CONFLICT' | 'PAYLOAD_TOO_LARGE' | 'UNSUPPORTED_MEDIA_TYPE' | 'VALIDATION_ERROR' | 'SERVICE_INPUT_INVALID' | 'PLATFORM_CAPACITY_LIMIT' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE';
 
 export type Problem = {
     type: string;
@@ -398,13 +398,31 @@ export type VerificationAccepted = {
     message?: string;
 };
 
+export type DemoOrganizationCompleted = {
+    confirmed: true;
+    organization_id: string;
+    verification_skipped: true;
+};
+
 export type VerificationConfirmed = {
     confirmed: true;
     organization_id?: string;
     sign_in_required?: boolean;
 };
 
+export type RestoredAuthSession = {
+    access_token: string;
+    token_type: 'Bearer';
+    expires_in: number;
+    csrf_token: string;
+    identity_email: string;
+};
+
 export type OrganizationSummary = {
+    /**
+     * Whether the authenticated user created this organization.
+     */
+    is_creator: boolean;
     id: string;
     name: string;
     state: 'active';
@@ -412,6 +430,10 @@ export type OrganizationSummary = {
 };
 
 export type OrganizationPage = {
+    /**
+     * False once the authenticated user has created an organization. Memberships in other organizations do not consume this limit.
+     */
+    can_create: boolean;
     organizations: Array<OrganizationSummary>;
 };
 
@@ -688,7 +710,7 @@ export type SignUpErrors = {
      */
     400: Problem;
     /**
-     * Same Idempotency-Key was used with a different canonical request (IDEMPOTENCY_CONFLICT); never a duplicate-email signal
+     * Email already registered (ACCOUNT_ALREADY_EXISTS), or the same Idempotency-Key used with a different canonical request (IDEMPOTENCY_CONFLICT)
      */
     409: Problem;
     /**
@@ -770,6 +792,39 @@ export type SignInResponses = {
 };
 
 export type SignInResponse = SignInResponses[keyof SignInResponses];
+
+export type RestoreSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/session';
+};
+
+export type RestoreSessionErrors = {
+    /**
+     * Missing or invalid Dhumi authentication
+     */
+    401: Problem;
+    /**
+     * Authenticated but not authorized or Tenant unavailable
+     */
+    403: Problem;
+    /**
+     * Temporary Dhumi platform/product capacity limit; not a customer quota
+     */
+    429: Problem;
+};
+
+export type RestoreSessionError = RestoreSessionErrors[keyof RestoreSessionErrors];
+
+export type RestoreSessionResponses = {
+    /**
+     * Active browser session; response is not cacheable
+     */
+    200: RestoredAuthSession;
+};
+
+export type RestoreSessionResponse = RestoreSessionResponses[keyof RestoreSessionResponses];
 
 export type RefreshSessionData = {
     body?: never;
@@ -2296,6 +2351,10 @@ export type CreateOrganizationError = CreateOrganizationErrors[keyof CreateOrgan
 
 export type CreateOrganizationResponses = {
     /**
+     * Completed immediately in explicit demo mode without email verification.
+     */
+    201: DemoOrganizationCompleted;
+    /**
      * Success
      */
     202: VerificationAccepted;
@@ -2370,6 +2429,10 @@ export type AcceptInviteErrors = {
 export type AcceptInviteError = AcceptInviteErrors[keyof AcceptInviteErrors];
 
 export type AcceptInviteResponses = {
+    /**
+     * Completed immediately in explicit demo mode without email verification.
+     */
+    200: DemoOrganizationCompleted;
     /**
      * Success
      */

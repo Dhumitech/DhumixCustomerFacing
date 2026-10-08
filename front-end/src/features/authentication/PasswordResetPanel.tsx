@@ -2,14 +2,17 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { organizationsApi } from "../../api/organizations";
 import { tokenStore } from "../../session/tokenStore";
+import { DhumiApiError } from "../../api/errors";
+import { PasswordSupport } from "./PasswordSupport";
 
 export function PasswordResetPanel({ onDone }: { onDone: () => void }) {
   const queries = useQueryClient();
   const [email, setEmail] = useState(""); const [id, setId] = useState<string | null>(null);
   const [code, setCode] = useState(""); const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState<string | null>(null);
-  async function work(run: () => Promise<void>) { setBusy(true); setMessage(null); try { await run(); } catch { setMessage("The request could not be completed. Use a fresh code and try again."); } finally { setBusy(false); } }
+  async function work(run: () => Promise<void>) { setBusy(true); setMessage(null); try { await run(); } catch (error) { setMessage(error instanceof DhumiApiError && error.status === 403 ? "Password reset is unavailable while demo verification is disabled. Use an account whose password you know." : "The request could not be completed. Use a fresh code and try again."); } finally { setBusy(false); } }
   return <section><h3>Reset password</h3>
+    <PasswordSupport />
     <form onSubmit={e => { e.preventDefault(); void work(async () => {
       if (!id) { const result = await organizationsApi.reset(email); setId(result.verification_id); setMessage("If this address can reset its password, a code has been sent."); }
       else { await organizationsApi.confirm(id, { code, new_password: password }); tokenStore.clear(); queries.clear(); setPassword(""); setCode(""); onDone(); }

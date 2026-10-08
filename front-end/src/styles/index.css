@@ -728,6 +728,21 @@ a {
   color: #8f1d14;
 }
 
+.auth-message p { margin: 0; }
+.auth-message .auth-password-help { margin-top: 12px; }
+.auth-password-help { font-size: 13px; line-height: 1.6; }
+.auth-password-help a { color: inherit; font-weight: 600; overflow-wrap: anywhere; }
+.auth-recovery { position: relative; display: flex; justify-content: flex-end; margin-top: 14px; }
+.auth-text-button { border: 0; padding: 0; background: transparent; color: #5b665f; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; text-underline-offset: 3px; }
+.auth-text-button:hover { color: #222; text-decoration: underline; }
+.auth-text-button:disabled { cursor: wait; opacity: .6; }
+.auth-support-popup { position: absolute; right: 0; bottom: calc(100% + 10px); display: flex; align-items: center; gap: 12px; max-width: 100%; padding: 12px 14px; border: 1px solid #ffaa00; border-radius: 6px; background: #fffaf0; box-shadow: 0 6px 20px #2222221a; }
+.auth-support-popup p { margin: 0; color: #5b665f; font-size: 13px; line-height: 1.5; }
+.auth-support-popup a { color: #222; font-weight: 700; overflow-wrap: anywhere; text-underline-offset: 3px; }
+.auth-support-popup__close { display: grid; flex: 0 0 28px; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 4px; background: transparent; color: #5b665f; cursor: pointer; font-size: 20px; }
+.auth-support-popup__close:hover { background: #ffaa0026; color: #222; }
+.auth-account-signin { margin-top: 12px; border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
 .auth-consent {
   display: flex;
   align-items: flex-start;

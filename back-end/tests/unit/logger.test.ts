@@ -28,6 +28,36 @@ function configuration() {
 }
 
 describe("structured logger", () => {
+  it("redacts authenticated Redis URLs at all runtime/env entry points", () => {
+    const records: string[] = [];
+    const logger = pino(createLoggerOptions(configuration()), { write: (value: string) => records.push(value) });
+    const redisUrl = "rediss://:redis-private-access-key@redis.example:10000";
+    logger.info({ REDIS_URL: redisUrl, env: { REDIS_URL: redisUrl }, redisUrl, config: { redisUrl } });
+    expect(records.join("")).not.toContain("redis-private-access-key");
+    expect(records.join("")).toContain("[REDACTED]");
+  });
+  it("redacts Service Bus role credentials and legacy connection strings", () => {
+    const records: string[] = [];
+    const logger = pino(createLoggerOptions(configuration()), { write: (value: string) => records.push(value) });
+    const clientSecret = "servicebus-role-private-value", connection = "servicebus-sas-private-value";
+    logger.info({ SERVICE_BUS_SENDER_CLIENT_SECRET: clientSecret, SERVICE_BUS_RECEIVER_CLIENT_SECRET: clientSecret,
+      env: { SERVICE_BUS_SENDER_CLIENT_SECRET: clientSecret, SERVICE_BUS_RECEIVER_CLIENT_SECRET: clientSecret },
+      SERVICE_BUS_CONNECTION_STRING: connection, serviceBus: { credential: { clientSecret }, connectionString: connection },
+      config: { serviceBus: { credential: { clientSecret }, connectionString: connection } } });
+    expect(records.join("")).not.toContain(clientSecret);
+    expect(records.join("")).not.toContain(connection);
+    expect(records.join("")).toContain("[REDACTED]");
+  });
+  it("redacts Azure client secrets from environment and runtime configuration", () => {
+    const records: string[] = [];
+    const logger = pino(createLoggerOptions(configuration()), { write: (value: string) => records.push(value) });
+    const clientSecret = "azure-client-private-value";
+    logger.info({ AZURE_CLIENT_SECRET: clientSecret, env: { AZURE_CLIENT_SECRET: clientSecret },
+      azure: { clientSecret }, resultStorage: { azure: { clientSecret } },
+      config: { resultStorage: { azure: { clientSecret } } } });
+    expect(records.join("")).not.toContain(clientSecret);
+    expect(records.join("")).toContain("[REDACTED]");
+  });
   it("redacts authorization, cookie, CSRF, and nested password fields", () => {
     const records: string[] = [];
     const destination = {

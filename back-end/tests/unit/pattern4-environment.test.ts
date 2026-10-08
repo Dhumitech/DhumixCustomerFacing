@@ -35,6 +35,19 @@ function addJobManagerConfiguration(source: NodeJS.ProcessEnv): void {
 }
 
 describe("Pattern 4 environment", () => {
+  it("uses managed Azure Blob while retaining the independent local queue profile", () => {
+    const source = common();
+    addJobManagerConfiguration(source);
+    Object.assign(source, { RESULT_STORAGE_DRIVER: "azure_blob", RESULT_STORAGE_CONNECTION_STRING: "",
+      AZURE_STORAGE_ACCOUNT_NAME: "examplestorage123", AZURE_TENANT_ID: "11111111-1111-4111-8111-111111111111",
+      AZURE_CLIENT_ID: "22222222-2222-4222-8222-222222222222", AZURE_CLIENT_SECRET: "test-only-client-secret" });
+    const config = loadJobManagerConfig(source);
+    expect(config.resultStorage).toMatchObject({ driver: "azure_blob", connectionString: null,
+      azure: { accountName: "examplestorage123", clientSecret: "test-only-client-secret" } });
+    expect(config.serviceBus.driver).toBe("emulator");
+    source.AZURE_TENANT_ID = "";
+    expect(() => loadJobManagerConfig(source)).toThrow(/AZURE_TENANT_ID/);
+  });
   it("loads a restricted local DLQ operator configuration", () => {
     const source = common();
     source.DATABASE_OPERATOR_USER = "dhumi_test_operator_login";

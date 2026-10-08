@@ -1,0 +1,93 @@
+name: dhumi-azure-rehearsal
+
+x-backend: &backend
+  image: dhumi-azure-backend:${DHUMI_RELEASE:?Prepare the rehearsal first}
+  init: true
+  user: "1000:1000"
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+  stop_grace_period: 45s
+  mem_limit: 768m
+  cpus: 1.0
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+services:
+  api:
+    <<: *backend
+    build:
+      context: ../../back-end
+      dockerfile: ../deploy/demo/backend.Dockerfile
+    command: [node, dist/deployment/runtimeEntrypoint.js, api]
+    secrets:
+      - source: api_settings
+        target: /run/secrets/runtime.json
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/v1/status',{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  outbox:
+    <<: *backend
+    command: [node, dist/deployment/runtimeEntrypoint.js, outbox]
+    secrets:
+      - source: outbox_settings
+        target: /run/secrets/runtime.json
+    depends_on:
+      api: {condition: service_healthy}
+
+  jobs:
+    <<: *backend
+    command: [node, dist/deployment/runtimeEntrypoint.js, jobs]
+    secrets:
+      - source: jobs_settings
+        target: /run/secrets/runtime.json
+    depends_on:
+      api: {condition: service_healthy}
+
+  frontend:
+    image: dhumi-azure-frontend:${DHUMI_RELEASE:?Prepare the rehearsal first}
+    build:
+      context: ../../front-end
+      dockerfile: ../deploy/azure-rehearsal/frontend.Dockerfile
+      additional_contexts:
+        rehearsal_config: .
+      args:
+        SIGNUP_LEGAL_ACCEPTANCES_JSON: ${SIGNUP_LEGAL_ACCEPTANCES_JSON:?Use existing legal metadata}
+    user: "1000:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      XDG_DATA_HOME: /tmp/caddy-data
+      XDG_CONFIG_HOME: /tmp/caddy-config
+      DHUMI_API_UPSTREAM: api:3000
+    ports: ["127.0.0.1:${DHUMI_HTTP_PORT:-4173}:8080"]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/v1/status]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+secrets:
+  api_settings:
+    file: ${DHUMI_PRIVATE_DIR:?Prepare the rehearsal first}/api.private.json
+  outbox_settings:
+    file: ${DHUMI_PRIVATE_DIR:?Prepare the rehearsal first}/outbox.private.json
+  jobs_settings:
+    file: ${DHUMI_PRIVATE_DIR:?Prepare the rehearsal first}/jobs.private.json

@@ -1,0 +1,255 @@
+{
+  "purpose": "Owner-selected in-place 0071 dependency/infrastructure baseline with canonical LF text. Historical dependencies, versions, scripts and compose inputs remain pinned; the 0073 operator entry is checked separately. The accepted upstream frontend lockfile metadata change is recorded below.",
+  "hashes": {
+    "back-end/package.json": "a6265fa1ed6f1f9bc7f16c442e1701eae298479b9026818583fe9a21c8552cf6",
+    "back-end/package-lock.json": "a279b41b29ce4786b36ea34c4c8b43185e998fcfeb5c689d1b68225d3a27ea51",
+    "front-end/package.json": "9a80e228de45123e1b1ee65c3df2582352391158003a4acd0c36672b906eb1e2",
+    "front-end/package-lock.json": "9a57b697aa06c79a3da4c64bbae452caeef9c6aa53c75b0fb0901633722cbd16",
+    "back-end/compose.pattern3.yml": "d91ee1961f85929c3e4433e344c2ac04e4bf4353dff9315ea48edf61bcfcd33a",
+    "back-end/compose.pattern4.yml": "b0037e439b389b65fbf70608752ed6fa666be31ca77eb67e09f959165541d0c5"
+  },
+  "checkoutReconciliation": {
+    "date": "2026-10-08",
+    "backendPreviousWorkingCopySha256": "e0a1f4b452402bbfbc3bdf573d554c3f84f36866228cdc7a1cc76528c64785ae",
+    "backendChange": "CRLF/LF normalization only; lockfile JSON is unchanged.",
+    "frontendPreviousSha256": "232dea235c52934a776e1ed2e9bdb00a58e363727dbfcf96037092363d8ce960",
+    "acceptedUpstreamCommit": "6303823269140169ef247b6ee890d0670163a015",
+    "frontendChange": "Preserve upstream peer/libc lockfile metadata; all other JSON, dependency versions and integrity values are unchanged."
+  },
+  "scope": "Deployment readiness: compatible patches of installed packages; original 0071 receipt retained.",
+  "changes": {
+    "back-end": [
+      {
+        "package": "@jridgewell/sourcemap-codec",
+        "from": "1.5.5",
+        "to": "1.6.0"
+      },
+      {
+        "package": "@oxc-project/types",
+        "from": "0.144.0",
+        "to": "0.153.0"
+      },
+      {
+        "package": "@rolldown/binding-android-arm-eabi",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-android-arm64",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-darwin-arm64",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-darwin-x64",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-freebsd-x64",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-linux-arm-gnueabihf",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-linux-arm64-gnu",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-linux-arm64-musl",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-linux-ppc64-gnu",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-linux-s390x-gnu",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-linux-x64-gnu",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-linux-x64-musl",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-openharmony-arm64",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-win32-arm64-msvc",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@rolldown/binding-win32-x64-msvc",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "@vitest/expect",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/mocker",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/pretty-format",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/runner",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/snapshot",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/spy",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/utils",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "chai",
+        "from": "6.2.2",
+        "to": "6.3.0"
+      },
+      {
+        "package": "ip-address",
+        "from": "10.5.0",
+        "to": "10.7.3"
+      },
+      {
+        "package": "nanoid",
+        "from": "3.3.18",
+        "to": "3.3.20"
+      },
+      {
+        "package": "picomatch",
+        "from": "4.0.5",
+        "to": "4.0.7"
+      },
+      {
+        "package": "postcss",
+        "from": "8.5.26",
+        "to": "8.5.29"
+      },
+      {
+        "package": "rolldown",
+        "from": "1.2.4",
+        "to": "1.2.13"
+      },
+      {
+        "package": "source-map-js",
+        "from": "1.2.1",
+        "to": "1.2.2"
+      },
+      {
+        "package": "tinyrainbow",
+        "from": "3.1.1",
+        "to": "3.2.0"
+      },
+      {
+        "package": "vite",
+        "from": "8.2.1",
+        "to": "8.3.3"
+      },
+      {
+        "package": "vitest",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      }
+    ],
+    "front-end": [
+      {
+        "package": "@vitest/expect",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/mocker",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/pretty-format",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/runner",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/snapshot",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/spy",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "@vitest/utils",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      },
+      {
+        "package": "chai",
+        "from": "6.2.2",
+        "to": "6.3.0"
+      },
+      {
+        "package": "source-map-js",
+        "from": "1.2.1",
+        "to": "1.2.2"
+      },
+      {
+        "package": "tinyrainbow",
+        "from": "3.1.1",
+        "to": "3.2.0"
+      },
+      {
+        "package": "undici",
+        "from": "7.29.0",
+        "to": "7.30.0"
+      },
+      {
+        "package": "vitest",
+        "from": "4.1.10",
+        "to": "4.1.11"
+      }
+    ]
+  }
+}

@@ -10,6 +10,7 @@ import type {
 } from "../../helpers/resultUrlSigner.js";
 import { isResultObjectKeyForRun } from "./resultObjectIdentity.js";
 import { ResultObjectIntegrityError } from "./resultObjectStore.js";
+import { publicDownloadUrl } from "./publicDownloadUrl.js";
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
@@ -17,6 +18,7 @@ export interface AzuriteResultUrlSignerOptions {
   readonly container: ContainerClient;
   readonly ttlSeconds: number;
   readonly now?: () => Date;
+  readonly publicBaseUrl?: string;
 }
 
 function requireLoopbackAzurite(container: ContainerClient): void {
@@ -54,6 +56,7 @@ export function createAzuriteResultUrlSigner(
   options: AzuriteResultUrlSignerOptions,
 ): ResultUrlSigner {
   requireLoopbackAzurite(options.container);
+  if (options.publicBaseUrl) publicDownloadUrl(options.container.url, options.publicBaseUrl);
   if (!Number.isSafeInteger(options.ttlSeconds) || options.ttlSeconds < 1) {
     throw new TypeError("ttlSeconds must be a positive safe integer");
   }
@@ -79,7 +82,7 @@ export function createAzuriteResultUrlSigner(
         contentDisposition: "attachment",
       });
 
-      return { downloadUrl, expiresAt, transport: "loopback-http" };
+      return { ...publicDownloadUrl(downloadUrl, options.publicBaseUrl), expiresAt };
     },
   };
 }

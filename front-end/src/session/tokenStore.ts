@@ -4,6 +4,7 @@ type Listener = () => void;
 
 let currentSession: AuthSession | null = null;
 let currentIdentityEmail: string | null = null;
+let revision = 0;
 const listeners = new Set<Listener>();
 
 function notify(): void {
@@ -13,6 +14,7 @@ function notify(): void {
 }
 
 export const tokenStore = Object.freeze({
+  getRevision(): number { return revision; },
   getSnapshot(): AuthSession | null {
     return currentSession;
   },
@@ -22,6 +24,7 @@ export const tokenStore = Object.freeze({
   },
 
   set(session: AuthSession, identityEmail?: string): void {
+    revision += 1;
     currentSession = Object.freeze({ ...session });
     if (identityEmail !== undefined) {
       currentIdentityEmail = identityEmail.trim().toLocaleLowerCase();
@@ -35,6 +38,7 @@ export const tokenStore = Object.freeze({
     }
 
     currentSession = null;
+    revision += 1;
     currentIdentityEmail = null;
     notify();
   },

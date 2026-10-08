@@ -38,6 +38,24 @@ afterEach(() => {
 });
 
 describe("central Dhumi authentication client", () => {
+  it("restores a cookie-authenticated session without browser token storage", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ ...session, identity_email: "customer@example.test" }, 200)));
+    await Promise.all([authApi.restore(), authApi.restore()]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const request = vi.mocked(fetch).mock.calls[0][0] as Request;
+    expect(request.method).toBe("GET"); expect(request.credentials).toBe("include"); expect(new URL(request.url).pathname).toBe("/v1/auth/session");
+    expect(tokenStore.getSnapshot()).toEqual(session); expect(tokenStore.getIdentitySnapshot()).toBe("customer@example.test");
+    expect(sessionStorage.length).toBe(0);
+  });
+  it("does not let a late bootstrap overwrite another sign-in", async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(resolve => { finish = resolve; })));
+    const pending = authApi.restore();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const newer = { ...session, access_token: "newer-session" }; tokenStore.set(newer, "other@example.test");
+    finish(jsonResponse({ ...session, identity_email: "customer@example.test" }, 200)); await pending;
+    expect(tokenStore.getSnapshot()).toEqual(newer); expect(tokenStore.getIdentitySnapshot()).toBe("other@example.test");
+  });
   it("ignores the historical company field and supplies signup policy headers", async () => {
     const fetchMock = vi.fn<typeof fetch>(async () =>
       jsonResponse(

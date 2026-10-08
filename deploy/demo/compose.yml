@@ -1,0 +1,175 @@
+name: dhumi-hosted-demo
+
+x-app: &app
+  image: dhumi-demo-backend:${DHUMI_RELEASE:?Prepare the demo release}
+  build:
+    context: ../../back-end
+    dockerfile: ../deploy/demo/backend.Dockerfile
+  network_mode: service:azurite
+  user: "1000:1000"
+  read_only: true
+  tmpfs: [/tmp]
+  init: true
+  restart: unless-stopped
+  mem_limit: 512m
+  cpus: 1
+
+services:
+  postgres:
+    image: postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    environment:
+      POSTGRES_USER: ${DHUMI_POSTGRES_USER:?Prepare the demo release}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: dhumi_test
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [postgres_password]
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./restore-database.sh:/docker-entrypoint-initdb.d/10-restore.sh:ro
+      - ${DHUMI_PRIVATE_DIR:?Prepare the demo release}/restore:/restore:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d dhumi_test']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 60s
+    mem_limit: 1g
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.2.1-alpine@sha256:987c376c727652f99625c7d205a1cba3cb2c53b92b0b62aade2bd48ee1593232
+    command: [redis-server, --appendonly, "yes"]
+    network_mode: service:azurite
+    depends_on:
+      azurite: {condition: service_healthy}
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 256m
+    restart: unless-stopped
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+    entrypoint: [/bin/sh, -c, 'export MSSQL_SA_PASSWORD=$$(cat /run/secrets/mssql_password); exec /opt/mssql/bin/sqlservr']
+    environment:
+      ACCEPT_EULA: ${DHUMI_ACCEPT_EULA:?Retain the existing accepted demo EULA setting}
+      MSSQL_MEMORY_LIMIT_MB: 1024
+    secrets: [mssql_password]
+    volumes: [servicebus-data:/var/opt/mssql]
+    healthcheck:
+      test: [CMD-SHELL, '/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$(cat /run/secrets/mssql_password)" -Q "SELECT 1" -b -o /dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    mem_limit: 2g
+    restart: unless-stopped
+
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator@sha256:5a96d893b245031740f7d46e0fe5ff282d24b78c4b7d761dd57590f3f010a9b3
+    # The official distroless image accepts this secret only through its env.
+    # Keep it in the ignored private bundle; never render expanded config.
+    env_file:
+      - path: ${DHUMI_PRIVATE_DIR}/servicebus.private.env
+        format: raw
+    environment:
+      ACCEPT_EULA: ${DHUMI_ACCEPT_EULA:?Retain the existing accepted demo EULA setting}
+      SQL_SERVER: mssql
+      EMULATOR_HTTP_PORT: 5300
+      SQL_WAIT_INTERVAL: 10
+    volumes: [../../back-end/infra/pattern4/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro]
+    depends_on:
+      mssql: {condition: service_healthy}
+    mem_limit: 1g
+    restart: unless-stopped
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0@sha256:647c63a91102a9d8e8000aab803436e1fc85fbb285e7ce830a82ee5d6661cf37
+    command: [azurite-blob, --blobHost, 0.0.0.0, --location, /data, --skipApiVersionCheck, --disableProductStyleUrl, --silent]
+    env_file:
+      - path: ${DHUMI_PRIVATE_DIR}/azurite.private.env
+        format: raw
+    volumes: [results-data:/data]
+    healthcheck:
+      test: [CMD, node, -e, "require('http').get('http://127.0.0.1:10000/devstoreaccount1?comp=list',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 256m
+    restart: unless-stopped
+
+  restore-results:
+    <<: *app
+    command: [node, dist/deployment/runtimeEntrypoint.js, restore-results]
+    restart: "no"
+    secrets: [{source: result_settings, target: runtime.json}]
+    volumes: ["${DHUMI_PRIVATE_DIR}/restore:/restore:ro"]
+    depends_on:
+      azurite: {condition: service_healthy}
+
+  api:
+    <<: *app
+    secrets: [{source: api_settings, target: runtime.json}]
+    depends_on:
+      postgres: {condition: service_healthy}
+      restore-results: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/v1/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  outbox:
+    <<: *app
+    command: [node, dist/deployment/runtimeEntrypoint.js, outbox]
+    secrets: [{source: outbox_settings, target: runtime.json}]
+    depends_on:
+      api: {condition: service_healthy}
+      servicebus: {condition: service_started}
+
+  jobs:
+    <<: *app
+    command: [node, dist/deployment/runtimeEntrypoint.js, jobs]
+    secrets: [{source: jobs_settings, target: runtime.json}]
+    depends_on:
+      api: {condition: service_healthy}
+      servicebus: {condition: service_started}
+      redis: {condition: service_healthy}
+
+  frontend:
+    image: dhumi-demo-frontend:${DHUMI_RELEASE}
+    build:
+      context: ../../front-end
+      dockerfile: ../deploy/demo/frontend.Dockerfile
+      args:
+        SIGNUP_LEGAL_ACCEPTANCES_JSON: ${SIGNUP_LEGAL_ACCEPTANCES_JSON:?Use the existing approved metadata}
+    environment:
+      DHUMI_SITE_ADDRESS: ${DHUMI_SITE_ADDRESS:?Set the demo hostname}
+    ports:
+      - "${DHUMI_BIND_IP:-127.0.0.1}:${DHUMI_HTTP_PORT:-3900}:80"
+      - "${DHUMI_BIND_IP:-127.0.0.1}:${DHUMI_HTTPS_PORT:-3943}:443"
+    volumes: [caddy-data:/data, caddy-config:/config]
+    depends_on:
+      api: {condition: service_healthy}
+    mem_limit: 128m
+    restart: unless-stopped
+
+secrets:
+  postgres_password: {file: "${DHUMI_PRIVATE_DIR}/postgres-password.private.txt"}
+  mssql_password: {file: "${DHUMI_PRIVATE_DIR}/mssql-password.private.txt"}
+  api_settings: {file: "${DHUMI_PRIVATE_DIR}/api.private.json"}
+  outbox_settings: {file: "${DHUMI_PRIVATE_DIR}/outbox.private.json"}
+  jobs_settings: {file: "${DHUMI_PRIVATE_DIR}/jobs.private.json"}
+  result_settings: {file: "${DHUMI_PRIVATE_DIR}/results.private.json"}
+
+volumes:
+  postgres-data:
+  servicebus-data:
+  results-data:
+  redis-data:
+  caddy-data:
+  caddy-config:

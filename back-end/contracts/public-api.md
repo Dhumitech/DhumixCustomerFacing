@@ -5,13 +5,15 @@
 `PLATFORM-DECISION`
 
 The current accepted Demo Production HTTP contract is
-[openapi.yaml](openapi.yaml), with 37 operations. It retains four accepted
+[openapi.yaml](openapi.yaml), with 39 operations. It retains four accepted
 Marketplace sample/enquiry additions and removes the three customer API-key
 operations as the declared 0070 exception. Browser-session customer access is
-implemented. The 0070 migration is applied in dhumi_test. The 0071 user-only
-authentication, organization/proof/reset/member/invite and transaction authorization/browse
-plus matching frontend source are implemented and checked offline. Grant/RLS,
-PostgreSQL qualification/application, real email proof and runtime activation remain pending. This source requires a coordinated 0071 cutover before activation.
+implemented. Migrations 0070–0075 are applied in local dhumi_test. User-only
+authentication, organizations, transaction authorization/browse, activity and
+the matching frontend use that refactored schema. The owner requested an
+explicit temporary no-OTP demo on 8 October; see the organization behavior
+below and [the runbook](../../docs/runbooks/demo-no-otp.md). Real email proof,
+provider traffic and hosted deployment retain their separate readiness gates.
 The older Project Specs YAML is a retained snapshot, not client-generation
 authority. The current contract is intentionally smaller than the older platform
 API: there are no activation, plan, subscription, billing, quota or customer-webhook routes. Acceptance does not enable live Bright
@@ -46,16 +48,19 @@ The OpenAPI document is the machine contract. This file explains behavior and do
 
 | Method | Path | Purpose | Provider call |
 |---|---|---|---|
-| `POST` | `/v1/auth/signup` | Create only the local User, legal evidence and audit; generic accepted response | Never |
+| `POST` | `/v1/auth/signup` | Create only the local User, legal evidence and audit; reject duplicate email | Never |
 | `POST` | `/v1/auth/sign-in` | Authenticate a User and create session/token family | Never |
 | `POST` | `/v1/auth/refresh` | Rotate/refresh Dhumi session | Never |
 | `POST` | `/v1/auth/logout` | Revoke current Dhumi session family | Never |
 
 `PENDING-VERIFICATION`: real ACS/inbox proof and production signup/recovery approval remain deployment gates. Organization proof and OTP-only reset are implemented in source; remaining MFA policy is not implemented.
 
-Signup returns `409` only for `IDEMPOTENCY_CONFLICT` (the same
-`Idempotency-Key` with a different canonical request). An existing email follows
-the generic `202` flow and must not be exposed as a duplicate-email conflict.
+On the owner's 8 October correction, a fresh signup request for a registered
+email returns `409 ACCOUNT_ALREADY_EXISTS` with sign-in/password-support copy.
+It never overwrites the password or legal evidence. `IDEMPOTENCY_CONFLICT` remains
+a distinct `409` for a reused key with a different canonical request. Successful
+same-key and historical accepted receipts retain `202`; recorded duplicate
+rejections replay `409`. See [the accepted design](../../docs/specs/duplicate-signup-design.md).
 `workspace_name` is optional, deprecated and ignored. Signup creates no
 organization, membership, OTP or notification outbox. Legal evidence records a
 server-generated UUID trace; the caller's correlation ID remains the response
@@ -79,8 +84,8 @@ changes do not destroy a user session; organization access is checked separately
 
 The path uses the authorized organization selected by the optional header.
 Signup users cannot access a workspace until they join or create an organization.
-Workspace adds the member/admin role. Create/join and verification are implemented
-in source; 0071 cutover remains pending.
+Workspace adds the member/admin role. The organization schema is applied in
+dhumi_test; create/join follows the selected normal or temporary demo mode.
 
 ### Catalogue
 
@@ -235,7 +240,7 @@ Example:
 | 403 | `ACCESS_DENIED` | Authenticated but not authorized, tenant suspended or CSRF invalid |
 | 403 | `ORGANIZATION_MEMBERSHIP_REQUIRED` | No active organization membership for an organization operation |
 | 404 | `RESOURCE_NOT_FOUND` | Resource absent or not visible to this Tenant |
-| 409 | `IDEMPOTENCY_CONFLICT`, `STATE_CONFLICT` | Same key/different body or illegal current state |
+| 409 | `IDEMPOTENCY_CONFLICT`, `STATE_CONFLICT`, `ACCOUNT_ALREADY_EXISTS` | Same key/different body, illegal current state, or duplicate signup email |
 | 413 | `PAYLOAD_TOO_LARGE` | Request body exceeds the accepted one-mebibyte limit |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Request body does not use a supported media type |
 | 422 | `VALIDATION_ERROR`, `SERVICE_INPUT_INVALID` | Semantically invalid input |
@@ -263,11 +268,11 @@ Provider errors are mapped to these stable codes. Do not expose `402 insufficien
 | Method | Path | Result |
 | --- | --- | --- |
 | GET | /v1/organizations | Active organizations and caller role |
-| POST | /v1/organizations | 202 pending proof; no organization until confirmation |
-| POST | /v1/invites/accept | 202 fresh proof; exactly one join_code or invite_token |
-| POST | /v1/auth/password-reset | Generic 202 with verification_id for every address |
-| POST | /v1/verifications/{verification_id}/confirm | Create/join same browser user plus CSRF; reset code plus new_password |
-| POST | /v1/verifications/{verification_id}/resend | New challenge; old code/link invalidated |
+| POST | /v1/organizations | Normal: 202 pending proof; demo: 201 immediate organization |
+| POST | /v1/invites/accept | Normal: 202 fresh proof; demo: 200 immediate join; exactly one join_code or invite_token |
+| POST | /v1/auth/password-reset | Normal: generic 202 with verification_id; demo: 403 unavailable |
+| POST | /v1/verifications/{verification_id}/confirm | Normal: create/join same browser user plus CSRF or reset proof; demo: 403 unavailable |
+| POST | /v1/verifications/{verification_id}/resend | Normal: new challenge; demo: 403 unavailable |
 | GET | /v1/organization/members | Safe profiles for active members |
 | PATCH | /v1/organization/members/{user_id} | Admin role change; creator/last-admin protection |
 | DELETE | /v1/organization/members/{user_id} | 204, row retained as removed |
@@ -277,7 +282,15 @@ Provider errors are mapped to these stable codes. Do not expose `402 insufficien
 | POST | /v1/organization/invites/{invite_id}/resend | Rotate token; old pending join fingerprint fails |
 
 Mutations require Idempotency-Key; signed-in mutations require session CSRF.
-Proof lasts ten minutes with five failed attempts. Failed counters commit before
+With the explicit non-production `DEMO_DISABLE_OTP=true` switch, create/join
+return `confirmed`, `organization_id` and `verification_skipped: true` without
+a pending OTP or email delivery. Invitation email matching, expiry, revocation,
+use counting and role protection still apply. Share the minted link/code
+manually. Mailbox verification is unchanged and audits record the demo bypass.
+Password reset and proof endpoints are unavailable instead of allowing
+proofless account recovery. The switch defaults to false and production rejects it.
+
+In normal mode, proof lasts ten minutes with five failed attempts. Failed counters commit before
 the error; resend requires 60 seconds and permits five issues/hour across purposes.
 Previously verified users still need fresh proof for a second organization/rejoin.
 An active join keeps its role without extra uses. Reset revokes every active session
@@ -288,4 +301,4 @@ Invitation secrets appear only at first minting; replay returns metadata and exp
 Resend rotates a fresh token. Browser proof/replay state is memory-only. Link secrets
 use cleared URL fragments; GET/scanners never confirm. The URL selects an organization
 per tab. Selection resumes the same screen without automatically starting a Run.
-Activity is a Phase 3 operation; 0071 database cutover remains pending.
+Activity is implemented on the applied 0073–0075 schema.

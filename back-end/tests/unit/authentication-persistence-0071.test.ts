@@ -93,7 +93,7 @@ describe("0071 user-only signup persistence", () => {
     );
     noOrganizationOrSignupOutbox(db.calls);
   });
-  it("accepts an existing email without replacing its password or legal evidence", async () => {
+  it("reports an existing email without replacing its password or legal evidence", async () => {
     const db = database(({ sql }) => {
       if (sql.includes("INSERT INTO app.idempotency_records"))
         return [claim({ state: "in_progress" })];
@@ -101,8 +101,7 @@ describe("0071 user-only signup persistence", () => {
       return [];
     });
     expect(await createSignupRepository(db.pool).createSignup(signupInput())).toEqual({
-      kind: "completed",
-      userId: null,
+      kind: "existing",
       replayed: false,
     });
     expect(
@@ -113,8 +112,24 @@ describe("0071 user-only signup persistence", () => {
       "identity.signup_existing",
       userId,
       trace,
+      "rejected_existing",
+    ]);
+    expect(db.calls.find((c) => c.sql.includes("SET state = 'completed'"))?.values.slice(2)).toEqual([
+      409, "auth-account-exists:v1",
     ]);
     noOrganizationOrSignupOutbox(db.calls);
+  });
+  it("replays a recorded duplicate-account rejection without identity or audit writes", async () => {
+    const db = database(({ sql }) =>
+      sql.includes("FROM app.idempotency_records")
+        ? [claim({ response_status: 409, response_body_reference: "auth-account-exists:v1", related_resource_id: null })]
+        : [],
+    );
+    expect(await createSignupRepository(db.pool).createSignup(signupInput())).toEqual({
+      kind: "existing", replayed: true,
+    });
+    expect(mutations(db.calls)).toHaveLength(1);
+    expect(db.calls.at(-1)?.sql).toBe("COMMIT");
   });
   it("replays a completed claim without user, legal or audit writes", async () => {
     const db = database(({ sql }) =>
@@ -127,6 +142,15 @@ describe("0071 user-only signup persistence", () => {
     });
     expect(mutations(db.calls)).toHaveLength(1); // Only the concurrency-safe claim attempt.
     expect(db.calls.at(-1)?.sql).toBe("COMMIT");
+  });
+  it("keeps a historical generic accepted duplicate receipt as 202", async () => {
+    const db = database(({ sql }) =>
+      sql.includes("FROM app.idempotency_records") ? [claim({ related_resource_id: null })] : [],
+    );
+    expect(await createSignupRepository(db.pool).createSignup(signupInput())).toEqual({
+      kind: "completed", userId: null, replayed: true,
+    });
+    expect(mutations(db.calls)).toHaveLength(1);
   });
   it("accepts an in-progress duplicate without inventing a success record", async () => {
     const db = database(({ sql }) =>

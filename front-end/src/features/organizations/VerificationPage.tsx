@@ -6,6 +6,7 @@ import { useSession } from "../../session/useSession";
 import { WelcomePage } from "../authentication/WelcomePage";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { CollaborationNotice } from "./CollaborationNotice";
 
 /** Capture once, clear before rendering links, and never consume a proof on GET/mount. */
 export function readVerificationFragment(): { id: string; token: string; invite: string } {
@@ -31,11 +32,18 @@ export function VerificationPage() {
     meta.name = "referrer"; meta.content = "no-referrer"; if (!old) document.head.append(meta);
     return () => { if (!old) meta.remove(); else meta.content = previous; };
   }, []);
-  if (!isAuthenticated) return <><p>Sign in to the account that requested this verification or received this invitation. Then explicitly confirm below.</p><WelcomePage initialAuthMode="sign-in" /></>;
+  if (fragment.current.invite) return <CollaborationNotice />;
+  if (!isAuthenticated) return <><p>Sign in to the account that requested this verification. Then explicitly confirm below.</p><WelcomePage initialAuthMode="sign-in" /></>;
   async function confirm() {
     setBusy(true); setMessage(null);
     try {
-      if (!id && fragment.current?.invite) { const result = await organizationsApi.join(fragment.current.invite, true); setId(result.verification_id); setMessage("Check your email for a fresh code, then confirm."); }
+      if (!id && fragment.current?.invite) {
+        const result = await organizationsApi.join(fragment.current.invite, true);
+        if ("organization_id" in result) {
+          await queries.invalidateQueries({ queryKey: ["organizations"] });
+          navigate(organizationPath("/workspace/scrapers", result.organization_id), { replace: true });
+        } else { setId(result.verification_id); setMessage("Check your email for a fresh code, then confirm."); }
+      }
       else {
         const result = await organizationsApi.confirm(id, fragment.current?.token ? { email_link_token: fragment.current.token } : { code }, replayKey.current);
         if (result.organization_id) { await queries.invalidateQueries({ queryKey: ["organizations"] }); navigate(organizationPath("/workspace/scrapers", result.organization_id), { replace: true }); }

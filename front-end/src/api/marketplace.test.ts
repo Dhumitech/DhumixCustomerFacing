@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tokenStore } from "../session/tokenStore";
 import { marketplaceApi } from "./marketplace";
 
@@ -14,7 +14,10 @@ const projection = {
   filter: { operator: "and" as const, filters: [] },
 };
 
+beforeEach(() => { window.history.replaceState(null, "", "/o/11111111-1111-4111-8111-111111111111/workspace/scrapers"); });
+
 afterEach(() => {
+  window.history.replaceState(null, "", "/");
   tokenStore.clear();
   sessionStorage.clear();
   vi.unstubAllGlobals();

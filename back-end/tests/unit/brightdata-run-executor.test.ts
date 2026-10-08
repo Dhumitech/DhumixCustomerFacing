@@ -44,6 +44,7 @@ async function fixture(options: {
   readonly now?: () => number;
   readonly submissionError?: Error;
   readonly rawRecords?: readonly Record<string, unknown>[];
+  readonly outputV2?: boolean;
 } = {}) {
   const protector = createLocalProviderReferenceProtector(
     "test",
@@ -75,8 +76,8 @@ async function fixture(options: {
         format: "json",
       },
       normalizer_code: "amazon.products.collect-by-url.projected-array",
-      normalizer_version: 2,
-      normalized_schema_version: "amazon.products.collect-by-url.output.v1",
+      normalizer_version: options.outputV2 ? 3 : 2,
+      normalized_schema_version: options.outputV2 ? "amazon.products.collect-by-url.output.v2" : "amazon.products.collect-by-url.output.v1",
     },
     definitionConfigVersion: "amazon-v1",
     providerCode: "bright_data",
@@ -230,6 +231,18 @@ const executionInput = {
 } as const;
 
 describe("BrightDataRunExecutor", () => {
+  it('uses the revised product contract without another provider call when prices are missing', async () => {
+    const setup = await fixture({ outputV2: true, rawRecords: [{ asin: 'B00CK01P2A', title: 'Unavailable variant',
+      url: 'https://www.amazon.com/dp/B00CK01P2A', domain: 'amazon.com', currency: 'USD', rating: 4.7, reviews_count: 45620,
+      brand: 'Filterbuy', image_url: 'https://m.media-amazon.com/images/I/example.jpg', timestamp: '2026-10-08T07:51:30Z' }] });
+    const result = await setup.executor.persistNormalized(executionInput);
+    expect(result.artifactId).toBe('normalized-artifact-id');
+    expect(setup.ingested[0]?.recordCount).toBe(1);
+    expect(JSON.parse(setup.ingested[0]!.bytes.toString('utf8'))[0]).toMatchObject({ final_price: null, initial_price: null, availability: null });
+    expect(setup.client.submit).not.toHaveBeenCalled();
+    expect(setup.client.trigger).not.toHaveBeenCalled();
+    expect(setup.client.download).not.toHaveBeenCalled();
+  });
   it("measures the new seam removing the legacy error-classification reread without changing its terminal outcome", async () => {
     const records = [{ error: "private fixture failure", error_code: "aborted_page" }];
     const legacy = await fixture({ rawRecords: records });

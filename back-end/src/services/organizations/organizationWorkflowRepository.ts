@@ -72,8 +72,53 @@ function matchesInvite(invite: InviteRow | undefined, user: UserRow): invite is 
   return !!invite?.usable && (invite.email === null || invite.email === user.email_normalized);
 }
 
-export function createOrganizationWorkflowRepository(input: { identityPool: Pool; customerPool: Pool; otpSecret: string; publicUrl: string; inviteResendLifetimeDays: number }): OrganizationWorkflowRepository {
-  const { identityPool, customerPool, otpSecret, publicUrl, inviteResendLifetimeDays } = input;
+async function hasCreatedOrganization(db: DatabaseExecutor, userId: string): Promise<boolean> {
+  // Identity RLS admits the caller's own organizations, including those where
+  // membership was later removed. Creation is a lifetime limit, not a role test.
+  const result = await db.query<{ has_created: boolean }>(
+    "SELECT EXISTS (SELECT 1 FROM app.organizations WHERE created_by_user_id = $1) AS has_created", [userId]);
+  return result.rows[0]?.has_created === true;
+}
+async function requireFirstOrganization(db: DatabaseExecutor, userId: string): Promise<void> {
+  if (await hasCreatedOrganization(db, userId)) throw workflowConflict("You can create only one organization");
+}
+
+export function createOrganizationWorkflowRepository(input: { identityPool: Pool; customerPool: Pool; otpSecret: string; publicUrl: string; inviteResendLifetimeDays: number; demoDisableOtp?: boolean }): OrganizationWorkflowRepository {
+  const { identityPool, customerPool, otpSecret, publicUrl, inviteResendLifetimeDays, demoDisableOtp = false } = input;
+  async function completeOrganization(db: DatabaseExecutor, user: UserRow, purpose: "create_organization" | "join_organization", payload: Record<string, unknown>, req: WorkflowRequest, id: string, demo = false): Promise<WorkflowResponse> {
+    let organizationId: string;
+    if (purpose === "create_organization") {
+      await requireFirstOrganization(db, user.id);
+      organizationId = randomUUID();
+      await db.query("INSERT INTO app.organizations (id, name, created_by_user_id) VALUES ($1, $2, $3)", [organizationId, payload.organization_name, user.id]);
+      await db.query("SELECT set_config('app.organization_id', $1, true)", [organizationId]);
+      await db.query("INSERT INTO app.organization_members (organization_id, user_id, role) VALUES ($1, $2, 'admin')", [organizationId, user.id]);
+    } else {
+      organizationId = String(payload.organization_id);
+      const hash = Buffer.from(String(payload.invite_token_hash), "hex");
+      await db.query("SELECT set_config('app.invite_token_hash', $1, true), set_config('app.organization_id', $2, true)", [hash.toString("hex"), organizationId]);
+      const organization = await db.query("SELECT id FROM app.organizations WHERE id = $1 AND state = 'active' FOR UPDATE", [organizationId]);
+      if (!organization.rows[0]) throw workflowConflict("Invitation unavailable");
+      const members = await db.query<MemberRow>("SELECT user_id, role, state FROM app.organization_members WHERE organization_id = $1 ORDER BY user_id FOR UPDATE", [organizationId]);
+      const invitation = await db.query<InviteRow>(`SELECT id, organization_id, email, token_hash, role, max_uses, use_count,
+        (revoked_at IS NULL AND expires_at > clock_timestamp() AND (max_uses IS NULL OR use_count < max_uses)) AS usable
+        FROM app.organization_invites WHERE id = $1 AND organization_id = $2 FOR UPDATE`, [payload.invite_id, organizationId]);
+      const invite = invitation.rows[0];
+      if (!matchesInvite(invite, user) || !equalDigest(invite.token_hash, hash)) throw workflowConflict("Invitation unavailable");
+      await recheckProofDeadline(db, id);
+      const member = members.rows.find((row) => row.user_id === user.id);
+      if (member?.state !== "active") {
+        if (member && member.state !== "removed") throw workflowConflict();
+        if (member) await db.query("UPDATE app.organization_members SET state = 'active', role = $3, invite_id = $4 WHERE organization_id = $1 AND user_id = $2", [organizationId, user.id, invite.role, invite.id]);
+        else await db.query("INSERT INTO app.organization_members (organization_id, user_id, role, invite_id) VALUES ($1, $2, $3, $4)", [organizationId, user.id, invite.role, invite.id]);
+        await db.query("UPDATE app.organization_invites SET use_count = use_count + 1 WHERE id = $1", [invite.id]);
+      }
+    }
+    if (!demo) await db.query("UPDATE app.users SET email_verified_at = COALESCE(email_verified_at, clock_timestamp()) WHERE id = $1", [user.id]);
+    await audit(db, req, (purpose === "create_organization" ? "organization.created" : "organization.joined") + (demo ? ".demo_without_otp" : ""), "tenant", organizationId, organizationId);
+    await db.query("UPDATE app.email_verifications SET consumed_at = clock_timestamp(), payload = NULL WHERE id = $1", [id]);
+    return { confirmed: true, organization_id: organizationId, ...(demo ? { verification_skipped: true } : {}) };
+  }
   async function issue(db: DatabaseExecutor, user: UserRow, purpose: VerificationPurpose, payload: Record<string, unknown>, traceId: string): Promise<WorkflowResult> {
     // The user lock serializes issuance across every purpose and every API instance.
     const usage = await db.query<{ count: number; cooling: boolean }>(`SELECT count(*)::int AS count,
@@ -118,11 +163,14 @@ export function createOrganizationWorkflowRepository(input: { identityPool: Pool
       const safeBody = action === "acceptInvite" ? { token_hash: digest(String(req.body.join_code ?? req.body.invite_token)).toString("hex") }
         : action === "passwordReset" ? { email_hash: digest(user.email_normalized).toString("hex") } : { name: String(req.body.name).trim() };
       const claim = await claimWorkflow(db, { userId: action === "passwordReset" ? `password-reset:${codeHash(otpSecret, "request", "public", "password_reset", resetEmail).toString("hex")}` : userId,
-        operation: action, key: req.key, fingerprint: safeBody });
+        operation: action, key: req.key, fingerprint: demoDisableOtp ? { ...safeBody, demo_without_otp: true } : safeBody });
       if (claim.replay) return { response: claim.replay };
       let payload: Record<string, unknown> = {};
       let purpose: VerificationPurpose = "password_reset";
-      if (action === "createOrganization") { purpose = "create_organization"; payload = { organization_name: String(req.body.name).trim() }; }
+      if (action === "createOrganization") {
+        await requireFirstOrganization(db, user.id);
+        purpose = "create_organization"; payload = { organization_name: String(req.body.name).trim() };
+      }
       if (action === "acceptInvite") {
         purpose = "join_organization";
         const hash = digest(String(req.body.join_code ?? req.body.invite_token));
@@ -131,6 +179,19 @@ export function createOrganizationWorkflowRepository(input: { identityPool: Pool
         const org = await db.query<{ id: string }>("SELECT id FROM app.organizations WHERE id = $1 AND state = 'active'", [invite.organization_id]);
         if (!org.rows[0]) throw workflowConflict("Invitation unavailable");
         payload = { invite_id: invite.id, organization_id: invite.organization_id, invite_token_hash: hash.toString("hex") };
+      }
+      if (demoDisableOtp) {
+        const id = randomUUID();
+        // Existing RLS requires a bound workflow context. This receipt is created
+        // and consumed in the same transaction: no OTP, mailbox proof or delivery.
+        // The audit action records the bypass; email_verified_at stays unchanged.
+        await bindVerification(db, id);
+        await db.query(`INSERT INTO app.email_verifications (id, user_id, purpose, code_hash, payload, expires_at, trace_id)
+          VALUES ($1, $2, $3, $4, $5::jsonb, clock_timestamp() + interval '10 minutes', $6)`,
+          [id, user.id, purpose, digest(randomUUID()), JSON.stringify({ ...payload, email: user.email_normalized, demo_without_otp: true }), req.traceId]);
+        const response = await completeOrganization(db, user, purpose as "create_organization" | "join_organization", payload, req, id, true);
+        await completeWorkflow(db, claim.id, action === "createOrganization" ? 201 : 200, response);
+        return { response };
       }
       let result: WorkflowResult;
       try { result = await issue(db, user, purpose, payload, req.traceId); }
@@ -208,37 +269,7 @@ export function createOrganizationWorkflowRepository(input: { identityPool: Pool
         await audit(db, { ...req, userId: user.id }, "identity.password_reset", "user", user.id);
         response = { confirmed: true, sign_in_required: true };
       } else {
-        let organizationId: string;
-        if (pending.purpose === "create_organization") {
-          organizationId = randomUUID();
-          await db.query("INSERT INTO app.organizations (id, name, created_by_user_id) VALUES ($1, $2, $3)", [organizationId, payload.organization_name, user.id]);
-          await db.query("SELECT set_config('app.organization_id', $1, true)", [organizationId]);
-          await db.query("INSERT INTO app.organization_members (organization_id, user_id, role) VALUES ($1, $2, 'admin')", [organizationId, user.id]);
-        } else {
-          organizationId = String(payload.organization_id);
-          const hash = Buffer.from(String(payload.invite_token_hash), "hex");
-          await db.query("SELECT set_config('app.invite_token_hash', $1, true), set_config('app.organization_id', $2, true)", [hash.toString("hex"), organizationId]);
-          const organization = await db.query("SELECT id FROM app.organizations WHERE id = $1 AND state = 'active' FOR UPDATE", [organizationId]);
-          if (!organization.rows[0]) throw workflowConflict("Invitation unavailable");
-          const members = await db.query<MemberRow>("SELECT user_id, role, state FROM app.organization_members WHERE organization_id = $1 ORDER BY user_id FOR UPDATE", [organizationId]);
-          const invitation = await db.query<InviteRow>(`SELECT id, organization_id, email, token_hash, role, max_uses, use_count,
-            (revoked_at IS NULL AND expires_at > clock_timestamp() AND (max_uses IS NULL OR use_count < max_uses)) AS usable
-            FROM app.organization_invites WHERE id = $1 AND organization_id = $2 FOR UPDATE`, [payload.invite_id, organizationId]);
-          const invite = invitation.rows[0];
-          if (!matchesInvite(invite, user) || !equalDigest(invite.token_hash, hash)) throw workflowConflict("Invitation unavailable");
-          await recheckProofDeadline(db, id);
-          const member = members.rows.find((row) => row.user_id === user.id);
-          if (member?.state !== "active") {
-            if (member && member.state !== "removed") throw workflowConflict();
-            if (member) await db.query("UPDATE app.organization_members SET state = 'active', role = $3, invite_id = $4 WHERE organization_id = $1 AND user_id = $2", [organizationId, user.id, invite.role, invite.id]);
-            else await db.query("INSERT INTO app.organization_members (organization_id, user_id, role, invite_id) VALUES ($1, $2, $3, $4)", [organizationId, user.id, invite.role, invite.id]);
-            await db.query("UPDATE app.organization_invites SET use_count = use_count + 1 WHERE id = $1", [invite.id]);
-          }
-        }
-        await db.query("UPDATE app.users SET email_verified_at = COALESCE(email_verified_at, clock_timestamp()) WHERE id = $1", [user.id]);
-        await audit(db, req, pending.purpose === "create_organization" ? "organization.created" : "organization.joined", "tenant", organizationId, organizationId);
-        await db.query("UPDATE app.email_verifications SET consumed_at = clock_timestamp(), payload = NULL WHERE id = $1", [id]);
-        response = { confirmed: true, organization_id: organizationId };
+        response = await completeOrganization(db, user, pending.purpose, payload, req, id);
       }
       await completeWorkflow(db, claim.id, 200, response);
       return { response };
@@ -308,7 +339,7 @@ export function createOrganizationWorkflowRepository(input: { identityPool: Pool
           const invite = response.invite as { email: string | null };
           const inviteUrl = `${publicUrl}/invite#invite_token=${token}`;
           minted = invite.email ? { invite_token: token, invite_url: inviteUrl } : { join_code: token };
-          if (invite.email) mail = { recipient: invite.email, traceId: req.traceId, purpose: "organization_invite", subject: "Dhumi organization invitation", text: `Sign in or sign up with this email address, then open ${inviteUrl}\nJoining requires fresh email verification.` };
+          if (invite.email && !demoDisableOtp) mail = { recipient: invite.email, traceId: req.traceId, purpose: "organization_invite", subject: "Dhumi organization invitation", text: `Sign in or sign up with this email address, then open ${inviteUrl}\nJoining requires fresh email verification.` };
         }
         await audit(db, req, `organization.${action}`, "organization_invite", id!, context.tenantId);
       }
@@ -318,14 +349,16 @@ export function createOrganizationWorkflowRepository(input: { identityPool: Pool
     });
   }
   return { async run(action, req) {
+    if (demoDisableOtp && ["passwordReset", "confirmVerification", "resendVerification"].includes(action))
+      throw new ApplicationError({ status: 403, code: "ACCESS_DENIED", title: "Email verification and password reset are unavailable in this demo" });
     if (action === "listOrganizations") {
       return withIdentityUserTransaction(identityPool, req.userId!, async (db) => {
         const user = await db.query("SELECT id FROM app.users WHERE id = $1 AND state = 'active'", [req.userId]);
         if (!user.rows[0]) throw forbidden();
-        const result = await db.query(`SELECT t.id, t.name AS name, t.state, m.role AS role
+        const result = await db.query(`SELECT t.id, t.name AS name, t.state, m.role AS role, (t.created_by_user_id = $1) AS is_creator
           FROM app.organizations t JOIN app.organization_members m ON m.organization_id = t.id
           WHERE m.user_id = $1 AND m.state = 'active' AND t.state = 'active' ORDER BY t.created_at, t.id`, [req.userId]);
-        return { response: { organizations: result.rows } };
+        return { response: { organizations: result.rows, can_create: !(await hasCreatedOrganization(db, req.userId!)) } };
       });
     }
     if (["createOrganization", "acceptInvite", "passwordReset"].includes(action)) return begin(action, req);

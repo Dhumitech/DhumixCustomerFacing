@@ -147,7 +147,7 @@ function createBackendFetch() {
     const request = input as Request;
     const url = new URL(request.url);
 
-    if (url.pathname === "/v1/organizations") return jsonResponse({ organizations: [] });
+    if (url.pathname === "/v1/organizations") return jsonResponse({ can_create: false, organizations: [{ id: "11111111-1111-4111-8111-111111111111", name: "Acme Research", state: "active", role: "admin", is_creator: true }] });
     if (url.pathname === "/v1/workspace") {
       return jsonResponse({
         id: "workspace-1",
@@ -276,6 +276,20 @@ afterEach(() => {
 });
 
 describe("Workspace scraper journey", () => {
+  it("offers the organization selector below workspace status in the sidebar and allows keyboard dismissal", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+    const selector = await screen.findByRole("button", { name: "Acme Research" });
+    const footer = selector.closest(".workspace-rail__footer");
+    expect(footer).not.toBeNull();
+    expect(footer).toHaveTextContent("Workspace active");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(selector);
+    expect(screen.getByRole("dialog", { name: "Your organization" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(selector).toHaveFocus();
+  });
   it("shows backend workspace and customer context above the published catalogue", async () => {
     renderWorkspace();
 

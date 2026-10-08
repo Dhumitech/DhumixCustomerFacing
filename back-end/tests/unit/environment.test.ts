@@ -56,6 +56,30 @@ function validResultRecorderEnvironment(): NodeJS.ProcessEnv {
 }
 
 describe("loadRuntimeConfig", () => {
+  it("uses Azure client credentials consistently for API and result recorder", () => {
+    const cloud = {
+      RESULT_STORAGE_DRIVER: "azure_blob", RESULT_STORAGE_CONNECTION_STRING: "", RESULT_DOWNLOAD_PROXY_URL: "",
+      AZURE_STORAGE_ACCOUNT_NAME: "examplestorage123", AZURE_TENANT_ID: "11111111-1111-4111-8111-111111111111",
+      AZURE_CLIENT_ID: "22222222-2222-4222-8222-222222222222", AZURE_CLIENT_SECRET: "test-only-client-secret",
+    };
+    const api = loadRuntimeConfig({ ...validEnvironment(), ...cloud }).resultStorage;
+    const recorder = loadResultRecorderConfig({ ...validResultRecorderEnvironment(), ...cloud }).resultStorage;
+    expect(api).toMatchObject({ driver: "azure_blob", connectionString: null,
+      azure: { accountName: cloud.AZURE_STORAGE_ACCOUNT_NAME, clientSecret: cloud.AZURE_CLIENT_SECRET } });
+    expect(recorder.azure).toEqual(api.azure);
+    expect(api).not.toHaveProperty("publicBaseUrl");
+    expect(() => loadRuntimeConfig({ ...validEnvironment(), ...cloud, AZURE_CLIENT_SECRET: "" })).toThrow(/AZURE_CLIENT_SECRET/);
+    expect(() => loadRuntimeConfig({ ...validEnvironment(), ...cloud, RESULT_STORAGE_CONNECTION_STRING: "UseDevelopmentStorage=true" }))
+      .toThrow(/must be unset/);
+    expect(() => loadRuntimeConfig({ ...validEnvironment(), ...cloud, RESULT_DOWNLOAD_PROXY_URL: "http://localhost:5173/blob" }))
+      .toThrow(/proxy must be unset/);
+  });
+  it("uses secure cookies for an HTTPS demo and binds its result proxy to the same frontend", () => {
+    const env = { ...validEnvironment(), FRONTEND_ORIGIN: "https://demo.example", RESULT_DOWNLOAD_PROXY_URL: "https://demo.example/blob" };
+    expect(loadRuntimeConfig(env).session.cookie.secure).toBe(true);
+    expect(loadRuntimeConfig(env).resultStorage.publicBaseUrl).toBe("https://demo.example/blob");
+    expect(() => loadRuntimeConfig({ ...env, RESULT_DOWNLOAD_PROXY_URL: "https://other.example/blob" })).toThrow("FRONTEND_ORIGIN");
+  });
   it("loads a valid local configuration", () => {
     const config = loadRuntimeConfig(validEnvironment());
 

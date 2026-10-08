@@ -70,11 +70,11 @@ async function countsFor(identityPool: Pool, emailNormalized: string): Promise<C
       `
         SELECT
           (SELECT count(*) FROM app.users u WHERE u.email_normalized = $1) AS users,
-          (SELECT count(*) FROM app.tenants t
-             JOIN app.tenant_user_access a ON a.tenant_id = t.id
+          (SELECT count(*) FROM app.organizations t
+             JOIN app.organization_members a ON a.organization_id = t.id
              JOIN app.users u2 ON u2.id = a.user_id
             WHERE u2.email_normalized = $1) AS tenants,
-          (SELECT count(*) FROM app.tenant_user_access a2
+          (SELECT count(*) FROM app.organization_members a2
              JOIN app.users u3 ON u3.id = a2.user_id
             WHERE u3.email_normalized = $1 AND a2.state = 'active') AS access
       `,
@@ -159,7 +159,7 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
     await expect(createSignupRepository(pools!.identity).createSignup(conflicting)).rejects.toBeInstanceOf(ApplicationError);
   });
 
-  it("accepts an existing email without creating organization access", async () => {
+  it("rejects a normalized duplicate email without changing password, legal evidence or organization access", async () => {
     const email = uniqueEmail();
     await service().submit({
       email,
@@ -170,14 +170,30 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
       requestId: randomUUID(),
     });
 
-    // A different Idempotency-Key, so this is a genuine second submission.
-    await service().submit({
-      email,
+    const original = await withIdentityTransaction(pools!.identity, async (database) => {
+      const identity = (await database.query<{ id: string; password_hash: string }>(
+        "SELECT id, password_hash FROM app.users WHERE email_normalized=$1", [email],
+      )).rows[0]!;
+      await database.query("SELECT set_config('app.user_id', $1, true)", [identity.id]);
+      const legal = (await database.query("SELECT count(*)::int total FROM app.legal_acceptances WHERE user_id=$1", [identity.id])).rows[0]?.total;
+      return { identity, legal };
+    });
+    // A different key is a fresh submission, not an accepted-request retry.
+    const duplicate = {
+      email: ` ${email.toUpperCase()} `,
       password: "a-different-sufficiently-long-password",
       workspaceName: "Second Workspace",
       legalAcceptances: acceptances(),
       idempotencyKey: `signup-int-${randomUUID()}`,
       requestId: randomUUID(),
+    };
+    await expect(service().submit(duplicate)).rejects.toMatchObject({ status: 409, code: "ACCOUNT_ALREADY_EXISTS" });
+    await expect(service().submit(duplicate)).rejects.toMatchObject({ status: 409, code: "ACCOUNT_ALREADY_EXISTS" });
+    await withIdentityTransaction(pools!.identity, async (database) => {
+      const row = (await database.query("SELECT password_hash FROM app.users WHERE id=$1", [original.identity.id])).rows[0];
+      expect(row?.password_hash).toBe(original.identity.password_hash);
+      await database.query("SELECT set_config('app.user_id', $1, true)", [original.identity.id]);
+      expect((await database.query("SELECT count(*)::int total FROM app.legal_acceptances WHERE user_id=$1", [original.identity.id])).rows[0]?.total).toBe(original.legal);
     });
 
     expect(await countsFor(pools!.identity, email)).toEqual({
@@ -214,6 +230,16 @@ describe.skipIf(!databaseTestsEnabled)("signup against PostgreSQL", () => {
       tenants: 0,
       access: 0,
     });
+  });
+  it("accepts exactly one concurrent fresh signup and rejects the other duplicate", async () => {
+    const email = uniqueEmail();
+    const submit = () => service().submit({ email, password: "a-sufficiently-long-password",
+      legalAcceptances: acceptances(), idempotencyKey: `signup-int-${randomUUID()}`, requestId: randomUUID() });
+    const results = await Promise.allSettled([submit(), submit()]);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    const failure = results.find(result => result.status === "rejected");
+    expect(failure?.status === "rejected" && failure.reason).toMatchObject({ status: 409, code: "ACCOUNT_ALREADY_EXISTS" });
+    expect(await countsFor(pools!.identity, email)).toEqual({ users: 1, tenants: 0, access: 0 });
   });
 
   it("treats a whitespace-padded workspace name as the same request", async () => {

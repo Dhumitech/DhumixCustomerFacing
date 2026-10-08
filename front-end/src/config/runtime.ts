@@ -4,7 +4,7 @@ const DEFAULT_LOCAL_API_ORIGIN = "http://localhost:3000";
 const HASH_PATTERN = /^[A-Fa-f0-9]{64}$/;
 
 function readApiOrigin(value: string | undefined): string {
-  const candidate = value?.trim() || DEFAULT_LOCAL_API_ORIGIN;
+  const candidate = value?.trim() || (import.meta.env.PROD ? window.location.origin : DEFAULT_LOCAL_API_ORIGIN);
   const parsed = new URL(candidate);
 
   if (

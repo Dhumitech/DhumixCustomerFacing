@@ -22,6 +22,7 @@ export interface SignupRepositoryInput {
 }
 export type SignupOutcome =
   | { readonly kind: "completed"; readonly userId: string | null; readonly replayed: boolean }
+  | { readonly kind: "existing"; readonly replayed: boolean }
   | { readonly kind: "in_progress" };
 export interface SignupRepository {
   createSignup(input: SignupRepositoryInput): Promise<SignupOutcome>;
@@ -80,6 +81,9 @@ export function createSignupRepository(pool: Pool): SignupRepository {
               });
             }
             if (claim.state === "completed") {
+              if (claim.response_status === 409 && claim.response_body_reference === "auth-account-exists:v1") {
+                return { kind: "existing", replayed: true };
+              }
               return { kind: "completed", userId: claim.related_resource_id, replayed: true };
             }
             return { kind: "in_progress" };
@@ -123,22 +127,26 @@ export function createSignupRepository(pool: Pool): SignupRepository {
           await database.query(
             `INSERT INTO app.audit_events
                (action, target_type, target_id, outcome, trace_id)
-             VALUES ($1, 'user', $2, 'accepted_generic', $3)`,
+             VALUES ($1, 'user', $2, $4, $3)`,
             [
               created === undefined ? "identity.signup_existing" : "identity.signup",
               auditUserId,
               input.requestId,
+              created === undefined ? "rejected_existing" : "accepted",
             ],
           );
           // Target explicitly retires the unused signup notification outbox.
           await database.query(
-            `UPDATE app.idempotency_records SET state = 'completed', response_status = 202,
+            `UPDATE app.idempotency_records SET state = 'completed', response_status = $3,
                resource_type = 'signup_request', resource_id = NULL, related_resource_id = $2,
-               response_body_reference = 'auth-accepted:v2', completed_at = clock_timestamp()
+               response_body_reference = $4, completed_at = clock_timestamp()
              WHERE id = $1`,
-            [claim.id, created ?? null],
+            [claim.id, created ?? null, created === undefined ? 409 : 202,
+              created === undefined ? "auth-account-exists:v1" : "auth-accepted:v2"],
           );
-          return { kind: "completed", userId: created ?? null, replayed: false };
+          return created === undefined
+            ? { kind: "existing", replayed: false }
+            : { kind: "completed", userId: created, replayed: false };
         });
       } catch (error) {
         if (error instanceof ApplicationError) throw error;

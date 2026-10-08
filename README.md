@@ -1,6 +1,43 @@
 # Dhumi customer portal
 
-Current local refactor: [0075 status and checkout guidance](docs/runbooks/refactor-status.md), only in `dhumi_test`: **25 tables / 279 stored columns / 75 migrations**. Source stays in the existing root packages. Local context, snapshots, credentials and runtime evidence are Git-ignored. Existing database identities/passwords remain until their separately qualified replacement. Normal private-env startup still needs owner-provided `OTP_SECRET` and `EMAIL_FROM`. The original setup commands below are historical baseline guidance; do not replay bootstrap/migrations, replace the owner's `.env`, enable another database or start external services merely to follow them.
+**Current deployment, 9 October: [hosted Azure demo](deploy/azure/Container-Apps.md).**
+Frontend, internal API, outbox and Job Manager run in Azure Container Apps using
+the tested pinned images and role-scoped mounted secrets. [Open the HTTPS portal](https://ca-dhumi-frontend-ci-01.bluerock-9b30fd6a.centralindia.azurecontainerapps.io).
+All four Azure connections, existing organization/scraper/Run/usage reads,
+four verified downloads, HTTPS/CORS and all-role logs pass. No OTP/create-only
+organizations/Marketplace Coming soon remain. The 4173 Docker roles are stopped
+and PC workers paused; do not restart them alongside cloud workers. Existing
+app rows and credentials remain, with only four normal download audit receipts
+added. Fresh cloud signup/collection manual acceptance is next. The dated
+deployment notes below describe preceding boundaries, not the active runtime.
+
+Latest Azure foundation, 9 October: [Container Apps environment and Log Analytics](deploy/azure/Container-Apps-Environment.md)
+are created and verified, with a dedicated new app VNet. `cae-dhumi-ci-01` uses
+the Consumption profile and zone redundancy; `law-dhumi-ci-01` keeps 30 days
+of logs. The master env, existing database network and running 4173 Docker demo
+remain unchanged. Hosted frontend/API/workers and their cloud acceptance are
+the next deployment step.
+
+Latest Azure resource, 9 October: [Container Registry](deploy/azure/Container-Registry.md)
+is created as `acrdhumici01` in the existing Central India resource group.
+Both tested Docker images are published and verified by digest/pull, with
+admin/anonymous access disabled. The current portal remains on 4173 and the
+private env is unchanged. Container Apps environment, logging and application
+hosting remain the next deployment steps.
+
+Current manual deployment rehearsal, 9 October: [fresh Docker applications with Azure dependencies](deploy/azure-rehearsal/README.md), at http://127.0.0.1:4173. Frontend/API/outbox/jobs run in Linux containers using the unchanged private `.env.azure`. The preceding PC application roles are paused. Data/services are shared with Azure; there is no database copy or emulator. Existing Run/usage/download checks and container recreation pass; 105 frontend tests pass. Use this portal for the next manual test, preserving no OTP/create-only behavior. Public Azure application hosting remains pending.
+
+Latest connection update, 9 October: [portable Azure connections](deploy/azure/Portable-Connections.md). The filled private `.env.azure` connects API/outbox/jobs directly over verified TLS; its public CA is embedded. Developers can use the same env without SSH keys, tunnels or certificate-file paths. Use the handoff commands there instead of historical bootstrap instructions below. Application hosting remains local.
+
+Current refactored baseline: [0075 status and checkout guidance](docs/runbooks/refactor-status.md), **25 tables / 279 stored columns / 75 migrations**. It was qualified in `dhumi_test` and later copied into Azure `dhumi_shared.app`. Source stays in the existing root packages. Local context, snapshots, credentials and runtime evidence are Git-ignored. Existing database passwords remain; the owner has deferred identity consolidation and further unnecessary refactors in favor of deployment readiness. The original setup commands below are historical baseline guidance; do not replay bootstrap/migrations, replace the owner's `.env`, enable another database or start external services merely to follow them.
+
+Temporary [quick demo without OTP](docs/runbooks/demo-no-otp.md): signup/sign-in and immediate organization creation work without email proof. New users see mandatory themed onboarding; returning users keep a validated active organization. Each user may create one organization. Invitations, joining and activity are deferred; password reset is unavailable in this mode. Passwords, CSRF and server authorization remain required.
+
+The current backend uses [one private deployment environment](deploy/azure/Backend-Environment.md), `back-end/.env.azure`, projected into each process's required credentials. `deployment:check`, `storage:check`, `queue:check` and `redis:check` validate configuration and real Azure connections. Both workers use [Azure Service Bus](deploy/azure/Service-Bus.md), and Job Manager uses [secured Azure Redis](deploy/azure/Redis.md). The owner retains no OTP for this Azure demo; cloud hosting and normal production authentication are later steps.
+
+The [qualified Docker demo package](deploy/demo/README.md) is rehearsed at http://127.0.0.1:3900 in a separate database copy. It includes compiled API/workers, the portal, private infrastructure and an HTTPS deployment recipe. Both package checks pass (1,211 backend tests / 95 frontend tests), with 22 live API checks and all 39 stored object downloads verified. No cloud host has been provisioned.
+
+The current working session uses [the Azure-connected backend](deploy/azure/Connected-Backend.md): Azure `dhumi_shared.app` has **25 tables / 75 entries**, and all 36 referenced results are in real Azure Blob Storage. Both workers use Azure Service Bus; Job Manager uses Azure Redis. The live `leads_engine` is preserved. API/workers/portal hosting remains local. [Open the portal](http://localhost:5173) and follow [manual test steps](docs/runbooks/azure-manual-testing.md). The [Docker/Azurite runbook](docs/runbooks/local-docker-demo.md) belongs to the retained source stack; `demo:start` must not silently switch this connected session back. Real Bright Data execution remains, and qualification submits no paid Run. [Managed hosting requirements](docs/runbooks/real-demo-deployment-readiness.md) remain separate.
 
 Dhumi is a customer-facing portal for authenticated, tenant-isolated scraper Runs and Dataset Marketplace previews. Customers use the React portal and Dhumi API; provider credentials and private storage identifiers stay on the backend. The local backend has three processes: Customer API, Outbox Dispatcher, and Job Manager.
 

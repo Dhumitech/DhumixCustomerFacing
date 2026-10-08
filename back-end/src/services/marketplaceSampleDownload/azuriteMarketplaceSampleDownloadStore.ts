@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { publicDownloadUrl } from "../storage/publicDownloadUrl.js";
 import {
   BlobSASPermissions,
   BlobServiceClient,
@@ -95,8 +96,10 @@ function same(
 
 export function createAzuriteMarketplaceSampleDownloadStore(
   container: ContainerClient,
+  publicBaseUrl?: string,
 ): MarketplaceSampleDownloadStore & MarketplaceSampleDownloadCleanupStore {
   requireLoopback(container);
+  if (publicBaseUrl) publicDownloadUrl(container.url, publicBaseUrl);
   const store: MarketplaceSampleDownloadStore & MarketplaceSampleDownloadCleanupStore = {
     async putImmutable(input) {
       if (!matchesIdentity(input.objectKey, input.tenantId, input.authorizationId) ||
@@ -163,7 +166,7 @@ export function createAzuriteMarketplaceSampleDownloadStore(
         contentType: input.receipt.contentType,
         contentDisposition: `attachment; filename="${input.receipt.fileName}"`,
       });
-      return { downloadUrl, expiresAt: input.expiresAt, transport: "loopback-http" as const };
+      return { ...publicDownloadUrl(downloadUrl, publicBaseUrl), expiresAt: input.expiresAt };
     },
 
     async deleteIfMatching(input) {
@@ -208,6 +211,7 @@ export function createAzuriteMarketplaceSampleDownloadStore(
 export async function createConfiguredMarketplaceSampleDownloadStore(input: {
   readonly connectionString: string;
   readonly containerName: string;
+  readonly publicBaseUrl?: string;
 }): Promise<MarketplaceSampleDownloadStore & MarketplaceSampleDownloadCleanupStore> {
   const container = BlobServiceClient.fromConnectionString(input.connectionString)
     .getContainerClient(input.containerName);
@@ -215,5 +219,5 @@ export async function createConfiguredMarketplaceSampleDownloadStore(input: {
   if ((await container.getAccessPolicy()).blobPublicAccess !== undefined) {
     throw new Error("Marketplace sample-download container must be private");
   }
-  return createAzuriteMarketplaceSampleDownloadStore(container);
+  return createAzuriteMarketplaceSampleDownloadStore(container, input.publicBaseUrl);
 }
